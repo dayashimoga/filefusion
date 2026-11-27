@@ -171,3 +171,11 @@
 ### Subphase 1.1.3 — Configuration Management (Phase 1.1 Complete)
 - **Added:** Schema-versioned configuration system (`FileFusionConfig`, `PrivacyConfig`, `BatchDefaults`, `CollisionPolicy`, `PathConfig`, `LoadedConfig`, `CliConfigOverrides`) in `crates/file-core/src/config.rs` with TOML support, deterministic multi-layer resolution, traversal/privacy validation, and atomic writes; CLI `--config`, `--workers`, `--max-memory-mb`, `--quiet`, `--no-color`, and `filefusion config show|path|init|validate` subcommands plus `DoctorReport.effective_limits`.
 - **Changed:** Extended `FileFusionError` with `.with_exit_code(...)` for `CliExitCode::InvalidUsage`, wired `ansi_color` / `NO_COLOR` in `LoggingConfig`, backfilled `e27daed` (`stage-1.1.2`) in `docs/PROGRESS.md`, and appended Entry 021 to `TODO.md`.
+
+---
+
+## [0.1.3-stage1.2.1] — 2026-11-27
+
+### Subphase 1.2.1 — File Signature Detection (Phase 1.2 Begin)
+- **Added:** Multi-offset magic-byte and container signature detector (`crates/file-core/src/signature.rs`: `SignatureMatch`, `DetectionConfidence`, `detect_signature_from_bytes`, `detect_signature_from_reader`, `detect_signature_from_path`, `enforce_spoofing_policy`), expanded `FormatId` / `MediaKind` MIME & extension mappings, `job_manager::probe_file_signature`, and CLI `filefusion inspect [--strict] [--json]`.
+- **Changed:** Backfilled `24e9bc1` (`stage-1.1.3`) in `docs/PROGRESS.md` and appended Entry 022 to `TODO.md`.

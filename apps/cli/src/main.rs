@@ -14,9 +14,12 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand, ValueEnum};
 use file_core::{
     CORE_SCHEMA_VERSION, CliConfigOverrides, CliExitCode, ErrorCode, FileFusionError, LogFormat,
-    LogLevel, init_logging, resolve_default_config_path, save_config_atomic, workspace_identity,
+    LogLevel, SignatureMatch, init_logging, resolve_default_config_path, save_config_atomic,
+    workspace_identity,
 };
-use job_manager::{DoctorReport, load_runtime_config, run_doctor_probe_with_config};
+use job_manager::{
+    DoctorReport, load_runtime_config, probe_file_signature, run_doctor_probe_with_config,
+};
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -83,6 +86,18 @@ struct Cli {
 enum Commands {
     /// Inspect host environment, resource ceilings, and Tier 1/Tier 2 engine readiness.
     Doctor {
+        /// Emit machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Probe true binary/container signature and detect extension spoofing (`FR-DET-001..002`).
+    Inspect {
+        /// Target file path to inspect.
+        #[arg(value_name = "PATH")]
+        path: PathBuf,
+        /// Fail with exit code 3 (`FF-ERR-SEC-SPOOFED`) if extension contradicts true signature.
+        #[arg(long)]
+        strict: bool,
         /// Emit machine-readable JSON output.
         #[arg(long)]
         json: bool,
@@ -216,9 +231,34 @@ fn report_cli_error(err: &FileFusionError, json_mode: bool) -> CliExitCode {
     err.exit_code()
 }
 
+fn format_signature_human(probe: &SignatureMatch) -> String {
+    let ext = probe.claimed_extension.as_deref().unwrap_or("<none>");
+    let spoof_line = if probe.spoofing_mismatch {
+        format!(
+            "Spoofing Alert: YES ({})",
+            probe
+                .spoofing_reason
+                .as_deref()
+                .unwrap_or("extension mismatch")
+        )
+    } else {
+        String::from("Spoofing Alert: none")
+    };
+    format!(
+        "Detected Format: {:?}\nMIME Type: {}\nMedia Kind: {:?}\nConfidence: {:?} ({})\nClaimed Extension: {}\n{}",
+        probe.detected_format,
+        probe.mime_type,
+        probe.media_kind,
+        probe.confidence,
+        probe.matched_rule,
+        ext,
+        spoof_line,
+    )
+}
+
 const fn command_requests_json(command: &Commands) -> bool {
     match command {
-        Commands::Doctor { json } => *json,
+        Commands::Doctor { json } | Commands::Inspect { json, .. } => *json,
         Commands::Config { action } => match action {
             ConfigAction::Show { json }
             | ConfigAction::Path { json }
@@ -372,6 +412,16 @@ fn run() -> CliExitCode {
                 emit_text_stdout(&format_doctor_human(&report), false)
             }
         }
+        Commands::Inspect { path, strict, json } => match probe_file_signature(&path, strict) {
+            Ok(probe) => {
+                if json {
+                    emit_json_stdout(&probe)
+                } else {
+                    emit_text_stdout(&format_signature_human(&probe), false)
+                }
+            }
+            Err(err) => report_cli_error(&err, json || cli.log_json),
+        },
         Commands::Config { .. } => CliExitCode::Success,
     }
 }

@@ -195,3 +195,12 @@
 - [x] `[1.1.3]` Implement versioned `FileFusionConfig`, `PrivacyConfig` (`offline_only = true`, `telemetry_enabled = false`, `external_ai_opt_in = false`), `BatchDefaults`, `CollisionPolicy`, and `PathConfig` in `crates/file-core/src/config.rs` with TOML parsing/serialization, deterministic layering (`defaults -> TOML -> FILEFUSION_* env -> CLI`), validation, and atomic `save_config_atomic` persistence.
 - [x] `[1.1.3]` Wire `load_runtime_config` and `run_doctor_probe_with_config` (`DoctorReport.effective_limits`) through `codec-registry` and `job-manager`, and add CLI `--config`, `--workers`, `--max-memory-mb`, `--quiet`, `--no-color`, plus `filefusion config show|path|init|validate` subcommands with exit code `2` on invalid config.
 - [x] `[1.1.3]` Backfill `e27daed` (`stage-1.1.2`) in `docs/PROGRESS.md` and append Subphase `1.1.3` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 022 — Stage 1 Subphase 1.2.1 File Signature Detection (Phase 1.2 Begin)
+
+### Completed in Subphase 1.2.1
+- [x] `[1.2.1]` Expand `MediaKind` and `FormatId` in `crates/file-core/src/lib.rs` with MIME type and canonical extension tables across image, audio, video, document/ebook, archive, and executable formats.
+- [x] `[1.2.1]` Implement bounded-I/O multi-offset magic-byte, structural container probing (`RIFF`, `ISO-BMFF`, `EBML`, `Ogg`, ZIP local/central-directory subformats), UTF-8/markup text heuristics, and extension spoofing enforcement (`FF-ERR-SEC-SPOOFED`) in `crates/file-core/src/signature.rs`.
+- [x] `[1.2.1]` Wire `probe_file_signature` into `job-manager`, add `filefusion inspect [--strict] [--json]` in `apps/cli` + integration tests, backfill `24e9bc1` (`stage-1.1.3`) in `docs/PROGRESS.md`, and append Subphase `1.2.1` entries to `TODO.md` and `CHANGELOG.md`.

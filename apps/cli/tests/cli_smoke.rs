@@ -112,3 +112,35 @@ fn cli_rejects_invalid_config_with_exit_code_two() -> Result<(), Box<dyn Error>>
     let _ = fs::remove_dir_all(&dir);
     Ok(())
 }
+
+#[test]
+fn cli_inspect_detects_real_signature_and_rejects_spoofed_extension() -> Result<(), Box<dyn Error>>
+{
+    let dir = temp_test_dir("inspect")?;
+    let real_png = dir.join("valid.png");
+    fs::write(&real_png, b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")?;
+
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let png_out = Command::new(exe)
+        .args(["inspect", "--json", &real_png.to_string_lossy()])
+        .output()?;
+    assert!(png_out.status.success());
+    let png_json: serde_json::Value = serde_json::from_slice(&png_out.stdout)?;
+    assert_eq!(png_json["detected_format"], "png");
+    assert_eq!(png_json["spoofing_mismatch"], false);
+
+    let spoofed = dir.join("malware.pdf");
+    fs::write(
+        &spoofed,
+        b"<!DOCTYPE html><html><script>evil()</script></html>",
+    )?;
+    let spoof_out = Command::new(exe)
+        .args(["inspect", "--strict", "--json", &spoofed.to_string_lossy()])
+        .output()?;
+    assert_eq!(spoof_out.status.code(), Some(3));
+    let stderr = String::from_utf8_lossy(&spoof_out.stderr);
+    assert!(stderr.contains("FF-ERR-SEC-SPOOFED"));
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}

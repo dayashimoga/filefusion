@@ -13,10 +13,12 @@ use std::sync::{
 
 pub use codec_registry::{DoctorReport, collect_baseline_doctor_report, collect_doctor_report};
 pub use file_core::{
-    BatchDefaults, CliConfigOverrides, CliExitCode, CollisionPolicy, ConfigSource, ErrorCategory,
-    ErrorCode, ErrorDiagnostic, FileFusionConfig, FileFusionError, FileFusionResult, JobStage,
-    LoadedConfig, LogFormat, LogLevel, LoggingConfig, PathConfig, PrivacyConfig, ProgressEvent,
-    ResourceLimits, init_logging, load_config_from_path, load_effective_config,
+    BatchDefaults, CliConfigOverrides, CliExitCode, CollisionPolicy, ConfigSource,
+    DetectionConfidence, ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionConfig,
+    FileFusionError, FileFusionResult, FormatId, JobStage, LoadedConfig, LogFormat, LogLevel,
+    LoggingConfig, MediaKind, PathConfig, PrivacyConfig, ProgressEvent, ResourceLimits,
+    SignatureMatch, detect_signature_from_bytes, detect_signature_from_path,
+    enforce_spoofing_policy, init_logging, load_config_from_path, load_effective_config,
     redact_path_for_log, resolve_default_config_path, save_config_atomic, workspace_identity,
 };
 pub use validation_engine::{
@@ -108,6 +110,31 @@ pub fn run_doctor_probe_with_config(config: &FileFusionConfig) -> DoctorReport {
 #[must_use]
 pub fn run_doctor_probe() -> DoctorReport {
     run_doctor_probe_with_config(&FileFusionConfig::default())
+}
+
+/// Probes a file's binary/container signature under privacy-safe `tracing` (`FR-DET-001..002`).
+///
+/// When `strict_spoofing` is `true`, extension mismatches return [`ErrorCode::SecSpoofed`].
+///
+/// # Errors
+/// Returns [`FileFusionError`] if the file cannot be read or fails strict spoofing checks.
+pub fn probe_file_signature(
+    path: &std::path::Path,
+    strict_spoofing: bool,
+) -> FileFusionResult<SignatureMatch> {
+    let redacted = redact_path_for_log(&path.to_string_lossy());
+    let span = tracing::info_span!("signature_probe", file = %redacted);
+    let _guard = span.enter();
+    let result = detect_signature_from_path(path)?;
+    tracing::info!(
+        format = ?result.detected_format,
+        mime = %result.mime_type,
+        rule = %result.matched_rule,
+        spoofed = result.spoofing_mismatch,
+        "file signature probed"
+    );
+    enforce_spoofing_policy(&result, strict_spoofing)?;
+    Ok(result)
 }
 
 #[cfg(test)]

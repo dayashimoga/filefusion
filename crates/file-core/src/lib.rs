@@ -9,6 +9,7 @@
 pub mod config;
 pub mod error;
 pub mod logging;
+pub mod signature;
 
 use serde::{Deserialize, Serialize};
 
@@ -20,6 +21,10 @@ pub use config::{
 };
 pub use error::{ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult};
 pub use logging::{LogFormat, LogLevel, LoggingConfig, init_logging, redact_path_for_log};
+pub use signature::{
+    DetectionConfidence, SignatureMatch, detect_signature_from_bytes, detect_signature_from_path,
+    detect_signature_from_reader, enforce_spoofing_policy,
+};
 
 /// Canonical package name of the L0 foundation crate.
 pub const CRATE_NAME: &str = env!("CARGO_PKG_NAME");
@@ -46,10 +51,12 @@ pub enum MediaKind {
     Video,
     /// Audio stream or container.
     Audio,
-    /// Office, markup, ebook, or PDF document.
+    /// Office, markup, ebook, structured text, or PDF document.
     Document,
     /// Archive or compressed byte stream.
     Archive,
+    /// Native executable binary or script payload (blocked/flagged in spoofing checks).
+    Executable,
     /// Unrecognized or raw binary payload.
     Unknown,
 }
@@ -66,20 +73,265 @@ pub enum FormatId {
     Webp,
     /// AVIF image.
     Avif,
+    /// HEIC / HEIF image.
+    Heic,
+    /// GIF image.
+    Gif,
+    /// Windows Bitmap image.
+    Bmp,
+    /// TIFF image.
+    Tiff,
+    /// Windows Icon / Cursor image.
+    Ico,
+    /// Scalable Vector Graphics document.
+    Svg,
+    /// MPEG-4 video container.
+    Mp4,
+    /// Apple `QuickTime` container.
+    Mov,
+    /// Matroska video container.
+    Mkv,
+    /// `WebM` video container.
+    Webm,
+    /// Audio Video Interleave container.
+    Avi,
+    /// Free Lossless Audio Codec stream.
+    Flac,
+    /// Waveform Audio container.
+    Wav,
+    /// MPEG Layer-3 audio stream.
+    Mp3,
+    /// Ogg Vorbis / generic Ogg container.
+    Ogg,
+    /// Ogg Opus audio stream.
+    Opus,
+    /// Advanced Audio Coding ADTS stream.
+    Aac,
+    /// MPEG-4 audio container (`.m4a`).
+    M4a,
     /// Portable Document Format.
     Pdf,
+    /// Microsoft Word OOXML document.
+    Docx,
+    /// Microsoft Excel OOXML workbook.
+    Xlsx,
+    /// Microsoft `PowerPoint` OOXML presentation.
+    Pptx,
+    /// `OpenDocument` Text document.
+    Odt,
+    /// `OpenDocument` Spreadsheet document.
+    Ods,
+    /// `OpenDocument` Presentation document.
+    Odp,
+    /// Electronic Publication ebook container.
+    Epub,
+    /// Mobipocket / Kindle ebook format.
+    Mobi,
+    /// Rich Text Format document.
+    Rtf,
+    /// `HyperText` Markup Language document.
+    Html,
+    /// Extensible Markup Language document.
+    Xml,
+    /// JavaScript Object Notation document.
+    Json,
+    /// YAML Ain't Markup Language document.
+    Yaml,
+    /// Comma-Separated Values tabular document.
+    Csv,
+    /// Markdown document.
+    Markdown,
+    /// Plain UTF-8 / UTF-16 text document.
+    PlainText,
     /// ZIP archive.
     Zip,
-    /// TAR archive.
+    /// POSIX / USTAR TAR archive.
     Tar,
-    /// Zstandard stream.
+    /// Gzip compressed stream.
+    Gzip,
+    /// Bzip2 compressed stream.
+    Bzip2,
+    /// XZ / LZMA2 compressed stream.
+    Xz,
+    /// Zstandard compressed stream.
     Zstd,
+    /// LZ4 frame stream.
+    Lz4,
     /// 7-Zip archive.
     SevenZ,
     /// `FileFusion` authenticated encrypted container (`.ffenc`).
     Ffenc,
-    /// Unclassified binary or text format.
+    /// Native executable binary (PE, ELF, Mach-O) or shell shebang script.
+    Executable,
+    /// Unclassified binary payload.
     Unknown,
+}
+
+impl FormatId {
+    /// Returns the primary MIME type associated with this format.
+    #[must_use]
+    pub const fn mime_type(self) -> &'static str {
+        match self {
+            Self::Jpeg => "image/jpeg",
+            Self::Png => "image/png",
+            Self::Webp => "image/webp",
+            Self::Avif => "image/avif",
+            Self::Heic => "image/heic",
+            Self::Gif => "image/gif",
+            Self::Bmp => "image/bmp",
+            Self::Tiff => "image/tiff",
+            Self::Ico => "image/x-icon",
+            Self::Svg => "image/svg+xml",
+            Self::Mp4 => "video/mp4",
+            Self::Mov => "video/quicktime",
+            Self::Mkv => "video/x-matroska",
+            Self::Webm => "video/webm",
+            Self::Avi => "video/x-msvideo",
+            Self::Flac => "audio/flac",
+            Self::Wav => "audio/wav",
+            Self::Mp3 => "audio/mpeg",
+            Self::Ogg => "audio/ogg",
+            Self::Opus => "audio/opus",
+            Self::Aac => "audio/aac",
+            Self::M4a => "audio/mp4",
+            Self::Pdf => "application/pdf",
+            Self::Docx => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            Self::Xlsx => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            Self::Pptx => {
+                "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            }
+            Self::Odt => "application/vnd.oasis.opendocument.text",
+            Self::Ods => "application/vnd.oasis.opendocument.spreadsheet",
+            Self::Odp => "application/vnd.oasis.opendocument.presentation",
+            Self::Epub => "application/epub+zip",
+            Self::Mobi => "application/x-mobipocket-ebook",
+            Self::Rtf => "application/rtf",
+            Self::Html => "text/html",
+            Self::Xml => "application/xml",
+            Self::Json => "application/json",
+            Self::Yaml => "application/yaml",
+            Self::Csv => "text/csv",
+            Self::Markdown => "text/markdown",
+            Self::PlainText => "text/plain",
+            Self::Zip => "application/zip",
+            Self::Tar => "application/x-tar",
+            Self::Gzip => "application/gzip",
+            Self::Bzip2 => "application/x-bzip2",
+            Self::Xz => "application/x-xz",
+            Self::Zstd => "application/zstd",
+            Self::Lz4 => "application/x-lz4",
+            Self::SevenZ => "application/x-7z-compressed",
+            Self::Ffenc => "application/vnd.filefusion.encrypted",
+            Self::Executable => "application/x-executable",
+            Self::Unknown => "application/octet-stream",
+        }
+    }
+
+    /// Returns the high-level [`MediaKind`] bucket for this format.
+    #[must_use]
+    pub const fn media_kind(self) -> MediaKind {
+        match self {
+            Self::Jpeg
+            | Self::Png
+            | Self::Webp
+            | Self::Avif
+            | Self::Heic
+            | Self::Gif
+            | Self::Bmp
+            | Self::Tiff
+            | Self::Ico
+            | Self::Svg => MediaKind::Image,
+            Self::Mp4 | Self::Mov | Self::Mkv | Self::Webm | Self::Avi => MediaKind::Video,
+            Self::Flac | Self::Wav | Self::Mp3 | Self::Ogg | Self::Opus | Self::Aac | Self::M4a => {
+                MediaKind::Audio
+            }
+            Self::Pdf
+            | Self::Docx
+            | Self::Xlsx
+            | Self::Pptx
+            | Self::Odt
+            | Self::Ods
+            | Self::Odp
+            | Self::Epub
+            | Self::Mobi
+            | Self::Rtf
+            | Self::Html
+            | Self::Xml
+            | Self::Json
+            | Self::Yaml
+            | Self::Csv
+            | Self::Markdown
+            | Self::PlainText => MediaKind::Document,
+            Self::Zip
+            | Self::Tar
+            | Self::Gzip
+            | Self::Bzip2
+            | Self::Xz
+            | Self::Zstd
+            | Self::Lz4
+            | Self::SevenZ
+            | Self::Ffenc => MediaKind::Archive,
+            Self::Executable => MediaKind::Executable,
+            Self::Unknown => MediaKind::Unknown,
+        }
+    }
+
+    /// Returns canonical lowercase file extensions associated with this format.
+    #[must_use]
+    pub const fn canonical_extensions(self) -> &'static [&'static str] {
+        match self {
+            Self::Jpeg => &["jpg", "jpeg", "jpe"],
+            Self::Png => &["png", "apng"],
+            Self::Webp => &["webp"],
+            Self::Avif => &["avif"],
+            Self::Heic => &["heic", "heif"],
+            Self::Gif => &["gif"],
+            Self::Bmp => &["bmp"],
+            Self::Tiff => &["tif", "tiff"],
+            Self::Ico => &["ico", "cur"],
+            Self::Svg => &["svg"],
+            Self::Mp4 => &["mp4", "m4v"],
+            Self::Mov => &["mov", "qt"],
+            Self::Mkv => &["mkv"],
+            Self::Webm => &["webm"],
+            Self::Avi => &["avi"],
+            Self::Flac => &["flac"],
+            Self::Wav => &["wav", "wave"],
+            Self::Mp3 => &["mp3"],
+            Self::Ogg => &["ogg", "oga", "ogv"],
+            Self::Opus => &["opus", "ogg"],
+            Self::Aac => &["aac"],
+            Self::M4a => &["m4a", "m4b"],
+            Self::Pdf => &["pdf"],
+            Self::Docx => &["docx", "docm"],
+            Self::Xlsx => &["xlsx", "xlsm"],
+            Self::Pptx => &["pptx", "pptm"],
+            Self::Odt => &["odt"],
+            Self::Ods => &["ods"],
+            Self::Odp => &["odp"],
+            Self::Epub => &["epub"],
+            Self::Mobi => &["mobi", "azw", "azw3", "prc"],
+            Self::Rtf => &["rtf"],
+            Self::Html => &["html", "htm", "xhtml"],
+            Self::Xml => &["xml", "xsd", "xsl"],
+            Self::Json => &["json", "jsonl"],
+            Self::Yaml => &["yaml", "yml"],
+            Self::Csv => &["csv", "tsv"],
+            Self::Markdown => &["md", "markdown"],
+            Self::PlainText => &["txt", "text", "log", "ini", "toml", "cfg", "conf"],
+            Self::Zip => &["zip", "jar", "apk", "cbz"],
+            Self::Tar => &["tar"],
+            Self::Gzip => &["gz", "tgz"],
+            Self::Bzip2 => &["bz2", "tbz2"],
+            Self::Xz => &["xz", "txz"],
+            Self::Zstd => &["zst", "tzst"],
+            Self::Lz4 => &["lz4"],
+            Self::SevenZ => &["7z"],
+            Self::Ffenc => &["ffenc"],
+            Self::Executable => &["exe", "dll", "so", "dylib", "elf", "bin", "sh"],
+            Self::Unknown => &[],
+        }
+    }
 }
 
 /// Execution lifecycle stages emitted in [`ProgressEvent`].

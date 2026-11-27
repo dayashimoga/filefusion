@@ -8,13 +8,30 @@
 ## Current Active Subphase
 
 - **Stage:** Stage 1 — Rust Core Foundation
-- **Phase:** Phase 1.1 — Workspace
-- **Subphase:** `1.1.3` — Configuration management
-- **Status:** `COMPLETE` (Phase 1.1 closed; Verified, Agent 12 PASS, committed & tagged `stage-1.1.3`)
+- **Phase:** Phase 1.2 — Core Engines
+- **Subphase:** `1.2.1` — File signature detection
+- **Status:** `COMPLETE` (Phase 1.2 begun; Verified, Agent 12 PASS, committed & tagged `stage-1.2.1`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 1.2.1 — File signature detection
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 1 — Rust Core Foundation |
+| **Phase** | Phase 1.2 — Core Engines |
+| **Subphase** | `1.2.1` — File signature detection |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 9 (Security Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~12 minutes |
+| **Acceptance Criteria** | 1. Expand `MediaKind` and `FormatId` in `crates/file-core/src/lib.rs` with canonical MIME types and extension lists covering images, audio/video, documents/ebooks, archives, and executables.<br>2. Implement `crates/file-core/src/signature.rs` (`FR-DET-001`, `FR-DET-002`): multi-offset magic bytes, `RIFF` / `ISO-BMFF` / `EBML` / `Ogg` / local-header+EOCD `ZIP` subformat probing (`DOCX`/`XLSX`/`PPTX`/`ODT`/`ODS`/`ODP`/`EPUB`), UTF-8/markup text heuristics, and `enforce_spoofing_policy` (`FF-ERR-SEC-SPOOFED`, exit code `3`).<br>3. Wire `probe_file_signature` into `job-manager` and `filefusion inspect [--strict] [--json]` into `apps/cli` + E2E integration tests.<br>4. Verify `cargo fmt --all -- --check`, `clippy -- -D warnings`, `cargo test --workspace --locked`, WASM builds, backfill `24e9bc1` (`stage-1.1.3`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.2.1`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo test --workspace --locked`: 28 passed, 0 failed (`file-core`: 14, `codec-registry`: 1, `validation-engine`: 4, `job-manager`: 3, `filefusion` unit: 1, `cli_smoke`: 5); `cargo check --no-default-features --features wasm --locked` (`file-core`, `codec-registry`, `job-manager`): PASS; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `crates/file-core/src/lib.rs`, `crates/file-core/src/signature.rs`, `crates/job-manager/src/lib.rs`, `apps/cli/src/main.rs`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-1.2.1` on `main` (pushed to `origin`; exact SHA backfilled in `1.2.2`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 1.1.3 — Configuration management
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Implement schema-versioned `FileFusionConfig`, `PrivacyConfig` (`offline_only = true`, `telemetry_enabled = false`, `external_ai_opt_in = false`), `BatchDefaults`, `CollisionPolicy`, and `PathConfig` in `crates/file-core/src/config.rs`.<br>2. Enforce deterministic precedence (defaults -> OS/explicit TOML -> `FILEFUSION_*` env -> CLI overrides), strict validation (including `naming_template` traversal protection and offline/AI privacy gates), and atomic `save_config_atomic` TOML persistence.<br>3. Wire `--config`, `--workers`, `--max-memory-mb`, `--quiet`, `--no-color`, and `filefusion config show|path|init|validate` into `job-manager`, `codec-registry` (`DoctorReport.effective_limits`), and `apps/cli`.<br>4. Pass `cargo fmt`, `clippy -- -D warnings`, `cargo test --workspace --locked`, WASM builds, backfill `e27daed` (`stage-1.1.2`), update `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.1.3`, and push to `origin`. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_CHECK_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo test --workspace --locked`: 24 passed, 0 failed (`file-core`: 11, `codec-registry`: 1, `validation-engine`: 4, `job-manager`: 3, `filefusion` unit: 1, `cli_smoke`: 4); `cargo check --no-default-features --features wasm --locked` (`file-core`, `codec-registry`, `job-manager`): PASS; Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/file-core/Cargo.toml`, `crates/file-core/src/config.rs`, `crates/file-core/src/error.rs`, `crates/file-core/src/logging.rs`, `crates/file-core/src/lib.rs`, `crates/codec-registry/src/lib.rs`, `crates/job-manager/src/lib.rs`, `apps/cli/Cargo.toml`, `apps/cli/src/main.rs`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-1.1.3` on `main` (pushed to `origin`; exact SHA backfilled in `1.2.1`) |
+| **Commit Reference** | `24e9bc1` (tag `stage-1.1.3` on `main`, pushed to `origin`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 1.1.2 — Shared error and logging system
@@ -406,7 +423,7 @@
 | `1.1.1` | Cargo workspace | `COMPLETE` | Agent 2, Agent 1, Agent 8, Agent 12 | 2 hours |
 | `1.1.2` | Shared error and logging system | `COMPLETE` | Agent 2, Agent 8, Agent 12 | 2 hours |
 | `1.1.3` | Configuration management | `COMPLETE` | Agent 2, Agent 9, Agent 12 | 2 hours |
-| `1.2.1` | File signature detection | `NOT STARTED` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |
+| `1.2.1` | File signature detection | `COMPLETE` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |
 | `1.2.2` | Metadata inspection | `NOT STARTED` | Agent 2, Agent 4, Agent 9, Agent 12 | 2 hours |
 | `1.2.3` | File classification | `NOT STARTED` | Agent 2, Agent 3, Agent 12 | 1 hour |
 | `1.2.4` | Capability registry | `NOT STARTED` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
