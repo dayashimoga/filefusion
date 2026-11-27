@@ -9,11 +9,12 @@ repository.workspace = true
 authors.workspace = true
 
 [features]
-default = []
-wasm = []
+default = ["native-probe"]
+native-probe = []
+wasm = ["file-core/wasm"]
 
 [dependencies]
-file-core.workspace = true
+file-core = { workspace = true, default-features = false }
 serde.workspace = true
 
 [lints]

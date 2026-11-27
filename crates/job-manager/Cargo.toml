@@ -10,11 +10,11 @@ authors.workspace = true
 
 [features]
 default = ["native-logging"]
-native-logging = ["file-core/native-logging"]
-wasm = ["file-core/wasm"]
+native-logging = ["file-core/native-logging", "codec-registry/native-probe"]
+wasm = ["file-core/wasm", "codec-registry/wasm"]
 
 [dependencies]
-codec-registry.workspace = true
+codec-registry = { workspace = true, default-features = false }
 file-core = { workspace = true, default-features = false }
 tracing.workspace = true
 validation-engine.workspace = true

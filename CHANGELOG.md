@@ -196,4 +196,12 @@
 - **Added:** Shannon entropy estimator (`compute_entropy_milli_bits`), `ProcessingDomain`, `CompressibilityTier`, `FileClassification`, and rule-based action recommender (`classify_inspection_report`) in `crates/file-core/src/classification.rs`, attached to `FileInspectionReport` and surfaced in `job-manager` and `filefusion inspect`.
 - **Changed:** Populated `FileInspectionReport.recommended_actions` and `classification` during inspection, backfilled `b9f9ea5` (`stage-1.2.2`) in `docs/PROGRESS.md`, and appended Entry 024 to `TODO.md`.
 
+---
+
+## [0.1.6-stage1.2.4] — 2026-11-27
+
+### Subphase 1.2.4 — Capability Registry (Phase 1.2 Complete)
+- **Added:** Two-Tier `CapabilityRegistry` and `ToolAvailability` in `crates/codec-registry/src/lib.rs` discovering Tier 1 built-in modules alongside all 7 Tier 2 external binaries (`ffmpeg`, `qpdf`, `tesseract`, `libreoffice`, `pandoc`, `calibre`, `7z`) with SPDX expressions, `LicenseClass`, `capabilities_for_format`, and `require_available` (`FF-ERR-ENG-MISSING`).
+- **Changed:** Enabled `native-probe` vs zero-warning `wasm` feature gating across `codec-registry` and `job-manager`, exposed `DoctorReport.tool_availability`, backfilled `9ef27ca` (`stage-1.2.3`) in `docs/PROGRESS.md`, and appended Entry 025 to `TODO.md`.
+
 

@@ -41,6 +41,11 @@ fn cli_doctor_json_returns_valid_schema_and_routes_logs_to_stderr() -> Result<()
     assert!(parsed["logical_cpus"].as_u64().unwrap_or(0) >= 1);
     assert_eq!(parsed["capabilities"][0]["id"], "file-core-workspace");
     assert_eq!(parsed["capabilities"][0]["available"], true);
+    assert_eq!(parsed["capabilities"].as_array().map(Vec::len), Some(10));
+    assert_eq!(
+        parsed["tool_availability"].as_array().map(Vec::len),
+        Some(7)
+    );
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("doctor diagnostics collected"));

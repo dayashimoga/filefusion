@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 1 — Rust Core Foundation
 - **Phase:** Phase 1.2 — Core Engines
-- **Subphase:** `1.2.3` — File classification
-- **Status:** `COMPLETE` (Verified, Agent 12 PASS, committed & tagged `stage-1.2.3`)
+- **Subphase:** `1.2.4` — Capability registry
+- **Status:** `COMPLETE` (Phase 1.2 closed; Verified, Agent 12 PASS, committed & tagged `stage-1.2.4`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 1.2.4 — Capability registry
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 1 — Rust Core Foundation |
+| **Phase** | Phase 1.2 — Core Engines |
+| **Subphase** | `1.2.4` — Capability registry |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 3 (Compression & Codec Engineer), Agent 4 (Document & Conversion Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~12 minutes |
+| **Acceptance Criteria** | 1. Implement `CapabilityRegistry` and `ToolAvailability` in `crates/codec-registry/src/lib.rs` separating Tier 1 built-in permissive engines (`file-core-workspace`, `file-core-inspection`, `validation-engine-security`) from Tier 2 out-of-process tools (`ffmpeg`, `qpdf`, `tesseract`, `libreoffice`, `pandoc`, `calibre`, `7z`) with SPDX metadata and `LicenseClass`.<br>2. Probe Tier 2 binaries cleanly under `native-probe` with `wasm` stub compatibility, implement `capabilities_for_format(FormatId)` and `require_available(id)` (`FF-ERR-ENG-MISSING` -> `CliExitCode::MissingEngine = 5`), and expose `tool_availability` on `DoctorReport`.<br>3. Wire feature gates (`codec-registry/wasm`, `codec-registry/native-probe`) and re-exports through `job-manager` and update CLI `doctor` integration assertions.<br>4. Pass `cargo fmt --all -- --check`, `clippy -- -D warnings` (native & `--features wasm`), `cargo test --workspace --locked`, backfill `9ef27ca` (`stage-1.2.3`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.2.4`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 37 passed, 0 failed (`codec-registry`: 3, `file-core`: 20, `validation-engine`: 4, `job-manager`: 3, `filefusion` unit: 1, `cli_smoke`: 6); Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `crates/codec-registry/Cargo.toml`, `crates/codec-registry/src/lib.rs`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/lib.rs`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-1.2.4` on `main` (pushed to `origin`; exact SHA backfilled in `1.3.1`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 1.2.3 — File classification
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Implement `ProcessingDomain`, `CompressibilityTier`, `FileClassification`, `compute_entropy_milli_bits`, `classify_processing_domain`, and `classify_inspection_report` in `crates/file-core/src/classification.rs`.<br>2. Attach classification (`domain`, `compressibility`, `entropy_milli_bits`, `privacy_sensitive`, `requires_security_review`, `recommended_actions`) to `FileInspectionReport` in `crates/file-core/src/metadata.rs` covering security triage, privacy metadata scrubbing (`FR-MET-002`), no-op guards (`FR-CMP-002`), and compression targets (`FR-ADP-001`).<br>3. Expose classification types through `job-manager` and display them in `filefusion inspect` human/JSON output + tests.<br>4. Pass `cargo fmt --all -- --check`, `clippy -- -D warnings`, `cargo test --workspace --locked`, WASM builds, backfill `b9f9ea5` (`stage-1.2.2`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.2.3`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo test --workspace --locked`: 35 passed, 0 failed (`file-core`: 20, `codec-registry`: 1, `validation-engine`: 4, `job-manager`: 3, `filefusion` unit: 1, `cli_smoke`: 6); `cargo check --no-default-features --features wasm --locked` (`file-core`, `codec-registry`, `job-manager`): PASS; Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `crates/file-core/src/classification.rs`, `crates/file-core/src/metadata.rs`, `crates/file-core/src/lib.rs`, `crates/job-manager/src/lib.rs`, `apps/cli/src/main.rs`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-1.2.3` on `main` (pushed to `origin`; exact SHA backfilled in `1.2.4`) |
+| **Commit Reference** | `9ef27ca` (tag `stage-1.2.3` on `main`, pushed to `origin`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 1.2.2 — Metadata inspection
@@ -460,7 +477,7 @@
 | `1.2.1` | File signature detection | `COMPLETE` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |
 | `1.2.2` | Metadata inspection | `COMPLETE` | Agent 2, Agent 4, Agent 9, Agent 12 | 2 hours |
 | `1.2.3` | File classification | `COMPLETE` | Agent 2, Agent 3, Agent 12 | 1 hour |
-| `1.2.4` | Capability registry | `NOT STARTED` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
+| `1.2.4` | Capability registry | `COMPLETE` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
 | `1.3.1` | Processing API | `NOT STARTED` | Agent 2, Agent 1, Agent 12 | 2 hours |
 | `1.3.2` | Plugin/backend contracts | `NOT STARTED` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
 | `1.3.3` | Job scheduler | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 4 hours |

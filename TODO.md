@@ -223,4 +223,13 @@
 - [x] `[1.2.3]` Integrate `FileClassification` and deterministic `recommended_actions` (security review, privacy scrub, zero-byte/no-op guards, domain compression recommendations) into `FileInspectionReport` and `job_manager`.
 - [x] `[1.2.3]` Render classification & recommended actions in `filefusion inspect` CLI/JSON + E2E smoke tests, backfill `b9f9ea5` (`stage-1.2.2`) in `docs/PROGRESS.md`, and append Subphase `1.2.3` entries to `TODO.md` and `CHANGELOG.md`.
 
+---
+
+## [2026-11-27] Entry 025 — Stage 1 Subphase 1.2.4 Capability Registry (Phase 1.2 Closure)
+
+### Completed in Subphase 1.2.4
+- [x] `[1.2.4]` Implement Two-Tier `CapabilityRegistry` and `ToolAvailability` in `crates/codec-registry/src/lib.rs` registering all 3 active Tier 1 permissive capabilities and all 7 Tier 2 out-of-process tools (`ffmpeg`, `qpdf`, `tesseract`, `libreoffice`, `pandoc`, `calibre`, `7z`) with SPDX metadata, `LicenseClass`, and `capabilities_for_format` / `require_available` (`FF-ERR-ENG-MISSING`, exit code `5`).
+- [x] `[1.2.4]` Gate native PATH/version probing cleanly behind `native-probe` with zero-warning `wasm` stub support across `codec-registry` and `job-manager`, expose `tool_availability` on `DoctorReport`, and verify `filefusion doctor --json`.
+- [x] `[1.2.4]` Backfill `9ef27ca` (`stage-1.2.3`) in `docs/PROGRESS.md` and append Subphase `1.2.4` entries to `TODO.md` and `CHANGELOG.md`.
+
 

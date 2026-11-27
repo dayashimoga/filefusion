@@ -11,7 +11,10 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-pub use codec_registry::{DoctorReport, collect_baseline_doctor_report, collect_doctor_report};
+pub use codec_registry::{
+    CapabilityEntry, CapabilityRegistry, DoctorReport, EngineTier, LicenseClass, ToolAvailability,
+    collect_baseline_doctor_report, collect_doctor_report,
+};
 pub use file_core::{
     BatchDefaults, CliConfigOverrides, CliExitCode, CollisionPolicy, CompressibilityTier,
     ConfigSource, DetectionConfidence, DigestSet, ErrorCategory, ErrorCode, ErrorDiagnostic,
@@ -193,7 +196,8 @@ mod tests {
     fn job_manager_exposes_traced_doctor_report() {
         let report = run_doctor_probe();
         assert_eq!(report.workspace_version, file_core::WORKSPACE_VERSION);
-        assert_eq!(report.capabilities.len(), 1);
+        assert_eq!(report.capabilities.len(), 10);
+        assert_eq!(report.tool_availability.len(), 7);
     }
 
     #[test]
