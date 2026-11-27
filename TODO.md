@@ -116,3 +116,11 @@
 ### Completed in Subphase 0.3.4
 - [x] `[0.3.4]` Create dedicated `SKILL.md` files for all 12 specialist agents (`agent-01-principal-architect` through `agent-12-independent-reviewer`) in `.agents/skills/` specifying Responsibilities, Permitted Tools, Implementation Standards, Verification Commands, and Completion Criteria.
 - [x] `[0.3.4]` Backfill `4c9c283` (`stage-0.3.3`) in `docs/PROGRESS.md` and append Subphase `0.3.4` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 013 — Subphase 0.3.5 Documentation Foundation (Phase 0.3 Closure)
+
+### Completed in Subphase 0.3.5
+- [x] `[0.3.5]` Author core governance and reference documentation: `docs/ENGINEERING_CONTRACT.md`, `docs/ROADMAP.md`, `README.md`, `CONTRIBUTING.md`, `LICENSE` (`Apache-2.0 OR MIT`), `SECURITY.md`, `PERFORMANCE.md`, `LICENSES.md`, `CODEBASE_GUIDE.md`, `USER_GUIDE.md`, and `DEVELOPER_GUIDE.md`.
+- [x] `[0.3.5]` Backfill `e613fa1` (`stage-0.3.4`) in `docs/PROGRESS.md`, append Subphase `0.3.5` entries to `TODO.md` and `CHANGELOG.md`, and close Phase 0.3 (Engineering Environment).

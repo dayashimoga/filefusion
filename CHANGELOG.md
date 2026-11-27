@@ -99,3 +99,11 @@
 ### Subphase 0.3.4 — Configure Specialized Agents
 - **Added:** 12 specialist agent `SKILL.md` definitions (`agent-01-principal-architect` through `agent-12-independent-reviewer`) in `.agents/skills/` covering responsibilities, permitted tools, implementation standards, verification commands, and completion criteria.
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `4c9c283` commit reference for `0.3.3`) and appended Entry 012 to `TODO.md`.
+
+---
+
+## [0.0.13-stage0.3.5] — 2026-11-27
+
+### Subphase 0.3.5 — Create Documentation Foundation (Phase 0.3 Complete)
+- **Added:** Complete documentation foundation suite: `docs/ENGINEERING_CONTRACT.md`, `docs/ROADMAP.md`, `README.md`, `CONTRIBUTING.md`, `LICENSE` (`Apache-2.0 OR MIT`), `SECURITY.md`, `PERFORMANCE.md`, `LICENSES.md`, `CODEBASE_GUIDE.md`, `USER_GUIDE.md`, and `DEVELOPER_GUIDE.md`.
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `e613fa1` commit reference for `0.3.4`) and appended Entry 013 to `TODO.md`.
