@@ -13,15 +13,16 @@ use std::sync::{
 
 pub use codec_registry::{DoctorReport, collect_baseline_doctor_report, collect_doctor_report};
 pub use file_core::{
-    BatchDefaults, CliConfigOverrides, CliExitCode, CollisionPolicy, ConfigSource,
-    DetectionConfidence, DigestSet, ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionConfig,
-    FileFusionError, FileFusionResult, FileInspectionReport, FormatId, JobStage, LoadedConfig,
-    LogFormat, LogLevel, LoggingConfig, MediaKind, MetadataSummary, PathConfig, PrivacyConfig,
-    ProgressEvent, RecommendedAction, ResourceLimits, SignatureMatch, StreamDescriptor, StreamKind,
-    compute_digests_from_bytes, detect_signature_from_bytes, detect_signature_from_path,
-    enforce_spoofing_policy, init_logging, inspect_bytes, inspect_path, load_config_from_path,
-    load_effective_config, redact_path_for_log, resolve_default_config_path, save_config_atomic,
-    workspace_identity,
+    BatchDefaults, CliConfigOverrides, CliExitCode, CollisionPolicy, CompressibilityTier,
+    ConfigSource, DetectionConfidence, DigestSet, ErrorCategory, ErrorCode, ErrorDiagnostic,
+    FileClassification, FileFusionConfig, FileFusionError, FileFusionResult, FileInspectionReport,
+    FormatId, JobStage, LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind,
+    MetadataSummary, PathConfig, PrivacyConfig, ProcessingDomain, ProgressEvent, RecommendedAction,
+    ResourceLimits, SignatureMatch, StreamDescriptor, StreamKind, classify_inspection_report,
+    classify_processing_domain, compute_digests_from_bytes, compute_entropy_milli_bits,
+    detect_signature_from_bytes, detect_signature_from_path, enforce_spoofing_policy, init_logging,
+    inspect_bytes, inspect_path, load_config_from_path, load_effective_config, redact_path_for_log,
+    resolve_default_config_path, save_config_atomic, workspace_identity,
 };
 pub use validation_engine::{
     BombGuardError, PathSafetyError, validate_archive_member_path, validate_expansion_budget,
@@ -156,6 +157,9 @@ pub fn inspect_file(
         format = ?report.detected_format,
         byte_size = report.byte_size,
         streams = report.streams.len(),
+        domain = ?report.classification.as_ref().map(|c| c.domain),
+        compressibility = ?report.classification.as_ref().map(|c| c.compressibility),
+        actions = report.recommended_actions.len(),
         encrypted = report.metadata_summary.is_encrypted,
         gps_risk = report.metadata_summary.has_gps_privacy_risk,
         pii_risk = report.metadata_summary.has_pii_author_risk,

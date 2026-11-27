@@ -188,6 +188,13 @@ fn cli_inspect_computes_digests_and_normalized_metadata() -> Result<(), Box<dyn 
     assert_eq!(parsed["metadata_summary"]["height"], 240);
     assert_eq!(parsed["metadata_summary"]["has_pii_author_risk"], true);
     assert_eq!(parsed["streams"][0]["kind"], "image");
+    assert_eq!(parsed["classification"]["domain"], "raster_image");
+    assert_eq!(parsed["classification"]["privacy_sensitive"], true);
+    let actions = parsed["recommended_actions"].as_array();
+    assert!(actions.is_some_and(|list| {
+        list.iter()
+            .any(|item| item["action_id"] == "privacy.scrub_metadata")
+    }));
 
     let sig_out = Command::new(exe)
         .args([

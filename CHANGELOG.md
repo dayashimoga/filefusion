@@ -188,3 +188,12 @@
 - **Added:** Single-pass `64 KB` streaming `BLAKE3` / `SHA-256` / `xxHash64` digest engine (`DigestSet`) and normalized structural/privacy metadata inspector (`FileInspectionReport`, `StreamDescriptor`, `MetadataSummary`, `inspect_reader`, `inspect_path`, `inspect_bytes`) in `crates/file-core/src/metadata.rs` plus `job_manager::inspect_file`.
 - **Changed:** Upgraded `filefusion inspect` to return full `FileInspectionReport` payloads by default (preserving fast `--signature-only` and `--strict` flags), backfilled `9b99e2c` (`stage-1.2.1`) in `docs/PROGRESS.md`, and appended Entry 023 to `TODO.md`.
 
+---
+
+## [0.1.5-stage1.2.3] — 2026-11-27
+
+### Subphase 1.2.3 — File Classification
+- **Added:** Shannon entropy estimator (`compute_entropy_milli_bits`), `ProcessingDomain`, `CompressibilityTier`, `FileClassification`, and rule-based action recommender (`classify_inspection_report`) in `crates/file-core/src/classification.rs`, attached to `FileInspectionReport` and surfaced in `job-manager` and `filefusion inspect`.
+- **Changed:** Populated `FileInspectionReport.recommended_actions` and `classification` during inspection, backfilled `b9f9ea5` (`stage-1.2.2`) in `docs/PROGRESS.md`, and appended Entry 024 to `TODO.md`.
+
+

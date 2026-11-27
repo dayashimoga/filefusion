@@ -6,6 +6,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod classification;
 pub mod config;
 pub mod error;
 pub mod logging;
@@ -13,6 +14,11 @@ pub mod metadata;
 pub mod signature;
 
 use serde::{Deserialize, Serialize};
+
+pub use classification::{
+    CompressibilityTier, FileClassification, ProcessingDomain, classify_inspection_report,
+    classify_processing_domain, compute_entropy_milli_bits,
+};
 
 pub use config::{
     BatchDefaults, CliConfigOverrides, CollisionPolicy, ConfigSource, FileFusionConfig,

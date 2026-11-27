@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Digest as _;
 use xxhash_rust::xxh64::Xxh64;
 
+use crate::classification::{FileClassification, classify_inspection_report};
 use crate::error::FileFusionResult;
 use crate::signature::{
     SignatureMatch, detect_signature_from_bytes, detect_signature_from_reader,
@@ -120,7 +121,7 @@ pub struct MetadataSummary {
     pub attributes: BTreeMap<String, String>,
 }
 
-/// Suggested action attached by downstream classification (populated in `1.2.3`).
+/// Suggested action attached by content-aware file classification (`FR-ADP-001`, `FR-CMP-002`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecommendedAction {
     /// Stable action identifier.
@@ -152,8 +153,10 @@ pub struct FileInspectionReport {
     pub streams: Vec<StreamDescriptor>,
     /// Normalized metadata and privacy-risk summary.
     pub metadata_summary: MetadataSummary,
-    /// Classification/optimization recommendations (populated in `1.2.3`).
+    /// Classification/optimization recommendations (`FR-ADP-001`, `FR-CMP-002`).
     pub recommended_actions: Vec<RecommendedAction>,
+    /// Domain, compressibility tier, and entropy classification.
+    pub classification: Option<FileClassification>,
 }
 
 fn to_lower_hex(bytes: &[u8]) -> String {
@@ -943,6 +946,35 @@ fn populate_metadata_and_streams<R: Read + Seek>(
     (summary, streams)
 }
 
+fn finalize_report(
+    sig: SignatureMatch,
+    byte_size: u64,
+    digests: DigestSet,
+    streams: Vec<StreamDescriptor>,
+    metadata_summary: MetadataSummary,
+    sample: &[u8],
+) -> FileInspectionReport {
+    let mut report = FileInspectionReport {
+        schema_version: CORE_SCHEMA_VERSION,
+        detected_format: sig.detected_format,
+        mime_type: sig.mime_type,
+        extension_claimed: sig.claimed_extension,
+        spoofing_mismatch: sig.spoofing_mismatch,
+        byte_size,
+        digests,
+        streams,
+        metadata_summary,
+        recommended_actions: Vec::new(),
+        classification: None,
+    };
+    let cls = classify_inspection_report(&report, sample);
+    report
+        .recommended_actions
+        .clone_from(&cls.recommended_actions);
+    report.classification = Some(cls);
+    report
+}
+
 /// Inspects a seekable stream: signature probe, streaming digests (`64 KB`), stream inventory,
 /// and normalized metadata summary (`FR-DET-001..004`, `FR-MET-001`).
 ///
@@ -973,18 +1005,14 @@ pub fn inspect_reader<R: Read + Seek>(
 
     let (metadata_summary, streams) = populate_metadata_and_streams(&sig, reader, &head, byte_size);
 
-    Ok(FileInspectionReport {
-        schema_version: CORE_SCHEMA_VERSION,
-        detected_format: sig.detected_format,
-        mime_type: sig.mime_type,
-        extension_claimed: sig.claimed_extension,
-        spoofing_mismatch: sig.spoofing_mismatch,
+    Ok(finalize_report(
+        sig,
         byte_size,
         digests,
         streams,
         metadata_summary,
-        recommended_actions: Vec::new(),
-    })
+        &head,
+    ))
 }
 
 /// Inspects an in-memory byte slice using the same pipeline as [`inspect_reader`].
@@ -1005,18 +1033,14 @@ pub fn inspect_bytes(
     let (metadata_summary, streams) =
         populate_metadata_and_streams(&sig, &mut cursor, head, byte_size);
 
-    Ok(FileInspectionReport {
-        schema_version: CORE_SCHEMA_VERSION,
-        detected_format: sig.detected_format,
-        mime_type: sig.mime_type,
-        extension_claimed: sig.claimed_extension,
-        spoofing_mismatch: sig.spoofing_mismatch,
+    Ok(finalize_report(
+        sig,
         byte_size,
         digests,
         streams,
         metadata_summary,
-        recommended_actions: Vec::new(),
-    })
+        head,
+    ))
 }
 
 /// Opens `path` read-only and produces a complete [`FileInspectionReport`].

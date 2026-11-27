@@ -289,6 +289,27 @@ fn format_inspection_human(report: &FileInspectionReport) -> String {
             stream.index, stream.kind, codec, detail
         );
     }
+    if let Some(cls) = &report.classification {
+        let _ = writeln!(
+            out,
+            "Classification: domain={:?}, compressibility={:?}, entropy={:.3} bits/byte, privacy_sensitive={}, security_review={}",
+            cls.domain,
+            cls.compressibility,
+            cls.entropy_bits_per_byte(),
+            cls.privacy_sensitive,
+            cls.requires_security_review
+        );
+    }
+    if !report.recommended_actions.is_empty() {
+        out.push_str("Recommended Actions:\n");
+        for act in &report.recommended_actions {
+            let _ = writeln!(
+                out,
+                "  - [{}] {} — {}",
+                act.action_id, act.title, act.reason
+            );
+        }
+    }
     out
 }
 

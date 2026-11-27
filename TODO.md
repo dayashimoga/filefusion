@@ -214,3 +214,13 @@
 - [x] `[1.2.2]` Implement `crates/file-core/src/metadata.rs` (`FileInspectionReport`, `DigestSet`, `StreamDescriptor`, `MetadataSummary`, `compute_digests_from_reader`, `inspect_reader`, `inspect_path`, `inspect_bytes`) with fixed `64 KB` streaming I/O and structural/privacy inspection for PNG, JPEG, WebP, GIF, BMP, WAV, FLAC, MP3, PDF, ZIP/OOXML/EPUB/ODF, and UTF-8 text.
 - [x] `[1.2.2]` Expose `job_manager::inspect_file` with privacy-safe `tracing` spans, upgrade `filefusion inspect [--signature-only] [--strict] [--json]` + integration tests, backfill `9b99e2c` (`stage-1.2.1`) in `docs/PROGRESS.md`, and append Subphase `1.2.2` entries to `TODO.md` and `CHANGELOG.md`.
 
+---
+
+## [2026-11-27] Entry 024 — Stage 1 Subphase 1.2.3 File Classification
+
+### Completed in Subphase 1.2.3
+- [x] `[1.2.3]` Implement Shannon entropy calculation (`compute_entropy_milli_bits`), `ProcessingDomain`, `CompressibilityTier`, `FileClassification`, and `classify_inspection_report` in `crates/file-core/src/classification.rs`.
+- [x] `[1.2.3]` Integrate `FileClassification` and deterministic `recommended_actions` (security review, privacy scrub, zero-byte/no-op guards, domain compression recommendations) into `FileInspectionReport` and `job_manager`.
+- [x] `[1.2.3]` Render classification & recommended actions in `filefusion inspect` CLI/JSON + E2E smoke tests, backfill `b9f9ea5` (`stage-1.2.2`) in `docs/PROGRESS.md`, and append Subphase `1.2.3` entries to `TODO.md` and `CHANGELOG.md`.
+
+
