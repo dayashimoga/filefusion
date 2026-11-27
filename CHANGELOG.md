@@ -163,3 +163,11 @@
 ### Subphase 1.1.2 — Shared Error and Logging System
 - **Added:** Canonical typed error system (`FileFusionError`, `ErrorDiagnostic`, `ErrorCategory`, 11 `ErrorCode` `FF-ERR-*` variants) and privacy-aware structured `tracing` subsystem (`LoggingConfig`, `init_logging` to `stderr`, `redact_path_for_log`) in `crates/file-core`, wired through `validation-engine`, `job-manager`, and `apps/cli` (`--log-level`, `--log-json`).
 - **Changed:** Backfilled `33bec50` (`stage-1.1.1`) in `docs/PROGRESS.md` and appended Entry 020 to `TODO.md`.
+
+---
+
+## [0.1.2-stage1.1.3] — 2026-11-27
+
+### Subphase 1.1.3 — Configuration Management (Phase 1.1 Complete)
+- **Added:** Schema-versioned configuration system (`FileFusionConfig`, `PrivacyConfig`, `BatchDefaults`, `CollisionPolicy`, `PathConfig`, `LoadedConfig`, `CliConfigOverrides`) in `crates/file-core/src/config.rs` with TOML support, deterministic multi-layer resolution, traversal/privacy validation, and atomic writes; CLI `--config`, `--workers`, `--max-memory-mb`, `--quiet`, `--no-color`, and `filefusion config show|path|init|validate` subcommands plus `DoctorReport.effective_limits`.
+- **Changed:** Extended `FileFusionError` with `.with_exit_code(...)` for `CliExitCode::InvalidUsage`, wired `ansi_color` / `NO_COLOR` in `LoggingConfig`, backfilled `e27daed` (`stage-1.1.2`) in `docs/PROGRESS.md`, and appended Entry 021 to `TODO.md`.

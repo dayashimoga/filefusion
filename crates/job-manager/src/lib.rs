@@ -11,11 +11,13 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-pub use codec_registry::{DoctorReport, collect_baseline_doctor_report};
+pub use codec_registry::{DoctorReport, collect_baseline_doctor_report, collect_doctor_report};
 pub use file_core::{
-    CliExitCode, ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult,
-    JobStage, LogFormat, LogLevel, LoggingConfig, ProgressEvent, ResourceLimits, init_logging,
-    redact_path_for_log, workspace_identity,
+    BatchDefaults, CliConfigOverrides, CliExitCode, CollisionPolicy, ConfigSource, ErrorCategory,
+    ErrorCode, ErrorDiagnostic, FileFusionConfig, FileFusionError, FileFusionResult, JobStage,
+    LoadedConfig, LogFormat, LogLevel, LoggingConfig, PathConfig, PrivacyConfig, ProgressEvent,
+    ResourceLimits, init_logging, load_config_from_path, load_effective_config,
+    redact_path_for_log, resolve_default_config_path, save_config_atomic, workspace_identity,
 };
 pub use validation_engine::{
     BombGuardError, PathSafetyError, validate_archive_member_path, validate_expansion_budget,
@@ -61,20 +63,51 @@ impl CancellationToken {
     }
 }
 
-/// Runs diagnostic capability probing inside a structured `tracing` span.
+/// Resolves and validates runtime configuration with privacy-safe tracing.
+///
+/// # Errors
+/// Returns [`FileFusionError`] if an explicit config file is missing/malformed or
+/// resulting settings violate configuration invariants.
+pub fn load_runtime_config(overrides: &CliConfigOverrides) -> FileFusionResult<LoadedConfig> {
+    let loaded = load_effective_config(overrides)?;
+    let source_label = match &loaded.source {
+        ConfigSource::Default => String::from("default"),
+        ConfigSource::UserConfigFile(path) | ConfigSource::ExplicitConfigFile(path) => {
+            redact_path_for_log(path)
+        }
+    };
+    tracing::debug!(
+        source = %source_label,
+        max_workers = loaded.config.limits.max_workers,
+        max_memory_mb = loaded.config.limits.max_memory_mb,
+        offline_only = loaded.config.privacy.offline_only,
+        "runtime configuration resolved"
+    );
+    Ok(loaded)
+}
+
+/// Runs diagnostic capability probing using an active [`FileFusionConfig`].
 #[must_use]
-pub fn run_doctor_probe() -> DoctorReport {
+pub fn run_doctor_probe_with_config(config: &FileFusionConfig) -> DoctorReport {
     let span = tracing::info_span!("doctor_probe", workspace = workspace_identity());
     let _guard = span.enter();
-    let report = collect_baseline_doctor_report();
+    let report = collect_doctor_report(config.limits);
     tracing::info!(
         host_os = %report.host_os,
         host_arch = %report.host_arch,
         logical_cpus = report.logical_cpus,
+        effective_workers = report.effective_limits.max_workers,
+        effective_memory_mb = report.effective_limits.max_memory_mb,
         capabilities = report.capabilities.len(),
         "doctor diagnostics collected"
     );
     report
+}
+
+/// Runs diagnostic capability probing inside a structured `tracing` span.
+#[must_use]
+pub fn run_doctor_probe() -> DoctorReport {
+    run_doctor_probe_with_config(&FileFusionConfig::default())
 }
 
 #[cfg(test)]
@@ -103,5 +136,15 @@ mod tests {
         let report = run_doctor_probe();
         assert_eq!(report.workspace_version, file_core::WORKSPACE_VERSION);
         assert_eq!(report.capabilities.len(), 1);
+    }
+
+    #[test]
+    fn doctor_probe_reflects_configured_resource_limits() {
+        let mut cfg = FileFusionConfig::default();
+        cfg.limits.max_workers = 3;
+        cfg.limits.max_memory_mb = 768;
+        let report = run_doctor_probe_with_config(&cfg);
+        assert_eq!(report.effective_limits.max_workers, 3);
+        assert_eq!(report.effective_limits.max_memory_mb, 768);
     }
 }

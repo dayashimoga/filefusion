@@ -143,6 +143,7 @@ pub struct FileFusionError {
     pub diagnostic: ErrorDiagnostic,
     #[source]
     source: Option<Box<dyn std::error::Error + Send + Sync>>,
+    exit_code_override: Option<CliExitCode>,
 }
 
 /// Convenience result alias used across `FileFusion` crates.
@@ -161,6 +162,7 @@ impl FileFusionError {
                 retryable: false,
             },
             source: None,
+            exit_code_override: None,
         }
     }
 
@@ -168,6 +170,13 @@ impl FileFusionError {
     #[must_use]
     pub fn with_remediation(mut self, remediation: impl Into<String>) -> Self {
         self.diagnostic.remediation = Some(remediation.into());
+        self
+    }
+
+    /// Overrides the default [`CliExitCode`] mapping (e.g. `CliExitCode::InvalidUsage`).
+    #[must_use]
+    pub const fn with_exit_code(mut self, exit_code: CliExitCode) -> Self {
+        self.exit_code_override = Some(exit_code);
         self
     }
 
@@ -188,7 +197,10 @@ impl FileFusionError {
     /// Returns the deterministic CLI exit code for this error.
     #[must_use]
     pub const fn exit_code(&self) -> CliExitCode {
-        self.diagnostic.code.exit_code()
+        match self.exit_code_override {
+            Some(code) => code,
+            None => self.diagnostic.code.exit_code(),
+        }
     }
 }
 

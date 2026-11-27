@@ -62,13 +62,15 @@ pub struct DoctorReport {
     pub logical_cpus: usize,
     /// Conservative default resource limits computed for host.
     pub default_limits: ResourceLimits,
+    /// Effective active resource limits after TOML, env, and CLI overrides.
+    pub effective_limits: ResourceLimits,
     /// Registered capabilities and current readiness.
     pub capabilities: Vec<CapabilityEntry>,
 }
 
-/// Builds a baseline [`DoctorReport`] reflecting currently active workspace engines.
+/// Builds a [`DoctorReport`] using explicitly resolved [`ResourceLimits`].
 #[must_use]
-pub fn collect_baseline_doctor_report() -> DoctorReport {
+pub fn collect_doctor_report(effective_limits: ResourceLimits) -> DoctorReport {
     let logical_cpus = std::thread::available_parallelism().map_or(1, std::num::NonZeroUsize::get);
 
     let capabilities = vec![CapabilityEntry {
@@ -87,8 +89,15 @@ pub fn collect_baseline_doctor_report() -> DoctorReport {
         host_arch: std::env::consts::ARCH.to_owned(),
         logical_cpus,
         default_limits: ResourceLimits::default(),
+        effective_limits,
         capabilities,
     }
+}
+
+/// Builds a baseline [`DoctorReport`] reflecting currently active workspace engines.
+#[must_use]
+pub fn collect_baseline_doctor_report() -> DoctorReport {
+    collect_doctor_report(ResourceLimits::default())
 }
 
 #[cfg(test)]

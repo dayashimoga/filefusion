@@ -186,3 +186,12 @@
 - [x] `[1.1.2]` Implement `FileFusionError`, `ErrorDiagnostic`, `ErrorCategory`, and all 11 canonical `ErrorCode` (`FF-ERR-*`) mappings in `crates/file-core/src/error.rs`, plus `From<std::io::Error>`, `From<PathSafetyError>`, and `From<BombGuardError>`.
 - [x] `[1.1.2]` Implement structured `tracing` initialization (`LoggingConfig`, `LogLevel`, `LogFormat::Pretty|Json` to `stderr`, `redact_path_for_log`) in `crates/file-core/src/logging.rs` with `native-logging` / `wasm` feature gating, `job-manager` tracing spans, and CLI `--log-level` / `--log-json` flags.
 - [x] `[1.1.2]` Backfill `33bec50` (`stage-1.1.1`) in `docs/PROGRESS.md` and append Subphase `1.1.2` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 021 — Stage 1 Subphase 1.1.3 Configuration Management (Phase 1.1 Closure)
+
+### Completed in Subphase 1.1.3
+- [x] `[1.1.3]` Implement versioned `FileFusionConfig`, `PrivacyConfig` (`offline_only = true`, `telemetry_enabled = false`, `external_ai_opt_in = false`), `BatchDefaults`, `CollisionPolicy`, and `PathConfig` in `crates/file-core/src/config.rs` with TOML parsing/serialization, deterministic layering (`defaults -> TOML -> FILEFUSION_* env -> CLI`), validation, and atomic `save_config_atomic` persistence.
+- [x] `[1.1.3]` Wire `load_runtime_config` and `run_doctor_probe_with_config` (`DoctorReport.effective_limits`) through `codec-registry` and `job-manager`, and add CLI `--config`, `--workers`, `--max-memory-mb`, `--quiet`, `--no-color`, plus `filefusion config show|path|init|validate` subcommands with exit code `2` on invalid config.
+- [x] `[1.1.3]` Backfill `e27daed` (`stage-1.1.2`) in `docs/PROGRESS.md` and append Subphase `1.1.3` entries to `TODO.md` and `CHANGELOG.md`.

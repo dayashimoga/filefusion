@@ -51,6 +51,7 @@ pub enum LogFormat {
 
 /// Configuration for initializing the workspace `tracing` subscriber.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct LoggingConfig {
     /// Minimum verbosity level (overridable via `RUST_LOG` when `respect_env` is `true`).
     pub level: LogLevel,
@@ -60,6 +61,8 @@ pub struct LoggingConfig {
     pub respect_env: bool,
     /// Whether to include target module paths in log entries.
     pub include_target: bool,
+    /// Enable ANSI color sequences in pretty `stderr` logs.
+    pub ansi_color: bool,
 }
 
 impl Default for LoggingConfig {
@@ -69,6 +72,7 @@ impl Default for LoggingConfig {
             format: LogFormat::Pretty,
             respect_env: true,
             include_target: false,
+            ansi_color: true,
         }
     }
 }
@@ -132,11 +136,13 @@ pub fn init_logging(config: &LoggingConfig) -> FileFusionResult<()> {
         LogFormat::Pretty => tracing_subscriber::fmt()
             .with_env_filter(filter)
             .with_target(config.include_target)
+            .with_ansi(config.ansi_color)
             .with_writer(std::io::stderr)
             .try_init(),
         LogFormat::Json => tracing_subscriber::fmt()
             .with_env_filter(filter)
             .with_target(config.include_target)
+            .with_ansi(false)
             .json()
             .with_writer(std::io::stderr)
             .try_init(),
@@ -181,6 +187,7 @@ mod tests {
             format: LogFormat::Json,
             respect_env: false,
             include_target: true,
+            ansi_color: false,
         };
         init_logging(&cfg)?;
         init_logging(&cfg)?;

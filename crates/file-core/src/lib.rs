@@ -6,11 +6,18 @@
 
 #![forbid(unsafe_code)]
 
+pub mod config;
 pub mod error;
 pub mod logging;
 
 use serde::{Deserialize, Serialize};
 
+pub use config::{
+    BatchDefaults, CliConfigOverrides, CollisionPolicy, ConfigSource, FileFusionConfig,
+    LoadedConfig, PathConfig, PrivacyConfig, load_config_from_path, load_effective_config,
+    load_effective_config_with, resolve_default_config_path, resolve_default_config_path_with,
+    save_config_atomic,
+};
 pub use error::{ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult};
 pub use logging::{LogFormat, LogLevel, LoggingConfig, init_logging, redact_path_for_log};
 
@@ -124,6 +131,7 @@ pub struct ProgressEvent {
 
 /// Resource and untrusted-input safety ceilings (`FF-CTR-001` §2.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ResourceLimits {
     /// Maximum concurrent CPU worker threads.
     pub max_workers: usize,
