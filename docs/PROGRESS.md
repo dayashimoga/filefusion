@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.1 — Product Definition
-- **Subphase:** `0.1.2` — Define target users and use cases
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.1.3`)
+- **Subphase:** `0.1.3` — Define supported formats and capabilities
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.1.4`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.1.3 — Define supported formats and capabilities
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.1 — Product definition |
+| **Subphase** | `0.1.3` — Define supported formats and capabilities |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 1 (Principal Architect), Agent 3 (Compression & Codec Engineer), Agent 4 (Document & Conversion Engineer), Agent 11 (Documentation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 1 hour |
+| **Actual Duration** | ~5 minutes |
+| **Acceptance Criteria** | 1. Author `docs/FORMATS_AND_CAPABILITIES.md` (`FF-FMT-001` v1.0.0) covering magic-byte detection, image, video/HW, audio, document/office/ebook, PDF/OCR, archive/encryption, platform matrix, and conversion graph policies.<br>2. Clearly separate Tier 1 (pure-Rust permissive core) vs Tier 2 (license-isolated external adapters) across all formats.<br>3. Cross-link `docs/FORMATS_AND_CAPABILITIES.md` from `REQUIREMENTS.md`.<br>4. Pass Agent 12 independent review, update append-only `TODO.md` and `CHANGELOG.md`, and commit to `main`. |
+| **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects; Tier 1/Tier 2 license isolation, security bomb/XXE/DRM guards, 9 format/platform sections, and append-only governance verified). |
+| **Files Changed** | `docs/FORMATS_AND_CAPABILITIES.md`, `REQUIREMENTS.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.1.3` on `main` (exact SHA backfilled in next subphase) |
+| **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.1.2 — Define target users and use cases
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Define comprehensive target user personas (`USR-01`..`USR-06`) covering Desktop, Mobile, Web, CLI/API, low-resource, and accessibility needs.<br>2. Map all 14 core navigation studios to concrete workflows.<br>3. Author end-to-end use cases (`UC-001`..`UC-016`) and cross-cutting UX journeys (`UXJ-01`..`UXJ-04`) with main flows, error/cancellation flows, and progressive disclosure.<br>4. Verify 100% traceability across all 20 `FR-*` domains and `NFR-*` constraints in `REQUIREMENTS.md`.<br>5. Pass Agent 12 independent review, update append-only `TODO.md` and `CHANGELOG.md`, and commit to `main`. |
 | **Test Results** | Agent 12 independent audit: **PASS** (0 defects; 6/6 personas, 14/14 navigation views, 20/20 capability domains & 47/47 `FR-*` IDs verified traced; append-only logs intact). |
 | **Files Changed** | `docs/USE_CASES.md`, `REQUIREMENTS.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.1.2` on `main` (exact SHA recorded in git log & next subphase backfill) |
+| **Commit Reference** | `84207b0` (tagged `stage-0.1.2` on `main`) |
 | **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.1.1 — Finalize product requirements
@@ -57,7 +74,7 @@
 | Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
 | :--- | :--- | :--- | :--- | :--- |
 | `0.1.2` | Define target users and use cases | `COMPLETE` | Agent 1, Agent 7, Agent 11, Agent 12 | 1 hour |
-| `0.1.3` | Define supported formats and capabilities | `NOT STARTED` | Agent 1, Agent 3, Agent 4, Agent 11, Agent 12 | 1 hour |
+| `0.1.3` | Define supported formats and capabilities | `COMPLETE` | Agent 1, Agent 3, Agent 4, Agent 11, Agent 12 | 1 hour |
 | `0.1.4` | Define MVP and deferred features | `NOT STARTED` | Agent 1, Agent 11, Agent 12 | 1 hour |
 | `0.2.1` | Define system architecture | `NOT STARTED` | Agent 1, Agent 2, Agent 11, Agent 12 | 2 hours |
 | `0.2.2` | Define module boundaries | `NOT STARTED` | Agent 1, Agent 2, Agent 12 | 1 hour |

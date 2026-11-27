@@ -19,3 +19,11 @@
 ### Subphase 0.1.2 — Define Target Users and Use Cases
 - **Added:** `docs/USE_CASES.md` (`FF-UC-001` v1.0.0) establishing 6 target user personas (`USR-01` through `USR-06`), complete 14-screen Core Navigation mapping, 16 end-to-end use cases (`UC-001` through `UC-016`) with explicit failure/cancellation flows and progressive-disclosure tiers, 4 cross-cutting UX/accessibility journeys (`UXJ-01` through `UXJ-04`), and 100% traceability to all 20 `FR-*` domains in `REQUIREMENTS.md`.
 - **Changed:** Cross-referenced `docs/USE_CASES.md` in `REQUIREMENTS.md`; updated `docs/PROGRESS.md` (including verified `3e2650d` commit reference for `0.1.1`) and appended Entry 002 to `TODO.md`.
+
+---
+
+## [0.0.3-stage0.1.3] — 2026-11-27
+
+### Subphase 0.1.3 — Define Supported Formats and Capabilities
+- **Added:** `docs/FORMATS_AND_CAPABILITIES.md` (`FF-FMT-001` v1.0.0) establishing the complete format, codec, engine tier (`Y1` pure-Rust permissive vs `Y2` out-of-process license-isolated adapters), hardware acceleration, security bomb-protection, platform availability (`PLAT-*`), and conversion-graph routing matrices across all supported file families.
+- **Changed:** Cross-referenced `docs/FORMATS_AND_CAPABILITIES.md` in `REQUIREMENTS.md`; updated `docs/PROGRESS.md` (including verified `84207b0` commit reference for `0.1.2`) and appended Entry 003 to `TODO.md`.

@@ -34,3 +34,11 @@
 ### Completed in Subphase 0.1.2
 - [x] `[0.1.2]` Author `docs/USE_CASES.md` (`FF-UC-001` v1.0.0) defining 6 target user personas (`USR-01`..`USR-06`), 14-screen core navigation mapping, 16 concrete end-to-end use cases (`UC-001`..`UC-016`), 4 cross-cutting UX/accessibility journeys (`UXJ-01`..`UXJ-04`), and a complete traceability matrix back to all 20 capability domains in `REQUIREMENTS.md`.
 - [x] `[0.1.2]` Cross-link `docs/USE_CASES.md` from `REQUIREMENTS.md` and synchronize `docs/PROGRESS.md`, `TODO.md`, and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 003 — Subphase 0.1.3 Supported Formats & Capabilities
+
+### Completed in Subphase 0.1.3
+- [x] `[0.1.3]` Author `docs/FORMATS_AND_CAPABILITIES.md` (`FF-FMT-001` v1.0.0) specifying the Tier 1 vs Tier 2 engine & license isolation model, magic-byte & container disambiguation matrix, image/video/audio/document/ebook/PDF/OCR/archive capability matrices, platform availability matrix, and multi-hop conversion graph rules.
+- [x] `[0.1.3]` Cross-link `docs/FORMATS_AND_CAPABILITIES.md` in `REQUIREMENTS.md` and synchronize `docs/PROGRESS.md` (backfilling `84207b0` for `0.1.2`), `TODO.md`, and `CHANGELOG.md`.
