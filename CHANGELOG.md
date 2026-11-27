@@ -91,3 +91,11 @@
 ### Subphase 0.3.3 — Configure Antigravity Rules and Skills
 - **Added:** Root `AGENTS.md`, 12 concise persistent rules in `.agents/rules/*.md`, and 14 reusable workflow skills in `.agents/skills/*/SKILL.md` conforming to the active Antigravity Customization specification.
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `99794ae` commit reference for `0.3.2`) and appended Entry 011 to `TODO.md`.
+
+---
+
+## [0.0.12-stage0.3.4] — 2026-11-27
+
+### Subphase 0.3.4 — Configure Specialized Agents
+- **Added:** 12 specialist agent `SKILL.md` definitions (`agent-01-principal-architect` through `agent-12-independent-reviewer`) in `.agents/skills/` covering responsibilities, permitted tools, implementation standards, verification commands, and completion criteria.
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `4c9c283` commit reference for `0.3.3`) and appended Entry 012 to `TODO.md`.

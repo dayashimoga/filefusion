@@ -108,3 +108,11 @@
 - [x] `[0.3.3]` Author root `AGENTS.md` and 12 project-level persistent rules in `.agents/rules/` (`01-global-engineering-contract.md` through `12-agent-collaboration-standards.md`) following `agy-customizations` format and token-budget guidelines.
 - [x] `[0.3.3]` Author all 14 reusable workflow skills in `.agents/skills/*/SKILL.md` (`project-initialization` through `subphase-completion-verification`).
 - [x] `[0.3.3]` Backfill `99794ae` (`stage-0.3.2`) in `docs/PROGRESS.md` and append Subphase `0.3.3` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 012 — Subphase 0.3.4 Specialized Agent Skills
+
+### Completed in Subphase 0.3.4
+- [x] `[0.3.4]` Create dedicated `SKILL.md` files for all 12 specialist agents (`agent-01-principal-architect` through `agent-12-independent-reviewer`) in `.agents/skills/` specifying Responsibilities, Permitted Tools, Implementation Standards, Verification Commands, and Completion Criteria.
+- [x] `[0.3.4]` Backfill `4c9c283` (`stage-0.3.3`) in `docs/PROGRESS.md` and append Subphase `0.3.4` entries to `TODO.md` and `CHANGELOG.md`.
