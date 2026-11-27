@@ -1,0 +1,14 @@
+# FileFusion Cargo Configuration
+# Resource-aware defaults tailored for 16 GB RAM CPU-only workstations and CI runners.
+
+[build]
+incremental = true
+
+[net]
+git-fetch-with-cli = true
+
+[term]
+color = "auto"
+
+# Note: On memory-constrained hosts (<= 16 GB RAM), avoid overriding build.jobs above
+# logical cores; release LTO builds should run sequentially per target (see Section 10).

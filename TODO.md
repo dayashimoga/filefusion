@@ -90,3 +90,12 @@
 ### Completed in Subphase 0.3.1
 - [x] `[0.3.1]` Confirm `Public` repository visibility preference with user and create `https://github.com/dayashimoga/filefusion` using authenticated Git Credential Manager + GitHub REST API without exposing any credentials or tokens.
 - [x] `[0.3.1]` Configure `origin` remote (`https://github.com/dayashimoga/filefusion.git`), synchronize `docs/PROGRESS.md` (with backfilled `2a65c5f` for `0.2.4`), and append Subphase `0.3.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 010 — Subphase 0.3.2 Monorepo Setup
+
+### Completed in Subphase 0.3.2
+- [x] `[0.3.2]` Establish monorepo engineering configuration roots (`.gitignore`, `.gitattributes`, `.editorconfig`, `.cargo/config.toml`, `deny.toml`).
+- [x] `[0.3.2]` Initialize root `Cargo.toml` workspace (`edition = "2024"`, `unsafe_code = "forbid"`, strict clippy lints) with non-decorative `crates/file-core` anchor crate and passing unit test suite.
+- [x] `[0.3.2]` Author `docs/MONOREPO_SETUP.md` (`FF-MONO-001` v1.0.0), backfill `2450a3e` (`stage-0.3.1`) in `docs/PROGRESS.md`, and append Subphase `0.3.2` entries to `TODO.md` and `CHANGELOG.md`.

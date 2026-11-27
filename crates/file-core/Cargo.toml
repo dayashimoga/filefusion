@@ -1,0 +1,16 @@
+[package]
+name = "file-core"
+description = "FileFusion L0 foundation crate: core domain contracts, error taxonomy, magic-byte inspection, digests, and resource bounds."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+wasm = []
+
+[lints]
+workspace = true

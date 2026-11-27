@@ -75,3 +75,11 @@
 ### Subphase 0.3.1 — Create GitHub Repository
 - **Added:** Public GitHub repository `https://github.com/dayashimoga/filefusion` created via authenticated GitHub integration and linked as `origin` for branch `main` and all `stage-0.*` tags.
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `2a65c5f` commit reference for `0.2.4`) and appended Entry 009 to `TODO.md`.
+
+---
+
+## [0.0.10-stage0.3.2] — 2026-11-27
+
+### Subphase 0.3.2 — Establish Monorepo
+- **Added:** Monorepo engineering configuration roots (`.gitignore`, `.gitattributes`, `.editorconfig`, `.cargo/config.toml`, `deny.toml`), root `Cargo.toml` workspace with non-decorative `crates/file-core` anchor crate + unit tests, and `docs/MONOREPO_SETUP.md` (`FF-MONO-001`).
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `2450a3e` commit reference for `0.3.1`) and appended Entry 010 to `TODO.md`.
