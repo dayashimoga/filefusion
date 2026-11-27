@@ -82,3 +82,11 @@
 ### Completed in Subphase 0.2.4
 - [x] `[0.2.4]` Author `docs/DECISION_LOG.md` (`FF-ADR-001` v1.0.0) establishing `ADR-001` through `ADR-010` with context, alternatives rejected, consequences, and ADR governance policy.
 - [x] `[0.2.4]` Cross-link `docs/DECISION_LOG.md` in `ARCHITECTURE.md`, backfill `fff6c24` (`stage-0.2.3`) in `docs/PROGRESS.md`, append Subphase `0.2.4` entries to `TODO.md` and `CHANGELOG.md`, and complete Phase 0.2 (Architecture).
+
+---
+
+## [2026-11-27] Entry 009 — Subphase 0.3.1 GitHub Repository Creation
+
+### Completed in Subphase 0.3.1
+- [x] `[0.3.1]` Confirm `Public` repository visibility preference with user and create `https://github.com/dayashimoga/filefusion` using authenticated Git Credential Manager + GitHub REST API without exposing any credentials or tokens.
+- [x] `[0.3.1]` Configure `origin` remote (`https://github.com/dayashimoga/filefusion.git`), synchronize `docs/PROGRESS.md` (with backfilled `2a65c5f` for `0.2.4`), and append Subphase `0.3.1` entries to `TODO.md` and `CHANGELOG.md`.

@@ -67,3 +67,11 @@
 ### Subphase 0.2.4 — Create Architecture Decision Records (Phase 0.2 Complete)
 - **Added:** `docs/DECISION_LOG.md` (`FF-ADR-001` v1.0.0) recording `ADR-001` through `ADR-010` across Rust core modularization, Two-Tier license isolation, dual-pool concurrency, Flutter/FRB, SvelteKit 5/WASM, SQLite/Cloud persistence, atomic staging/No-Op Guard, security isolation, opt-in AI privacy, and CI/Podman topology.
 - **Changed:** Cross-referenced `docs/DECISION_LOG.md` in `ARCHITECTURE.md`; updated `docs/PROGRESS.md` (including verified `fff6c24` commit reference for `0.2.3`) and appended Entry 008 to `TODO.md`.
+
+---
+
+## [0.0.9-stage0.3.1] — 2026-11-27
+
+### Subphase 0.3.1 — Create GitHub Repository
+- **Added:** Public GitHub repository `https://github.com/dayashimoga/filefusion` created via authenticated GitHub integration and linked as `origin` for branch `main` and all `stage-0.*` tags.
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `2a65c5f` commit reference for `0.2.4`) and appended Entry 009 to `TODO.md`.
