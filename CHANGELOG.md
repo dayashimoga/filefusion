@@ -123,3 +123,11 @@
 ### Subphase 0.4.2 — Implement Selectable Application Builds
 - **Changed:** Expanded `.github/workflows/build-apps.yml` with dynamic target matrix resolution across all 11 selectable `app` inputs, native-runner jobs (`build-cli`, `build-flutter`, `build-web`, `build-api`), `wasm32-unknown-unknown` compilation, SHA-pinned Flutter/pnpm/Java setup actions, and truthful Stage-aware build paths.
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `8a4a67e` commit reference for `0.4.1`) and appended Entry 015 to `TODO.md`.
+
+---
+
+## [0.0.16-stage0.4.3] — 2026-11-27
+
+### Subphase 0.4.3 — Implement Independent Artifact Uploads
+- **Changed:** Updated `.github/workflows/build-apps.yml` so every platform/application target (`filefusion-windows-x64`, `filefusion-linux-x64`, `filefusion-macos-arm64`, `filefusion-android-apk`, `filefusion-ios-build`, `filefusion-web`, `filefusion-cli-*`, `filefusion-api-linux-x64`) stages `LICENSE`, `LICENSES.md`, `build-metadata.json`, and `SHA256SUMS.txt` without nested ZIPs and uploads independently via SHA-pinned `actions/upload-artifact` (`v7.0.2`).
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `a108774` commit reference for `0.4.2`) and appended Entry 016 to `TODO.md`.

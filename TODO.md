@@ -142,3 +142,12 @@
 - [x] `[0.4.2]` Expand `.github/workflows/build-apps.yml` with dynamic target matrix resolution (`all`, `desktop`, `windows`, `linux`, `macos`, `mobile`, `android`, `ios`, `web`, `cli`, `api`), skipping unrelated jobs on targeted dispatch runs.
 - [x] `[0.4.2]` Add native-runner build jobs (`build-cli`, `build-flutter`, `build-web` with `wasm32-unknown-unknown`, `build-api`), SHA-pinned Flutter/pnpm/Java actions, and Stage-aware honest execution paths.
 - [x] `[0.4.2]` Backfill `8a4a67e` (`stage-0.4.1`) in `docs/PROGRESS.md` and append Subphase `0.4.2` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 016 — Subphase 0.4.3 Independent Artifact Uploads
+
+### Completed in Subphase 0.4.3
+- [x] `[0.4.3]` Implement independent per-target staging (`dist/<artifact_name>/`) without nested ZIPs, bundling `LICENSE`, `LICENSES.md`, `build-metadata.json`, and `SHA256SUMS.txt` alongside real build outputs.
+- [x] `[0.4.3]` Wire separate `actions/upload-artifact` (`v7.0.2` SHA-pinned) steps across `build-cli`, `build-flutter`, `build-web`, and `build-api`, plus `$GITHUB_STEP_SUMMARY` and `if: failure()` error reporting.
+- [x] `[0.4.3]` Backfill `a108774` (`stage-0.4.2`) in `docs/PROGRESS.md` and append Subphase `0.4.3` entries to `TODO.md` and `CHANGELOG.md`.

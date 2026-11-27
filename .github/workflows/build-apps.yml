@@ -233,7 +233,7 @@ jobs:
       - name: Cache Cargo registry and build artifacts
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
-      - name: Build CLI / Core target (${{ needs.validate-inputs.outputs.build_mode }})
+      - name: Build & stage CLI target (${{ needs.validate-inputs.outputs.build_mode }})
         shell: bash
         run: |
           PROFILE_FLAG=""
@@ -242,22 +242,61 @@ jobs:
             PROFILE_FLAG="--release"
             TARGET_SUBDIR="release"
           fi
-          mkdir -p "dist/${{ matrix.artifact_name }}"
+          STAGE_DIR="dist/${{ matrix.artifact_name }}"
+          mkdir -p "$STAGE_DIR"
           if [[ -f "apps/cli/Cargo.toml" ]]; then
             cargo build -p filefusion-cli $PROFILE_FLAG --locked
             if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-              cp "target/${TARGET_SUBDIR}/filefusion.exe" "dist/${{ matrix.artifact_name }}/"
+              cp "target/${TARGET_SUBDIR}/filefusion.exe" "$STAGE_DIR/"
             else
-              cp "target/${TARGET_SUBDIR}/filefusion" "dist/${{ matrix.artifact_name }}/"
+              cp "target/${TARGET_SUBDIR}/filefusion" "$STAGE_DIR/"
             fi
+            STAGE_STATUS="full-cli-binary"
           else
             echo "Stage 0 baseline: apps/cli activates in Stage 1; compiling file-core workspace anchor for ${{ matrix.target }}"
             cargo build -p file-core $PROFILE_FLAG --locked
-            cp "target/${TARGET_SUBDIR}/libfile_core.rlib" "dist/${{ matrix.artifact_name }}/"
+            cp "target/${TARGET_SUBDIR}/libfile_core.rlib" "$STAGE_DIR/"
+            STAGE_STATUS="stage-0-core-anchor"
           fi
           if [[ "${{ needs.validate-inputs.outputs.include_tests }}" == "true" ]]; then
             cargo test --workspace --locked
           fi
+          cp LICENSE LICENSES.md "$STAGE_DIR/"
+          cat > "$STAGE_DIR/build-metadata.json" <<EOF
+          {
+            "artifact_name": "${{ matrix.artifact_name }}",
+            "target": "${{ matrix.target }}",
+            "runner_os": "${{ runner.os }}",
+            "build_mode": "${{ needs.validate-inputs.outputs.build_mode }}",
+            "enable_optional_codecs": ${{ needs.validate-inputs.outputs.enable_optional_codecs }},
+            "stage_status": "${STAGE_STATUS}",
+            "git_sha": "${{ github.sha }}",
+            "git_ref": "${{ github.ref }}"
+          }
+          EOF
+          (
+            cd "$STAGE_DIR"
+            if command -v sha256sum >/dev/null 2>&1; then
+              find . -type f ! -name "SHA256SUMS.txt" -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+            else
+              find . -type f ! -name "SHA256SUMS.txt" -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 > SHA256SUMS.txt
+            fi
+          )
+          echo "### Artifact \`${{ matrix.artifact_name }}\` (${STAGE_STATUS})" >> "$GITHUB_STEP_SUMMARY"
+          cat "$STAGE_DIR/SHA256SUMS.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload independent CLI artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report failure diagnostics
+        if: failure()
+        shell: bash
+        run: echo "::error::CLI build or packaging failed for ${{ matrix.artifact_name }} on ${{ runner.os }}."
 
   build-flutter:
     name: Build Flutter (${{ matrix.target }})
@@ -292,17 +331,20 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Build Flutter target or Rust FFI foundation
+      - name: Build & stage Flutter target or Rust FFI foundation
         shell: bash
         run: |
           flutter --version
           PROFILE_FLAG=""
+          TARGET_SUBDIR="debug"
           FLUTTER_MODE="--debug"
           if [[ "${{ needs.validate-inputs.outputs.build_mode }}" == "release" ]]; then
             PROFILE_FLAG="--release"
+            TARGET_SUBDIR="release"
             FLUTTER_MODE="--release"
           fi
-          mkdir -p "dist/${{ matrix.artifact_name }}"
+          STAGE_DIR="dist/${{ matrix.artifact_name }}"
+          mkdir -p "$STAGE_DIR"
           if [[ -f "${{ matrix.app_dir }}/pubspec.yaml" ]]; then
             pushd "${{ matrix.app_dir }}"
             flutter pub get
@@ -311,17 +353,76 @@ jobs:
               flutter test
             fi
             case "${{ matrix.target }}" in
-              windows) flutter build windows $FLUTTER_MODE ;;
-              linux) flutter build linux $FLUTTER_MODE ;;
-              macos) flutter build macos $FLUTTER_MODE ;;
-              android) flutter build apk $FLUTTER_MODE ;;
-              ios) flutter build ios $FLUTTER_MODE --no-codesign ;;
+              windows)
+                flutter build windows $FLUTTER_MODE
+                cp -R build/windows/x64/runner/*/ "../../${STAGE_DIR}/"
+                ;;
+              linux)
+                flutter build linux $FLUTTER_MODE
+                cp -R build/linux/*/release/bundle/* "../../${STAGE_DIR}/" 2>/dev/null || cp -R build/linux/*/debug/bundle/* "../../${STAGE_DIR}/"
+                ;;
+              macos)
+                flutter build macos $FLUTTER_MODE
+                cp -R build/macos/Build/Products/*/*.app "../../${STAGE_DIR}/"
+                ;;
+              android)
+                flutter build apk $FLUTTER_MODE
+                cp build/app/outputs/flutter-apk/*.apk "../../${STAGE_DIR}/"
+                if [[ "${{ needs.validate-inputs.outputs.build_mode }}" == "release" ]]; then
+                  flutter build appbundle --release || echo "AAB skipped (signing config optional)"
+                  cp build/app/outputs/bundle/release/*.aab "../../${STAGE_DIR}/" 2>/dev/null || true
+                fi
+                ;;
+              ios)
+                flutter build ios $FLUTTER_MODE --no-codesign
+                cp -R build/ios/iphoneos/*.app "../../${STAGE_DIR}/" 2>/dev/null || cp -R build/ios/iphonesimulator/*.app "../../${STAGE_DIR}/"
+                ;;
             esac
             popd
+            STAGE_STATUS="full-flutter-build"
           else
             echo "Stage 0 baseline: ${{ matrix.app_dir }} activates in Stage 7; verifying Rust core build for ${{ matrix.target }}"
             cargo build -p file-core $PROFILE_FLAG --locked
+            cp "target/${TARGET_SUBDIR}/libfile_core.rlib" "$STAGE_DIR/"
+            STAGE_STATUS="stage-0-core-anchor-pending-stage-7"
           fi
+          cp LICENSE LICENSES.md "$STAGE_DIR/"
+          cat > "$STAGE_DIR/build-metadata.json" <<EOF
+          {
+            "artifact_name": "${{ matrix.artifact_name }}",
+            "target": "${{ matrix.target }}",
+            "runner_os": "${{ runner.os }}",
+            "build_mode": "${{ needs.validate-inputs.outputs.build_mode }}",
+            "enable_optional_codecs": ${{ needs.validate-inputs.outputs.enable_optional_codecs }},
+            "stage_status": "${STAGE_STATUS}",
+            "signing_note": "CI builds for macOS/iOS are unsigned unless Apple signing secrets are configured.",
+            "git_sha": "${{ github.sha }}",
+            "git_ref": "${{ github.ref }}"
+          }
+          EOF
+          (
+            cd "$STAGE_DIR"
+            if command -v sha256sum >/dev/null 2>&1; then
+              find . -type f ! -name "SHA256SUMS.txt" -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+            else
+              find . -type f ! -name "SHA256SUMS.txt" -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256 > SHA256SUMS.txt
+            fi
+          )
+          echo "### Artifact \`${{ matrix.artifact_name }}\` (${STAGE_STATUS})" >> "$GITHUB_STEP_SUMMARY"
+          cat "$STAGE_DIR/SHA256SUMS.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload independent Flutter artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: dist/${{ matrix.artifact_name }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report failure diagnostics
+        if: failure()
+        shell: bash
+        run: echo "::error::Flutter build or packaging failed for ${{ matrix.artifact_name }} on ${{ runner.os }}."
 
   build-web:
     name: Build Web (SvelteKit & WASM)
@@ -351,15 +452,19 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Build WASM core & SvelteKit Web target
+      - name: Build & stage WASM core and SvelteKit Web target
         shell: bash
         run: |
           PROFILE_FLAG=""
+          TARGET_SUBDIR="debug"
           if [[ "${{ needs.validate-inputs.outputs.build_mode }}" == "release" ]]; then
             PROFILE_FLAG="--release"
+            TARGET_SUBDIR="release"
           fi
-          mkdir -p dist/filefusion-web
+          STAGE_DIR="dist/filefusion-web"
+          mkdir -p "$STAGE_DIR/wasm"
           cargo build -p file-core --target wasm32-unknown-unknown --no-default-features --features wasm $PROFILE_FLAG --locked
+          cp "target/wasm32-unknown-unknown/${TARGET_SUBDIR}/libfile_core.rlib" "$STAGE_DIR/wasm/"
           if [[ -f "apps/web/package.json" ]]; then
             pnpm --dir apps/web install --frozen-lockfile
             pnpm --dir apps/web check
@@ -367,9 +472,44 @@ jobs:
               pnpm --dir apps/web test
             fi
             pnpm --dir apps/web build
+            cp -R apps/web/build/* "$STAGE_DIR/"
+            STAGE_STATUS="full-web-build"
           else
-            echo "Stage 0 baseline: apps/web activates in Stage 8; verified wasm32-unknown-unknown compilation for file-core."
+            echo "Stage 0 baseline: apps/web activates in Stage 8; staged wasm32-unknown-unknown compilation for file-core."
+            STAGE_STATUS="stage-0-wasm-core-anchor"
           fi
+          cp LICENSE LICENSES.md "$STAGE_DIR/"
+          cat > "$STAGE_DIR/build-metadata.json" <<EOF
+          {
+            "artifact_name": "filefusion-web",
+            "target": "web-wasm",
+            "runner_os": "${{ runner.os }}",
+            "build_mode": "${{ needs.validate-inputs.outputs.build_mode }}",
+            "enable_optional_codecs": ${{ needs.validate-inputs.outputs.enable_optional_codecs }},
+            "stage_status": "${STAGE_STATUS}",
+            "git_sha": "${{ github.sha }}",
+            "git_ref": "${{ github.ref }}"
+          }
+          EOF
+          (
+            cd "$STAGE_DIR"
+            find . -type f ! -name "SHA256SUMS.txt" -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+          echo "### Artifact \`filefusion-web\` (${STAGE_STATUS})" >> "$GITHUB_STEP_SUMMARY"
+          cat "$STAGE_DIR/SHA256SUMS.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload independent Web artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: filefusion-web
+          path: dist/filefusion-web
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report failure diagnostics
+        if: failure()
+        shell: bash
+        run: echo "::error::Web/WASM build or packaging failed on ${{ runner.os }}."
 
   build-api:
     name: Build REST API Server
@@ -388,7 +528,7 @@ jobs:
       - name: Cache Cargo registry and build artifacts
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
 
-      - name: Build API target (${{ needs.validate-inputs.outputs.build_mode }})
+      - name: Build & stage API target (${{ needs.validate-inputs.outputs.build_mode }})
         shell: bash
         run: |
           PROFILE_FLAG=""
@@ -397,15 +537,50 @@ jobs:
             PROFILE_FLAG="--release"
             TARGET_SUBDIR="release"
           fi
-          mkdir -p dist/filefusion-api
+          STAGE_DIR="dist/filefusion-api-linux-x64"
+          mkdir -p "$STAGE_DIR"
           if [[ -f "apps/api/Cargo.toml" ]]; then
             cargo build -p filefusion-api $PROFILE_FLAG --locked
-            cp "target/${TARGET_SUBDIR}/filefusion-api" dist/filefusion-api/
+            cp "target/${TARGET_SUBDIR}/filefusion-api" "$STAGE_DIR/"
+            STAGE_STATUS="full-api-binary"
           else
             echo "Stage 0 baseline: apps/api activates in Stage 10; compiling file-core workspace anchor for API server."
             cargo build -p file-core $PROFILE_FLAG --locked
-            cp "target/${TARGET_SUBDIR}/libfile_core.rlib" dist/filefusion-api/
+            cp "target/${TARGET_SUBDIR}/libfile_core.rlib" "$STAGE_DIR/"
+            STAGE_STATUS="stage-0-core-anchor"
           fi
           if [[ "${{ needs.validate-inputs.outputs.include_tests }}" == "true" ]]; then
             cargo test --workspace --locked
           fi
+          cp LICENSE LICENSES.md "$STAGE_DIR/"
+          cat > "$STAGE_DIR/build-metadata.json" <<EOF
+          {
+            "artifact_name": "filefusion-api-linux-x64",
+            "target": "api-linux-x64",
+            "runner_os": "${{ runner.os }}",
+            "build_mode": "${{ needs.validate-inputs.outputs.build_mode }}",
+            "enable_optional_codecs": ${{ needs.validate-inputs.outputs.enable_optional_codecs }},
+            "stage_status": "${STAGE_STATUS}",
+            "git_sha": "${{ github.sha }}",
+            "git_ref": "${{ github.ref }}"
+          }
+          EOF
+          (
+            cd "$STAGE_DIR"
+            find . -type f ! -name "SHA256SUMS.txt" -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+          echo "### Artifact \`filefusion-api-linux-x64\` (${STAGE_STATUS})" >> "$GITHUB_STEP_SUMMARY"
+          cat "$STAGE_DIR/SHA256SUMS.txt" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload independent API artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: filefusion-api-linux-x64
+          path: dist/filefusion-api-linux-x64
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report failure diagnostics
+        if: failure()
+        shell: bash
+        run: echo "::error::API build or packaging failed on ${{ runner.os }}."

@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.4 — CI/CD
-- **Subphase:** `0.4.2` — Implement selectable application builds
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.4.3`)
+- **Subphase:** `0.4.3` — Implement independent artifact uploads
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.4.4`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.4.3 — Implement independent artifact uploads
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.4 — CI/CD |
+| **Subphase** | `0.4.3` — Implement independent artifact uploads |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 10 (DevOps Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 1 hour |
+| **Actual Duration** | ~5 minutes |
+| **Acceptance Criteria** | 1. Package each application/platform target independently under `dist/<artifact_name>/` without nesting ZIPs inside ZIPs and preserving directory structures.<br>2. Bundle `LICENSE`, `LICENSES.md`, `build-metadata.json`, and deterministic `SHA256SUMS.txt` inside each independent artifact.<br>3. Upload each target separately via `actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9` (`v7.0.2`, compatible v4+ successor) with `if-no-files-found: error` and clear `$GITHUB_STEP_SUMMARY` / failure diagnostics.<br>4. Backfill `a108774` for `0.4.2`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
+| **Test Results** | Agent 12 independent audit: **PASS** (10 independent artifact paths, `bash -n` on all 5 extracted scripts `exit=0`, `ConvertFrom-Json` on all 4 metadata heredocs, `actions/upload-artifact` v7.0.2 SHA verified, Cargo `fmt`/`clippy`/`test --locked` `1 passed; 0 failed`, append-only logs & scope verified). |
+| **Files Changed** | `.github/workflows/build-apps.yml`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.4.3` on `main` (pushed to `origin`; exact SHA backfilled in next subphase) |
+| **Outstanding Issues** | None |
 
 ### Subphase 0.4.2 — Implement selectable application builds
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Expand `.github/workflows/build-apps.yml` `validate-inputs` to resolve selective target matrices for all 11 choices (`all`, `desktop`, `windows`, `linux`, `macos`, `mobile`, `android`, `ios`, `web`, `cli`, `api`) so unrelated targets are skipped when a single target is chosen.<br>2. Implement native-runner target jobs (`build-cli`, `build-flutter`, `build-web`, `build-api`) with Cargo/Flutter/Node caching, `wasm32-unknown-unknown` build verification, and `build_mode` / `include_tests` support.<br>3. Pin newly added Flutter, pnpm, and Java actions to live-verified immutable 40-char commit SHAs.<br>4. Backfill `8a4a67e` for `0.4.1`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 review, commit, tag, and push to `origin`. |
 | **Test Results** | Agent 12 independent audit: **PASS** (bash matrix simulation across all 11 `app` choices + fallback, 21/21 SHA-pinned `uses:` verified via `git ls-remote`, `cargo check -p file-core --no-default-features --features wasm`, `cargo fmt`/`clippy`/`test --locked` `1 passed; 0 failed`, append-only logs & scope verified). |
 | **Files Changed** | `.github/workflows/build-apps.yml`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.4.2` on `main` (pushed to `origin`; exact SHA backfilled in next subphase) |
+| **Commit Reference** | `a108774` (tagged `stage-0.4.2` on `main`, pushed to `https://github.com/dayashimoga/filefusion`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 0.4.1 — Configure GitHub Actions
@@ -291,6 +308,6 @@
 | `0.3.5` | Create documentation foundation | `COMPLETE` | Agent 11, Agent 1, Agent 9, Agent 12 | 2 hours |
 | `0.4.1` | Configure GitHub Actions | `COMPLETE` | Agent 10, Agent 12 | 2 hours |
 | `0.4.2` | Implement selectable application builds | `COMPLETE` | Agent 10, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
-| `0.4.3` | Implement independent artifact uploads | `NOT STARTED` | Agent 10, Agent 12 | 1 hour |
+| `0.4.3` | Implement independent artifact uploads | `COMPLETE` | Agent 10, Agent 12 | 1 hour |
 | `0.4.4` | Validate runner and platform matrix | `NOT STARTED` | Agent 10, Agent 8, Agent 12 | 1 hour |
 | `0.4.5` | Validate local build scripts | `NOT STARTED` | Agent 10, Agent 8, Agent 12 | 2 hours |
