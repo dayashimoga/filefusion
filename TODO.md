@@ -151,3 +151,12 @@
 - [x] `[0.4.3]` Implement independent per-target staging (`dist/<artifact_name>/`) without nested ZIPs, bundling `LICENSE`, `LICENSES.md`, `build-metadata.json`, and `SHA256SUMS.txt` alongside real build outputs.
 - [x] `[0.4.3]` Wire separate `actions/upload-artifact` (`v7.0.2` SHA-pinned) steps across `build-cli`, `build-flutter`, `build-web`, and `build-api`, plus `$GITHUB_STEP_SUMMARY` and `if: failure()` error reporting.
 - [x] `[0.4.3]` Backfill `a108774` (`stage-0.4.2`) in `docs/PROGRESS.md` and append Subphase `0.4.3` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 017 — Subphase 0.4.4 Runner & Platform Matrix Validation
+
+### Completed in Subphase 0.4.4
+- [x] `[0.4.4]` Audit live GitHub Actions runs across `ubuntu-24.04`, `windows-latest`, and `macos-latest` runners and diagnose `EmbarkStudios/cargo-deny-action` input ordering (`error: invalid value 'check'`).
+- [x] `[0.4.4]` Fix `cargo-deny-action` inputs (`command: check`, `arguments: --all-features`, `command-arguments: advisories licenses bans sources`) in `.github/workflows/build-apps.yml` and `.github/workflows/release.yml`.
+- [x] `[0.4.4]` Backfill `73c22a7` (`stage-0.4.3`) in `docs/PROGRESS.md` and append Subphase `0.4.4` entries to `TODO.md` and `CHANGELOG.md`.

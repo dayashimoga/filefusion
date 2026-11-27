@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.4 — CI/CD
-- **Subphase:** `0.4.3` — Implement independent artifact uploads
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.4.4`)
+- **Subphase:** `0.4.4` — Validate runner and platform matrix
+- **Status:** `REVIEW` (Fixed `cargo-deny-action` invocation discovered during live CI run `46014125464`; awaiting Agent 12 review and live green CI confirmation)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.4.4 — Validate runner and platform matrix
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.4 — CI/CD |
+| **Subphase** | `0.4.4` — Validate runner and platform matrix |
+| **Status** | `REVIEW` |
+| **Assigned Agents** | Agent 10 (DevOps Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 1 hour |
+| **Actual Duration** | In progress (~15 minutes) |
+| **Acceptance Criteria** | 1. Inspect live GitHub Actions workflow runs (`46013319849`, `46014125464`) across `ubuntu-24.04`, `windows-latest`, and `macos-latest` runners.<br>2. Fix the live `EmbarkStudios/cargo-deny-action` argument placement (`command: check`, `arguments: --all-features`, `command-arguments: advisories licenses bans sources`) in `build-apps.yml` and `release.yml`.<br>3. Trigger and observe a live `workflow_dispatch` targeted run (`app=web`) plus push run verifying 100% green jobs and independent artifact uploads.<br>4. Backfill `73c22a7` for `0.4.3`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
+| **Test Results** | Run `46014125464` validated native runners (`ubuntu-24.04`, `windows-latest`, `macos-latest`) and uploaded independent artifacts (`filefusion-cli-*`, `filefusion-linux-x64`, `filefusion-macos-arm64`, `filefusion-android-apk`, `filefusion-web`, `filefusion-api-linux-x64`); caught `cargo-deny-action` CLI syntax error (`error: invalid value 'check'`), fixed for live re-verification. |
+| **Files Changed** | `.github/workflows/build-apps.yml`, `.github/workflows/release.yml`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Pending commit on `main` |
+| **Outstanding Issues** | None |
 
 ### Subphase 0.4.3 — Implement independent artifact uploads
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Package each application/platform target independently under `dist/<artifact_name>/` without nesting ZIPs inside ZIPs and preserving directory structures.<br>2. Bundle `LICENSE`, `LICENSES.md`, `build-metadata.json`, and deterministic `SHA256SUMS.txt` inside each independent artifact.<br>3. Upload each target separately via `actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9` (`v7.0.2`, compatible v4+ successor) with `if-no-files-found: error` and clear `$GITHUB_STEP_SUMMARY` / failure diagnostics.<br>4. Backfill `a108774` for `0.4.2`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
 | **Test Results** | Agent 12 independent audit: **PASS** (10 independent artifact paths, `bash -n` on all 5 extracted scripts `exit=0`, `ConvertFrom-Json` on all 4 metadata heredocs, `actions/upload-artifact` v7.0.2 SHA verified, Cargo `fmt`/`clippy`/`test --locked` `1 passed; 0 failed`, append-only logs & scope verified). |
 | **Files Changed** | `.github/workflows/build-apps.yml`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.4.3` on `main` (pushed to `origin`; exact SHA backfilled in next subphase) |
+| **Commit Reference** | `73c22a7` (tagged `stage-0.4.3` on `main`, pushed to `https://github.com/dayashimoga/filefusion`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 0.4.2 — Implement selectable application builds
@@ -309,5 +326,5 @@
 | `0.4.1` | Configure GitHub Actions | `COMPLETE` | Agent 10, Agent 12 | 2 hours |
 | `0.4.2` | Implement selectable application builds | `COMPLETE` | Agent 10, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
 | `0.4.3` | Implement independent artifact uploads | `COMPLETE` | Agent 10, Agent 12 | 1 hour |
-| `0.4.4` | Validate runner and platform matrix | `NOT STARTED` | Agent 10, Agent 8, Agent 12 | 1 hour |
+| `0.4.4` | Validate runner and platform matrix | `REVIEW` | Agent 10, Agent 8, Agent 12 | 1 hour |
 | `0.4.5` | Validate local build scripts | `NOT STARTED` | Agent 10, Agent 8, Agent 12 | 2 hours |

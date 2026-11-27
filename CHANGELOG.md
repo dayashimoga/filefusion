@@ -131,3 +131,11 @@
 ### Subphase 0.4.3 — Implement Independent Artifact Uploads
 - **Changed:** Updated `.github/workflows/build-apps.yml` so every platform/application target (`filefusion-windows-x64`, `filefusion-linux-x64`, `filefusion-macos-arm64`, `filefusion-android-apk`, `filefusion-ios-build`, `filefusion-web`, `filefusion-cli-*`, `filefusion-api-linux-x64`) stages `LICENSE`, `LICENSES.md`, `build-metadata.json`, and `SHA256SUMS.txt` without nested ZIPs and uploads independently via SHA-pinned `actions/upload-artifact` (`v7.0.2`).
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `a108774` commit reference for `0.4.2`) and appended Entry 016 to `TODO.md`.
+
+---
+
+## [0.0.17-stage0.4.4] — 2026-11-27
+
+### Subphase 0.4.4 — Validate Runner and Platform Matrix
+- **Fixed:** Corrected `EmbarkStudios/cargo-deny-action` inputs (`command`, `arguments`, `command-arguments`) in `.github/workflows/build-apps.yml` and `.github/workflows/release.yml` after live CI matrix diagnostics on run `46014125464`.
+- **Changed:** Validated native GitHub-hosted runner matrix (`ubuntu-24.04`, `windows-latest`, `macos-latest`), updated `docs/PROGRESS.md` (including verified `73c22a7` commit reference for `0.4.3`), and appended Entry 017 to `TODO.md`.

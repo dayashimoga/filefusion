@@ -211,7 +211,9 @@ jobs:
       - name: Run cargo-deny checks
         uses: EmbarkStudios/cargo-deny-action@81891abc19297b21343b15ef67dc61e4aea74fda # v2.1.4
         with:
-          arguments: --all-features check advisories licenses bans sources
+          command: check
+          arguments: --all-features
+          command-arguments: advisories licenses bans sources
 
   build-cli:
     name: Build CLI (${{ matrix.target }})
