@@ -35,3 +35,11 @@
 ### Subphase 0.1.4 — Define MVP and Deferred Features (Phase 0.1 Complete)
 - **Added:** `docs/SCOPE_AND_MVP.md` (`FF-SCP-001` v1.0.0) defining explicit release milestones (`MVP-v0.1`, `v1.0-GA`, `v1.x+`), `P0`/`P1`/`P2` requirement mappings, the 12-item Deferred-Features & Non-Goals Register (`DEF-001` through `DEF-012`), and the 5-point Scope Admission Gate.
 - **Changed:** Cross-referenced `docs/SCOPE_AND_MVP.md` in `REQUIREMENTS.md`; updated `docs/PROGRESS.md` (including verified `4e6d610` commit reference for `0.1.3`) and appended Entry 004 to `TODO.md`.
+
+---
+
+## [0.0.5-stage0.2.1] — 2026-11-27
+
+### Subphase 0.2.1 — Define System Architecture
+- **Added:** `ARCHITECTURE.md` (`FF-ARCH-001` v1.0.0) establishing the 5-plane system architecture, forbidden-coupling rules, 8-step request lifecycle with atomic staging and no-op verification, dual Tokio/Rayon resource governance, 4 security trust boundaries, cross-platform integration topologies, and structured observability architecture.
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `df8c41b` commit reference for `0.1.4`) and appended Entry 005 to `TODO.md`.

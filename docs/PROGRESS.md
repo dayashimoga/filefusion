@@ -8,13 +8,30 @@
 ## Current Active Subphase
 
 - **Stage:** Stage 0 — Project Foundation
-- **Phase:** Phase 0.1 — Product Definition
-- **Subphase:** `0.1.4` — Define MVP and deferred features
-- **Status:** `COMPLETE` (Phase 0.1 Complete; awaiting user confirmation to advance to Phase 0.2 / `0.2.1`)
+- **Phase:** Phase 0.2 — Architecture
+- **Subphase:** `0.2.1` — Define system architecture
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.2.2`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.2.1 — Define system architecture
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.2 — Architecture |
+| **Subphase** | `0.2.1` — Define system architecture |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 1 (Principal Architect), Agent 2 (Rust Core Engineer), Agent 11 (Documentation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~3 minutes |
+| **Acceptance Criteria** | 1. Author `ARCHITECTURE.md` (`FF-ARCH-001` v1.0.0) establishing the 5-plane layered architecture, Mermaid architecture diagram, and forbidden-coupling rules.<br>2. Specify the 8-step end-to-end processing lifecycle, dual Tokio/Rayon resource governance (16 GB RAM & 3–6 GB mobile guardrails), and 500 ms cancellation propagation.<br>3. Specify the 4 trust boundaries, zero-shell-injection Tier 2 isolation, cross-platform topologies, and observability model.<br>4. Pass Agent 12 independent review, backfill `df8c41b` for `0.1.4`, append to `TODO.md` and `CHANGELOG.md`, and commit to `main`. |
+| **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects, 0 scope violations; 5-plane isolation, 8-step lifecycle, Mermaid syntax, security trust boundaries, and append-only logs verified). |
+| **Files Changed** | `ARCHITECTURE.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.2.1` on `main` (exact SHA backfilled in next subphase) |
+| **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.1.4 — Define MVP and deferred features
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Author `docs/SCOPE_AND_MVP.md` (`FF-SCP-001` v1.0.0) establishing clear boundaries for Milestone A (`MVP-v0.1`), Milestone B (`v1.0-GA`), and Milestone C (`v1.x+`).<br>2. Establish formal Deferred-Features & Explicit Non-Goals Register (`DEF-001`..`DEF-012`) and 5-point Scope Admission Gate.<br>3. Verify complete alignment of `P0`/`P1`/`P2` requirements across `REQUIREMENTS.md`, `docs/USE_CASES.md`, and `docs/FORMATS_AND_CAPABILITIES.md`.<br>4. Pass Agent 12 independent review, update append-only `TODO.md` and `CHANGELOG.md`, and commit to `main`. |
 | **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects; milestone partitioning, `DEF-001`..`DEF-012`, 5-point Scope Admission Gate, no-fake-functionality policy, append-only logs, and Phase 0.1 closure verified). |
 | **Files Changed** | `docs/SCOPE_AND_MVP.md`, `REQUIREMENTS.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.1.4` on `main` (exact SHA backfilled in next subphase) |
+| **Commit Reference** | `df8c41b` (tagged `stage-0.1.4` on `main`) |
 | **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.1.3 — Define supported formats and capabilities
@@ -93,7 +110,7 @@
 | `0.1.2` | Define target users and use cases | `COMPLETE` | Agent 1, Agent 7, Agent 11, Agent 12 | 1 hour |
 | `0.1.3` | Define supported formats and capabilities | `COMPLETE` | Agent 1, Agent 3, Agent 4, Agent 11, Agent 12 | 1 hour |
 | `0.1.4` | Define MVP and deferred features | `COMPLETE` | Agent 1, Agent 11, Agent 12 | 1 hour |
-| `0.2.1` | Define system architecture | `NOT STARTED` | Agent 1, Agent 2, Agent 11, Agent 12 | 2 hours |
+| `0.2.1` | Define system architecture | `COMPLETE` | Agent 1, Agent 2, Agent 11, Agent 12 | 2 hours |
 | `0.2.2` | Define module boundaries | `NOT STARTED` | Agent 1, Agent 2, Agent 12 | 1 hour |
 | `0.2.3` | Define Rust and application contracts | `NOT STARTED` | Agent 1, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
 | `0.2.4` | Create architecture decision records | `NOT STARTED` | Agent 1, Agent 11, Agent 12 | 1 hour |

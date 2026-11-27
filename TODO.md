@@ -50,3 +50,11 @@
 ### Completed in Subphase 0.1.4
 - [x] `[0.1.4]` Author `docs/SCOPE_AND_MVP.md` (`FF-SCP-001` v1.0.0) defining Milestone A (`MVP-v0.1`: Stages 1–3 + CLI), Milestone B (`v1.0-GA`: Stages 4–8 + 11–12), Milestone C (`v1.x+`: Stages 9–10 optional AI & Cloud), Deferred-Features & Non-Goals Register (`DEF-001`..`DEF-012`), and the 5-point Scope Admission Gate.
 - [x] `[0.1.4]` Cross-link `docs/SCOPE_AND_MVP.md` in `REQUIREMENTS.md`, backfill `4e6d610` for `0.1.3` in `docs/PROGRESS.md`, and complete Phase 0.1 (Product Definition).
+
+---
+
+## [2026-11-27] Entry 005 — Subphase 0.2.1 System Architecture
+
+### Completed in Subphase 0.2.1
+- [x] `[0.2.1]` Author `ARCHITECTURE.md` (`FF-ARCH-001` v1.0.0) defining the 5-plane layered architecture, Mermaid architecture topology, 8-step invariant processing lifecycle, dual Tokio/Rayon concurrency & memory-permit governor, 4 security trust boundaries (zero-shell-injection subprocess isolation + opt-in network gate), cross-platform deployment topologies, and `tracing`/Criterion observability design.
+- [x] `[0.2.1]` Backfill `df8c41b` (`stage-0.1.4`) in `docs/PROGRESS.md` and append Subphase `0.2.1` entries to `TODO.md` and `CHANGELOG.md`.
