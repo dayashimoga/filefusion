@@ -107,3 +107,11 @@
 ### Subphase 0.3.5 — Create Documentation Foundation (Phase 0.3 Complete)
 - **Added:** Complete documentation foundation suite: `docs/ENGINEERING_CONTRACT.md`, `docs/ROADMAP.md`, `README.md`, `CONTRIBUTING.md`, `LICENSE` (`Apache-2.0 OR MIT`), `SECURITY.md`, `PERFORMANCE.md`, `LICENSES.md`, `CODEBASE_GUIDE.md`, `USER_GUIDE.md`, and `DEVELOPER_GUIDE.md`.
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `e613fa1` commit reference for `0.3.4`) and appended Entry 013 to `TODO.md`.
+
+---
+
+## [0.0.14-stage0.4.1] — 2026-11-27
+
+### Subphase 0.4.1 — Configure GitHub Actions
+- **Added:** `.github/ISSUE_TEMPLATE/` (`bug_report.yml`, `feature_request.yml`, `config.yml`), `.github/pull_request_template.md`, `.github/dependabot.yml`, `.github/workflows/build-apps.yml` (SHA-pinned CI baseline with `workflow_dispatch` inputs, Rust core verification, and `cargo-deny` gate), and `.github/workflows/release.yml` (`v*.*.*` tagged release pipeline).
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `53dada6` commit reference for `0.3.5`) and appended Entry 014 to `TODO.md`.

@@ -1,0 +1,143 @@
+name: Build & Verify FileFusion
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "Application target to build and verify"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - desktop
+          - windows
+          - linux
+          - macos
+          - mobile
+          - android
+          - ios
+          - web
+          - cli
+          - api
+      build_mode:
+        description: "Build profile"
+        required: true
+        default: "release"
+        type: choice
+        options:
+          - release
+          - debug
+      include_tests:
+        description: "Run automated test suites"
+        required: true
+        default: true
+        type: boolean
+      enable_optional_codecs:
+        description: "Enable optional Tier 2 codec verification where available"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.app || 'ci' }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate-inputs:
+    name: Validate Dispatch & Target Selection
+    runs-on: ubuntu-24.04
+    outputs:
+      app: ${{ steps.resolve.outputs.app }}
+      build_mode: ${{ steps.resolve.outputs.build_mode }}
+      include_tests: ${{ steps.resolve.outputs.include_tests }}
+      enable_optional_codecs: ${{ steps.resolve.outputs.enable_optional_codecs }}
+    steps:
+      - name: Resolve requested target and options
+        id: resolve
+        shell: bash
+        run: |
+          APP="${{ inputs.app || 'all' }}"
+          MODE="${{ inputs.build_mode || 'release' }}"
+          TESTS="${{ inputs.include_tests }}"
+          CODECS="${{ inputs.enable_optional_codecs }}"
+          if [[ -z "$TESTS" ]]; then
+            TESTS="true"
+          fi
+          if [[ -z "$CODECS" ]]; then
+            CODECS="false"
+          fi
+          case "$APP" in
+            all|desktop|windows|linux|macos|mobile|android|ios|web|cli|api) ;;
+            *)
+              echo "::error::Invalid app selection '$APP'."
+              exit 1
+              ;;
+          esac
+          case "$MODE" in
+            release|debug) ;;
+            *)
+              echo "::error::Invalid build_mode '$MODE'."
+              exit 1
+              ;;
+          esac
+          echo "app=$APP" >> "$GITHUB_OUTPUT"
+          echo "build_mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "include_tests=$TESTS" >> "$GITHUB_OUTPUT"
+          echo "enable_optional_codecs=$CODECS" >> "$GITHUB_OUTPUT"
+          echo "Resolved target=$APP build_mode=$MODE include_tests=$TESTS enable_optional_codecs=$CODECS"
+
+  rust-core-checks:
+    name: Rust Core Lint, Test & Workspace Metadata
+    needs: validate-inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Verify Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy with warnings denied
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Validate Cargo workspace metadata
+        run: cargo metadata --no-deps --format-version 1 > /dev/null
+
+      - name: Run Rust workspace tests
+        if: needs.validate-inputs.outputs.include_tests == 'true'
+        run: cargo test --workspace --locked
+
+  license-and-security-audit:
+    name: Cargo Deny License & Advisory Audit
+    needs: validate-inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run cargo-deny checks
+        uses: EmbarkStudios/cargo-deny-action@81891abc19297b21343b15ef67dc61e4aea74fda # v2.1.4
+        with:
+          arguments: --all-features check advisories licenses bans sources

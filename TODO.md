@@ -124,3 +124,12 @@
 ### Completed in Subphase 0.3.5
 - [x] `[0.3.5]` Author core governance and reference documentation: `docs/ENGINEERING_CONTRACT.md`, `docs/ROADMAP.md`, `README.md`, `CONTRIBUTING.md`, `LICENSE` (`Apache-2.0 OR MIT`), `SECURITY.md`, `PERFORMANCE.md`, `LICENSES.md`, `CODEBASE_GUIDE.md`, `USER_GUIDE.md`, and `DEVELOPER_GUIDE.md`.
 - [x] `[0.3.5]` Backfill `e613fa1` (`stage-0.3.4`) in `docs/PROGRESS.md`, append Subphase `0.3.5` entries to `TODO.md` and `CHANGELOG.md`, and close Phase 0.3 (Engineering Environment).
+
+---
+
+## [2026-11-27] Entry 014 — Subphase 0.4.1 GitHub Actions Foundation
+
+### Completed in Subphase 0.4.1
+- [x] `[0.4.1]` Create `.github/ISSUE_TEMPLATE/` (`bug_report.yml`, `feature_request.yml`, `config.yml`), `.github/pull_request_template.md`, and `.github/dependabot.yml`.
+- [x] `[0.4.1]` Create `.github/workflows/build-apps.yml` baseline CI (push/PR/`workflow_dispatch` input schema, `validate-inputs`, `rust-core-checks`, `license-and-security-audit`) and `.github/workflows/release.yml` (`v*.*.*`), with least-privilege permissions and live-verified immutable action commit SHAs.
+- [x] `[0.4.1]` Backfill `53dada6` (`stage-0.3.5`) in `docs/PROGRESS.md` and append Subphase `0.4.1` entries to `TODO.md` and `CHANGELOG.md`.

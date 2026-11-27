@@ -1,0 +1,43 @@
+name: Bug Report
+description: Report a reproducible defect, crash, security issue (non-exploit), or fidelity regression in FileFusion.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting an issue. For security vulnerabilities, please follow `SECURITY.md` Private Vulnerability Reporting instead of filing a public issue.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Target Platform
+      options:
+        - CLI (`filefusion`)
+        - Windows Desktop
+        - Linux Desktop
+        - macOS Desktop
+        - Android
+        - iOS / iPadOS
+        - Web (SvelteKit / WASM)
+        - REST API
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the actual behavior vs expected behavior, including any `FF-ERR-*` code.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce & Fixture Details
+      description: Exact command/action and non-sensitive input format details (e.g., PNG/PDF/ZIP).
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Environment & `filefusion doctor` Output
+      description: OS, RAM, CPU architecture, and Rust/Flutter/Web version if applicable.

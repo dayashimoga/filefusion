@@ -1,0 +1,32 @@
+name: Feature or Format Proposal
+description: Propose a new file format, codec, or capability evaluated against FileFusion's Scope Admission Gate.
+title: "[Proposal]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Proposals are evaluated against `REQUIREMENTS.md`, `docs/SCOPE_AND_MVP.md` (Scope Admission Gate), and `LICENSES.md`.
+  - type: textarea
+    id: problem
+    attributes:
+      label: User Need & Use Case
+      description: Which persona or workflow benefits from this capability?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution & Engine Tier
+      description: Specify whether this uses Tier 1 permissive Rust crates or a Tier 2 out-of-process adapter, plus license impact.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Scope Alignment Checks
+      options:
+        - label: Checked `docs/SCOPE_AND_MVP.md` Deferred-Features Register (`DEF-*`)
+          required: true
+        - label: Compatible with local-first / CPU-only execution
+          required: true
