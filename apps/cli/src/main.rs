@@ -13,12 +13,13 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use file_core::{
-    CORE_SCHEMA_VERSION, CliConfigOverrides, CliExitCode, ErrorCode, FileFusionError, LogFormat,
-    LogLevel, SignatureMatch, init_logging, resolve_default_config_path, save_config_atomic,
-    workspace_identity,
+    CORE_SCHEMA_VERSION, CliConfigOverrides, CliExitCode, ErrorCode, FileFusionError,
+    FileInspectionReport, LogFormat, LogLevel, SignatureMatch, init_logging,
+    resolve_default_config_path, save_config_atomic, workspace_identity,
 };
 use job_manager::{
-    DoctorReport, load_runtime_config, probe_file_signature, run_doctor_probe_with_config,
+    DoctorReport, inspect_file, load_runtime_config, probe_file_signature,
+    run_doctor_probe_with_config,
 };
 use serde::Serialize;
 
@@ -90,7 +91,7 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
-    /// Probe true binary/container signature and detect extension spoofing (`FR-DET-001..002`).
+    /// Inspect file signature, streaming digests, container streams, and metadata (`FR-DET-001..004`).
     Inspect {
         /// Target file path to inspect.
         #[arg(value_name = "PATH")]
@@ -98,6 +99,9 @@ enum Commands {
         /// Fail with exit code 3 (`FF-ERR-SEC-SPOOFED`) if extension contradicts true signature.
         #[arg(long)]
         strict: bool,
+        /// Run fast header/container signature probing only (skip full-file streaming digests).
+        #[arg(long)]
+        signature_only: bool,
         /// Emit machine-readable JSON output.
         #[arg(long)]
         json: bool,
@@ -256,6 +260,38 @@ fn format_signature_human(probe: &SignatureMatch) -> String {
     )
 }
 
+fn format_inspection_human(report: &FileInspectionReport) -> String {
+    let ext = report.extension_claimed.as_deref().unwrap_or("<none>");
+    let mut out = format!(
+        "Detected Format: {:?}\nMIME Type: {}\nClaimed Extension: {}\nSpoofing Mismatch: {}\nSize (bytes): {}\nDigests:\n  BLAKE3:   {}\n  SHA-256:  {}\n  xxHash64: {}\nMetadata Summary: encrypted={}, exif={}, xmp={}, icc={}, gps_risk={}, pii_author_risk={}\nStreams ({}):\n",
+        report.detected_format,
+        report.mime_type,
+        ext,
+        report.spoofing_mismatch,
+        report.byte_size,
+        report.digests.blake3,
+        report.digests.sha256,
+        report.digests.xxhash64,
+        report.metadata_summary.is_encrypted,
+        report.metadata_summary.has_exif,
+        report.metadata_summary.has_xmp,
+        report.metadata_summary.has_icc_profile,
+        report.metadata_summary.has_gps_privacy_risk,
+        report.metadata_summary.has_pii_author_risk,
+        report.streams.len(),
+    );
+    for stream in &report.streams {
+        let codec = stream.codec.as_deref().unwrap_or("unknown");
+        let detail = stream.detail.as_deref().unwrap_or("");
+        let _ = writeln!(
+            out,
+            "  #{} [{:?}] {} — {}",
+            stream.index, stream.kind, codec, detail
+        );
+    }
+    out
+}
+
 const fn command_requests_json(command: &Commands) -> bool {
     match command {
         Commands::Doctor { json } | Commands::Inspect { json, .. } => *json,
@@ -412,16 +448,36 @@ fn run() -> CliExitCode {
                 emit_text_stdout(&format_doctor_human(&report), false)
             }
         }
-        Commands::Inspect { path, strict, json } => match probe_file_signature(&path, strict) {
-            Ok(probe) => {
-                if json {
-                    emit_json_stdout(&probe)
-                } else {
-                    emit_text_stdout(&format_signature_human(&probe), false)
+        Commands::Inspect {
+            path,
+            strict,
+            signature_only,
+            json,
+        } => {
+            if signature_only {
+                match probe_file_signature(&path, strict) {
+                    Ok(probe) => {
+                        if json {
+                            emit_json_stdout(&probe)
+                        } else {
+                            emit_text_stdout(&format_signature_human(&probe), false)
+                        }
+                    }
+                    Err(err) => report_cli_error(&err, json || cli.log_json),
+                }
+            } else {
+                match inspect_file(&path, strict) {
+                    Ok(report) => {
+                        if json {
+                            emit_json_stdout(&report)
+                        } else {
+                            emit_text_stdout(&format_inspection_human(&report), false)
+                        }
+                    }
+                    Err(err) => report_cli_error(&err, json || cli.log_json),
                 }
             }
-            Err(err) => report_cli_error(&err, json || cli.log_json),
-        },
+        }
         Commands::Config { .. } => CliExitCode::Success,
     }
 }

@@ -204,3 +204,13 @@
 - [x] `[1.2.1]` Expand `MediaKind` and `FormatId` in `crates/file-core/src/lib.rs` with MIME type and canonical extension tables across image, audio, video, document/ebook, archive, and executable formats.
 - [x] `[1.2.1]` Implement bounded-I/O multi-offset magic-byte, structural container probing (`RIFF`, `ISO-BMFF`, `EBML`, `Ogg`, ZIP local/central-directory subformats), UTF-8/markup text heuristics, and extension spoofing enforcement (`FF-ERR-SEC-SPOOFED`) in `crates/file-core/src/signature.rs`.
 - [x] `[1.2.1]` Wire `probe_file_signature` into `job-manager`, add `filefusion inspect [--strict] [--json]` in `apps/cli` + integration tests, backfill `24e9bc1` (`stage-1.1.3`) in `docs/PROGRESS.md`, and append Subphase `1.2.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 023 — Stage 1 Subphase 1.2.2 Metadata Inspection
+
+### Completed in Subphase 1.2.2
+- [x] `[1.2.2]` Add `blake3`, `sha2`, and `xxhash-rust` (`xxh64`) streaming dependencies to `Cargo.toml` / `crates/file-core/Cargo.toml` under `deny.toml` permissive license compliance.
+- [x] `[1.2.2]` Implement `crates/file-core/src/metadata.rs` (`FileInspectionReport`, `DigestSet`, `StreamDescriptor`, `MetadataSummary`, `compute_digests_from_reader`, `inspect_reader`, `inspect_path`, `inspect_bytes`) with fixed `64 KB` streaming I/O and structural/privacy inspection for PNG, JPEG, WebP, GIF, BMP, WAV, FLAC, MP3, PDF, ZIP/OOXML/EPUB/ODF, and UTF-8 text.
+- [x] `[1.2.2]` Expose `job_manager::inspect_file` with privacy-safe `tracing` spans, upgrade `filefusion inspect [--signature-only] [--strict] [--json]` + integration tests, backfill `9b99e2c` (`stage-1.2.1`) in `docs/PROGRESS.md`, and append Subphase `1.2.2` entries to `TODO.md` and `CHANGELOG.md`.
+

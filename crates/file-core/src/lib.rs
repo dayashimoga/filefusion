@@ -9,6 +9,7 @@
 pub mod config;
 pub mod error;
 pub mod logging;
+pub mod metadata;
 pub mod signature;
 
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,11 @@ pub use config::{
 };
 pub use error::{ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult};
 pub use logging::{LogFormat, LogLevel, LoggingConfig, init_logging, redact_path_for_log};
+pub use metadata::{
+    DigestSet, FileInspectionReport, MetadataSummary, RecommendedAction, StreamDescriptor,
+    StreamKind, compute_digests_from_bytes, compute_digests_from_reader, inspect_bytes,
+    inspect_path, inspect_reader,
+};
 pub use signature::{
     DetectionConfidence, SignatureMatch, detect_signature_from_bytes, detect_signature_from_path,
     detect_signature_from_reader, enforce_spoofing_policy,

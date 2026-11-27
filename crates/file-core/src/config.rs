@@ -420,11 +420,11 @@ impl FileFusionConfig {
             };
             applied.push(String::from("FILEFUSION_LOG_JSON"));
         }
-        if let Some(raw) = get_var("NO_COLOR")
-            && !raw.is_empty()
-        {
-            self.logging.ansi_color = false;
-            applied.push(String::from("NO_COLOR"));
+        if let Some(raw) = get_var("NO_COLOR") {
+            if !raw.is_empty() {
+                self.logging.ansi_color = false;
+                applied.push(String::from("NO_COLOR"));
+            }
         }
         if let Some(raw) = get_var("FILEFUSION_OFFLINE_ONLY") {
             self.privacy.offline_only = parse_bool_flag("FILEFUSION_OFFLINE_ONLY", &raw)?;

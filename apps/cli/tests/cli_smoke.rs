@@ -144,3 +144,64 @@ fn cli_inspect_detects_real_signature_and_rejects_spoofed_extension() -> Result<
     let _ = fs::remove_dir_all(&dir);
     Ok(())
 }
+
+#[test]
+fn cli_inspect_computes_digests_and_normalized_metadata() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("inspect_meta")?;
+    let png_path = dir.join("sample.png");
+    let mut png = Vec::new();
+    png.extend_from_slice(b"\x89PNG\r\n\x1a\n");
+    let mut ihdr = Vec::new();
+    ihdr.extend_from_slice(&320u32.to_be_bytes());
+    ihdr.extend_from_slice(&240u32.to_be_bytes());
+    ihdr.extend_from_slice(&[8, 6, 0, 0, 0]);
+    png.extend_from_slice(&13u32.to_be_bytes());
+    png.extend_from_slice(b"IHDR");
+    png.extend_from_slice(&ihdr);
+    png.extend_from_slice(&[0u8; 4]);
+    let text = b"Author\0Tester";
+    png.extend_from_slice(&(u32::try_from(text.len()).unwrap_or(0)).to_be_bytes());
+    png.extend_from_slice(b"tEXt");
+    png.extend_from_slice(text);
+    png.extend_from_slice(&[0u8; 4]);
+    png.extend_from_slice(&0u32.to_be_bytes());
+    png.extend_from_slice(b"IEND");
+    png.extend_from_slice(&[0u8; 4]);
+    fs::write(&png_path, &png)?;
+
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let out = Command::new(exe)
+        .args(["inspect", "--json", &png_path.to_string_lossy()])
+        .output()?;
+    assert!(out.status.success());
+    let parsed: serde_json::Value = serde_json::from_slice(&out.stdout)?;
+    assert_eq!(parsed["schema_version"], 1);
+    assert_eq!(parsed["detected_format"], "png");
+    assert_eq!(parsed["byte_size"], u64::try_from(png.len()).unwrap_or(0));
+    assert_eq!(parsed["digests"]["blake3"].as_str().map(str::len), Some(64));
+    assert_eq!(parsed["digests"]["sha256"].as_str().map(str::len), Some(64));
+    assert_eq!(
+        parsed["digests"]["xxhash64"].as_str().map(str::len),
+        Some(16)
+    );
+    assert_eq!(parsed["metadata_summary"]["width"], 320);
+    assert_eq!(parsed["metadata_summary"]["height"], 240);
+    assert_eq!(parsed["metadata_summary"]["has_pii_author_risk"], true);
+    assert_eq!(parsed["streams"][0]["kind"], "image");
+
+    let sig_out = Command::new(exe)
+        .args([
+            "inspect",
+            "--signature-only",
+            "--json",
+            &png_path.to_string_lossy(),
+        ])
+        .output()?;
+    assert!(sig_out.status.success());
+    let sig_json: serde_json::Value = serde_json::from_slice(&sig_out.stdout)?;
+    assert_eq!(sig_json["detected_format"], "png");
+    assert!(sig_json.get("digests").is_none());
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}

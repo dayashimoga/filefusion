@@ -177,11 +177,13 @@ fn probe_zip_bytes(data: &[u8]) -> ProbeCandidate {
                 let Some(payload_start) = name_end.checked_add(extra_len) else {
                     break;
                 };
-                if let Some(payload_end) = payload_start.checked_add(comp_size)
-                    && let Some(payload) = data.get(payload_start..payload_end)
-                    && let Some((fmt, rule)) = classify_zip_mimetype_payload(payload)
+                if let Some(payload) = payload_start
+                    .checked_add(comp_size)
+                    .and_then(|payload_end| data.get(payload_start..payload_end))
                 {
-                    return ProbeCandidate::container(fmt, rule);
+                    if let Some((fmt, rule)) = classify_zip_mimetype_payload(payload) {
+                        return ProbeCandidate::container(fmt, rule);
+                    }
                 }
             }
             if let Some((fmt, rule)) = classify_zip_entry_name(name) {
@@ -243,10 +245,10 @@ fn probe_zip_central_directory<R: Read + Seek>(reader: &mut R) -> Option<ProbeCa
         let name_start = pos + 46;
         let name_end = name_start.checked_add(name_len)?;
         let name_bytes = cd.get(name_start..name_end)?;
-        if let Ok(name) = core::str::from_utf8(name_bytes)
-            && let Some((fmt, rule)) = classify_zip_entry_name(name)
-        {
-            return Some(ProbeCandidate::container(fmt, rule));
+        if let Ok(name) = core::str::from_utf8(name_bytes) {
+            if let Some((fmt, rule)) = classify_zip_entry_name(name) {
+                return Some(ProbeCandidate::container(fmt, rule));
+            }
         }
         pos = name_end.checked_add(extra_len)?.checked_add(comment_len)?;
     }
@@ -278,8 +280,9 @@ fn probe_iso_bmff(data: &[u8]) -> Option<ProbeCandidate> {
     }
     if matches!(major, b"heic" | b"heix" | b"mif1" | b"msf1" | b"hevc") {
         // `mif1` may carry `avif` in compatible brands list at offsets 16, 20, ...
-        if let Some(compat) = data.get(16..brand_end)
-            && compat.chunks_exact(4).any(|b| b == b"avif" || b == b"avis")
+        if data
+            .get(16..brand_end)
+            .is_some_and(|compat| compat.chunks_exact(4).any(|b| b == b"avif" || b == b"avis"))
         {
             return Some(ProbeCandidate::container(
                 FormatId::Avif,
@@ -635,11 +638,10 @@ pub fn detect_signature_from_reader<R: Read + Seek>(
 
     let claimed_ext = extract_claimed_extension(file_name_or_ext);
     let mut initial = detect_signature_from_bytes(&header, file_name_or_ext);
-    if initial.detected_format == FormatId::Zip
-        && initial.matched_rule == "magic:zip_pk"
-        && let Some(refined) = probe_zip_central_directory(reader)
-    {
-        initial = build_signature_match(refined, claimed_ext);
+    if initial.detected_format == FormatId::Zip && initial.matched_rule == "magic:zip_pk" {
+        if let Some(refined) = probe_zip_central_directory(reader) {
+            initial = build_signature_match(refined, claimed_ext);
+        }
     }
     Ok(initial)
 }

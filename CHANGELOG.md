@@ -179,3 +179,12 @@
 ### Subphase 1.2.1 — File Signature Detection (Phase 1.2 Begin)
 - **Added:** Multi-offset magic-byte and container signature detector (`crates/file-core/src/signature.rs`: `SignatureMatch`, `DetectionConfidence`, `detect_signature_from_bytes`, `detect_signature_from_reader`, `detect_signature_from_path`, `enforce_spoofing_policy`), expanded `FormatId` / `MediaKind` MIME & extension mappings, `job_manager::probe_file_signature`, and CLI `filefusion inspect [--strict] [--json]`.
 - **Changed:** Backfilled `24e9bc1` (`stage-1.1.3`) in `docs/PROGRESS.md` and appended Entry 022 to `TODO.md`.
+
+---
+
+## [0.1.4-stage1.2.2] — 2026-11-27
+
+### Subphase 1.2.2 — Metadata Inspection
+- **Added:** Single-pass `64 KB` streaming `BLAKE3` / `SHA-256` / `xxHash64` digest engine (`DigestSet`) and normalized structural/privacy metadata inspector (`FileInspectionReport`, `StreamDescriptor`, `MetadataSummary`, `inspect_reader`, `inspect_path`, `inspect_bytes`) in `crates/file-core/src/metadata.rs` plus `job_manager::inspect_file`.
+- **Changed:** Upgraded `filefusion inspect` to return full `FileInspectionReport` payloads by default (preserving fast `--signature-only` and `--strict` flags), backfilled `9b99e2c` (`stage-1.2.1`) in `docs/PROGRESS.md`, and appended Entry 023 to `TODO.md`.
+

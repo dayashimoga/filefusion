@@ -14,12 +14,14 @@ use std::sync::{
 pub use codec_registry::{DoctorReport, collect_baseline_doctor_report, collect_doctor_report};
 pub use file_core::{
     BatchDefaults, CliConfigOverrides, CliExitCode, CollisionPolicy, ConfigSource,
-    DetectionConfidence, ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionConfig,
-    FileFusionError, FileFusionResult, FormatId, JobStage, LoadedConfig, LogFormat, LogLevel,
-    LoggingConfig, MediaKind, PathConfig, PrivacyConfig, ProgressEvent, ResourceLimits,
-    SignatureMatch, detect_signature_from_bytes, detect_signature_from_path,
-    enforce_spoofing_policy, init_logging, load_config_from_path, load_effective_config,
-    redact_path_for_log, resolve_default_config_path, save_config_atomic, workspace_identity,
+    DetectionConfidence, DigestSet, ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionConfig,
+    FileFusionError, FileFusionResult, FileInspectionReport, FormatId, JobStage, LoadedConfig,
+    LogFormat, LogLevel, LoggingConfig, MediaKind, MetadataSummary, PathConfig, PrivacyConfig,
+    ProgressEvent, RecommendedAction, ResourceLimits, SignatureMatch, StreamDescriptor, StreamKind,
+    compute_digests_from_bytes, detect_signature_from_bytes, detect_signature_from_path,
+    enforce_spoofing_policy, init_logging, inspect_bytes, inspect_path, load_config_from_path,
+    load_effective_config, redact_path_for_log, resolve_default_config_path, save_config_atomic,
+    workspace_identity,
 };
 pub use validation_engine::{
     BombGuardError, PathSafetyError, validate_archive_member_path, validate_expansion_budget,
@@ -135,6 +137,31 @@ pub fn probe_file_signature(
     );
     enforce_spoofing_policy(&result, strict_spoofing)?;
     Ok(result)
+}
+
+/// Inspects a file's signature, streaming digests, internal streams, and normalized
+/// metadata under privacy-safe `tracing` (`FR-DET-001..004`, `FR-MET-001`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] if reading fails or `strict_spoofing` rejects a mismatch.
+pub fn inspect_file(
+    path: &std::path::Path,
+    strict_spoofing: bool,
+) -> FileFusionResult<FileInspectionReport> {
+    let redacted = redact_path_for_log(&path.to_string_lossy());
+    let span = tracing::info_span!("inspect_file", file = %redacted);
+    let _guard = span.enter();
+    let report = inspect_path(path, strict_spoofing)?;
+    tracing::info!(
+        format = ?report.detected_format,
+        byte_size = report.byte_size,
+        streams = report.streams.len(),
+        encrypted = report.metadata_summary.is_encrypted,
+        gps_risk = report.metadata_summary.has_gps_privacy_risk,
+        pii_risk = report.metadata_summary.has_pii_author_risk,
+        "file inspection completed"
+    );
+    Ok(report)
 }
 
 #[cfg(test)]
