@@ -1,12 +1,18 @@
 //! `file-core`: L0 foundation crate for `FileFusion`.
 //!
-//! Defines workspace identity, canonical format/media taxonomies, resource and
-//! security limits, monotonic progress events, and CLI exit code contracts
-//! (`docs/CONTRACTS.md` / `FF-CTR-001`).
+//! Defines workspace identity, canonical error taxonomy, privacy-safe structured
+//! logging, format/media taxonomies, resource and security limits, monotonic
+//! progress events, and CLI exit code contracts (`docs/CONTRACTS.md` / `FF-CTR-001`).
 
 #![forbid(unsafe_code)]
 
+pub mod error;
+pub mod logging;
+
 use serde::{Deserialize, Serialize};
+
+pub use error::{ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult};
+pub use logging::{LogFormat, LogLevel, LoggingConfig, init_logging, redact_path_for_log};
 
 /// Canonical package name of the L0 foundation crate.
 pub const CRATE_NAME: &str = env!("CARGO_PKG_NAME");

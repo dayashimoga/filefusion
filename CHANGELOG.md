@@ -155,3 +155,11 @@
 ### Subphase 1.1.1 — Cargo Workspace (Stage 1 Begin)
 - **Added:** Multi-crate Cargo workspace (`crates/file-core`, `crates/codec-registry`, `crates/validation-engine`, `crates/job-manager`, `apps/cli` producing `filefusion` binary) with `ResourceLimits::for_host`, `DoctorReport`, path-traversal & bomb-guard validators, `CancellationToken`, `filefusion doctor [--json]`, and 12 passing unit & integration tests.
 - **Changed:** Backfilled `d297150` (`stage-0.4.5`) in `docs/PROGRESS.md`, added Stage 1 subphase queue, and appended Entry 019 to `TODO.md`.
+
+---
+
+## [0.1.1-stage1.1.2] — 2026-11-27
+
+### Subphase 1.1.2 — Shared Error and Logging System
+- **Added:** Canonical typed error system (`FileFusionError`, `ErrorDiagnostic`, `ErrorCategory`, 11 `ErrorCode` `FF-ERR-*` variants) and privacy-aware structured `tracing` subsystem (`LoggingConfig`, `init_logging` to `stderr`, `redact_path_for_log`) in `crates/file-core`, wired through `validation-engine`, `job-manager`, and `apps/cli` (`--log-level`, `--log-json`).
+- **Changed:** Backfilled `33bec50` (`stage-1.1.1`) in `docs/PROGRESS.md` and appended Entry 020 to `TODO.md`.

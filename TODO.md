@@ -177,3 +177,12 @@
 - [x] `[1.1.1]` Expand root `Cargo.toml` workspace with `crates/file-core` (`L0`), `crates/codec-registry` (`L1`), `crates/validation-engine` (`L1`), `crates/job-manager` (`L5`), and `apps/cli` (`filefusion-cli` -> `filefusion` binary).
 - [x] `[1.1.1]` Implement real baseline contracts (`ResourceLimits::for_host`, `ProgressEvent`, `CliExitCode`, `DoctorReport`, `validate_archive_member_path`, `validate_expansion_budget`, `CancellationToken`, and `filefusion doctor [--json]` / `--version`) with 12 passing unit & CLI integration tests and zero Clippy warnings.
 - [x] `[1.1.1]` Backfill `d297150` (`stage-0.4.5`) in `docs/PROGRESS.md`, add Stage 1 queue, and append Subphase `1.1.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 020 — Stage 1 Subphase 1.1.2 Shared Error & Logging System
+
+### Completed in Subphase 1.1.2
+- [x] `[1.1.2]` Implement `FileFusionError`, `ErrorDiagnostic`, `ErrorCategory`, and all 11 canonical `ErrorCode` (`FF-ERR-*`) mappings in `crates/file-core/src/error.rs`, plus `From<std::io::Error>`, `From<PathSafetyError>`, and `From<BombGuardError>`.
+- [x] `[1.1.2]` Implement structured `tracing` initialization (`LoggingConfig`, `LogLevel`, `LogFormat::Pretty|Json` to `stderr`, `redact_path_for_log`) in `crates/file-core/src/logging.rs` with `native-logging` / `wasm` feature gating, `job-manager` tracing spans, and CLI `--log-level` / `--log-json` flags.
+- [x] `[1.1.2]` Backfill `33bec50` (`stage-1.1.1`) in `docs/PROGRESS.md` and append Subphase `1.1.2` entries to `TODO.md` and `CHANGELOG.md`.

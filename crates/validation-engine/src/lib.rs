@@ -6,7 +6,7 @@
 #![forbid(unsafe_code)]
 
 use core::fmt;
-use file_core::ResourceLimits;
+use file_core::{ErrorCode, FileFusionError, ResourceLimits};
 use serde::{Deserialize, Serialize};
 
 /// Reasons an archive member path is rejected by the security gate.
@@ -37,6 +37,17 @@ impl fmt::Display for PathSafetyError {
 }
 
 impl std::error::Error for PathSafetyError {}
+
+impl From<PathSafetyError> for FileFusionError {
+    fn from(err: PathSafetyError) -> Self {
+        let msg = err.to_string();
+        Self::new(ErrorCode::SecTraversal, msg)
+            .with_remediation(
+                "Archive extraction aborted; inspect archive entries before retrying.",
+            )
+            .with_source(err)
+    }
+}
 
 /// Reasons a decompression or nested container payload violates [`ResourceLimits`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -84,6 +95,17 @@ impl fmt::Display for BombGuardError {
 }
 
 impl std::error::Error for BombGuardError {}
+
+impl From<BombGuardError> for FileFusionError {
+    fn from(err: BombGuardError) -> Self {
+        let msg = err.to_string();
+        Self::new(ErrorCode::SecBomb, msg)
+            .with_remediation(
+                "Reject untrusted bomb payload or explicitly increase ResourceLimits if trusted.",
+            )
+            .with_source(err)
+    }
+}
 
 /// Validates and normalizes an untrusted archive member path (`FR-SEC-001`).
 ///
@@ -161,6 +183,7 @@ pub fn validate_expansion_budget(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use file_core::CliExitCode;
 
     #[test]
     fn rejects_zip_slip_and_unsafe_paths() {
@@ -226,5 +249,19 @@ mod tests {
             ),
             Err(BombGuardError::UncompressedSizeExceeded { .. })
         ));
+    }
+
+    #[test]
+    fn security_errors_convert_to_canonical_file_fusion_errors() {
+        let trav = FileFusionError::from(PathSafetyError::ParentTraversal);
+        assert_eq!(trav.diagnostic.code, ErrorCode::SecTraversal);
+        assert_eq!(trav.exit_code(), CliExitCode::SecurityRejection);
+
+        let bomb = FileFusionError::from(BombGuardError::DepthExceeded {
+            depth: 5,
+            max_depth: 3,
+        });
+        assert_eq!(bomb.diagnostic.code, ErrorCode::SecBomb);
+        assert_eq!(bomb.exit_code(), CliExitCode::SecurityRejection);
     }
 }

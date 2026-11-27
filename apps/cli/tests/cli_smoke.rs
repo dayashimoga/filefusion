@@ -16,14 +16,22 @@ fn cli_version_succeeds() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn cli_doctor_json_returns_valid_schema() -> Result<(), Box<dyn Error>> {
+fn cli_doctor_json_returns_valid_schema_and_routes_logs_to_stderr() -> Result<(), Box<dyn Error>> {
     let exe = env!("CARGO_BIN_EXE_filefusion");
-    let output = Command::new(exe).args(["doctor", "--json"]).output()?;
+    let output = Command::new(exe)
+        .args(["--log-level", "info", "--log-json", "doctor", "--json"])
+        .env_remove("RUST_LOG")
+        .output()?;
     assert!(output.status.success());
+
+    // Stdout must remain pure JSON even when structured JSON logs are active on stderr.
     let parsed: serde_json::Value = serde_json::from_slice(&output.stdout)?;
     assert_eq!(parsed["schema_version"], 1);
     assert!(parsed["logical_cpus"].as_u64().unwrap_or(0) >= 1);
     assert_eq!(parsed["capabilities"][0]["id"], "file-core-workspace");
     assert_eq!(parsed["capabilities"][0]["available"], true);
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("doctor diagnostics collected"));
     Ok(())
 }

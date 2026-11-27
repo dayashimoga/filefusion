@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 1 — Rust Core Foundation
 - **Phase:** Phase 1.1 — Workspace
-- **Subphase:** `1.1.1` — Cargo workspace
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `1.1.2`)
+- **Subphase:** `1.1.2` — Shared error and logging system
+- **Status:** `COMPLETE` (Verified, Agent 12 PASS, committed & tagged `stage-1.1.2`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 1.1.2 — Shared error and logging system
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 1 — Rust Core Foundation |
+| **Phase** | Phase 1.1 — Workspace |
+| **Subphase** | `1.1.2` — Shared error and logging system |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~12 minutes |
+| **Acceptance Criteria** | 1. Implement `ErrorCategory`, all 11 canonical `ErrorCode` (`FF-ERR-*`) variants, `ErrorDiagnostic`, and `FileFusionError` (`thiserror`, `From<std::io::Error>`, `exit_code()`) in `crates/file-core/src/error.rs`.<br>2. Implement structured `tracing` initialization (`LoggingConfig`, `LogLevel`, `LogFormat`, `init_logging` routed strictly to `stderr`, `redact_path_for_log`) in `crates/file-core/src/logging.rs` with `native-logging` / `wasm` feature gating.<br>3. Wire `From<PathSafetyError>` / `From<BombGuardError>` in `validation-engine`, add `tracing` spans & `CancellationToken::check()` in `job-manager`, and add `--log-level` / `--log-json` + structured error reporting in `apps/cli`.<br>4. Verify `cargo fmt`, `clippy -- -D warnings`, `cargo test --workspace`, `--features wasm` builds, backfill `33bec50` for `1.1.1`, update `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo test --workspace` & `--locked`: 17 passed, 0 failed (`file-core`: 7, `codec-registry`: 1, `validation-engine`: 4, `job-manager`: 2, `filefusion` unit: 1, `cli_smoke`: 2); `cargo check --no-default-features --features wasm --locked` (`file-core`, `job-manager`): PASS; CLI `--log-level info --log-json doctor --json`: stderr JSON logs + valid stdout JSON report. Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/file-core/Cargo.toml`, `crates/file-core/src/error.rs`, `crates/file-core/src/logging.rs`, `crates/file-core/src/lib.rs`, `crates/validation-engine/src/lib.rs`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/lib.rs`, `apps/cli/Cargo.toml`, `apps/cli/src/main.rs`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-1.1.2` on `main` (pushed to `origin`; exact SHA backfilled in `1.1.3`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 1.1.1 — Cargo workspace
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Expand root `Cargo.toml` workspace with `[workspace.dependencies]` (`serde`, `serde_json`, `clap`, internal path crates) and Stage 1 foundation crates: `crates/file-core` (`L0`), `crates/codec-registry` (`L1`), `crates/validation-engine` (`L1`), `crates/job-manager` (`L5`), and `apps/cli` (`filefusion-cli` -> `filefusion`).<br>2. Implement real baseline types & safety functions (`ResourceLimits::for_host`, `ProgressEvent`, `CliExitCode`, `DoctorReport`, `validate_archive_member_path`, `validate_expansion_budget`, `CancellationToken`, and `filefusion doctor [--json]` / `--version`).<br>3. Enforce `#![forbid(unsafe_code)]`, `MOD-RULE-01`..`05`, and pass `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and `scripts/build.ps1 -App cli`.<br>4. Backfill `d297150` for `0.4.5`, append to `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo test --workspace --locked`: 12 passed, 0 failed (`file-core`: 3, `codec-registry`: 1, `validation-engine`: 3, `job-manager`: 2, `filefusion` unit: 1, `cli_smoke`: 2); `--no-default-features --features wasm` check: PASS across all 4 library crates; `scripts/build.ps1 -App cli -BuildMode debug`: PASS (`filefusion.exe` 12,484,096 B, `sha256sum -c` 5/5 OK); Agent 12 independent re-audit: **PASS**. |
 | **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/file-core/Cargo.toml`, `crates/file-core/src/lib.rs`, `crates/codec-registry/Cargo.toml`, `crates/codec-registry/src/lib.rs`, `crates/validation-engine/Cargo.toml`, `crates/validation-engine/src/lib.rs`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/lib.rs`, `apps/cli/Cargo.toml`, `apps/cli/src/main.rs`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-1.1.1` on `main` (pushed to `origin`; exact SHA backfilled in `1.1.2`) |
+| **Commit Reference** | `33bec50` (tagged `stage-1.1.1` on `main`, pushed to `https://github.com/dayashimoga/filefusion`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 0.4.5 — Validate local build scripts
@@ -370,7 +387,7 @@
 | Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
 | :--- | :--- | :--- | :--- | :--- |
 | `1.1.1` | Cargo workspace | `COMPLETE` | Agent 2, Agent 1, Agent 8, Agent 12 | 2 hours |
-| `1.1.2` | Shared error and logging system | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 2 hours |
+| `1.1.2` | Shared error and logging system | `COMPLETE` | Agent 2, Agent 8, Agent 12 | 2 hours |
 | `1.1.3` | Configuration management | `NOT STARTED` | Agent 2, Agent 9, Agent 12 | 2 hours |
 | `1.2.1` | File signature detection | `NOT STARTED` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |
 | `1.2.2` | Metadata inspection | `NOT STARTED` | Agent 2, Agent 4, Agent 9, Agent 12 | 2 hours |

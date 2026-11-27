@@ -1,6 +1,6 @@
 [package]
 name = "file-core"
-description = "FileFusion L0 foundation crate: core domain contracts, resource bounds, progress/exit codes, and workspace identity."
+description = "FileFusion L0 foundation crate: core domain contracts, error taxonomy, structured logging, resource bounds, and progress/exit codes."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,11 +9,18 @@ repository.workspace = true
 authors.workspace = true
 
 [features]
-default = []
+default = ["native-logging"]
+native-logging = ["dep:tracing-subscriber"]
 wasm = []
 
 [dependencies]
 serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [lints]
 workspace = true
