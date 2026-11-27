@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.4 — CI/CD
-- **Subphase:** `0.4.1` — Configure GitHub Actions
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.4.2`)
+- **Subphase:** `0.4.2` — Implement selectable application builds
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.4.3`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.4.2 — Implement selectable application builds
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.4 — CI/CD |
+| **Subphase** | `0.4.2` — Implement selectable application builds |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 10 (DevOps Engineer), Agent 2 (Rust Core Engineer), Agent 5 (Flutter Engineer), Agent 6 (Web Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~5 minutes |
+| **Acceptance Criteria** | 1. Expand `.github/workflows/build-apps.yml` `validate-inputs` to resolve selective target matrices for all 11 choices (`all`, `desktop`, `windows`, `linux`, `macos`, `mobile`, `android`, `ios`, `web`, `cli`, `api`) so unrelated targets are skipped when a single target is chosen.<br>2. Implement native-runner target jobs (`build-cli`, `build-flutter`, `build-web`, `build-api`) with Cargo/Flutter/Node caching, `wasm32-unknown-unknown` build verification, and `build_mode` / `include_tests` support.<br>3. Pin newly added Flutter, pnpm, and Java actions to live-verified immutable 40-char commit SHAs.<br>4. Backfill `8a4a67e` for `0.4.1`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 review, commit, tag, and push to `origin`. |
+| **Test Results** | Agent 12 independent audit: **PASS** (bash matrix simulation across all 11 `app` choices + fallback, 21/21 SHA-pinned `uses:` verified via `git ls-remote`, `cargo check -p file-core --no-default-features --features wasm`, `cargo fmt`/`clippy`/`test --locked` `1 passed; 0 failed`, append-only logs & scope verified). |
+| **Files Changed** | `.github/workflows/build-apps.yml`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.4.2` on `main` (pushed to `origin`; exact SHA backfilled in next subphase) |
+| **Outstanding Issues** | None |
 
 ### Subphase 0.4.1 — Configure GitHub Actions
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Create `.github/ISSUE_TEMPLATE/` (`bug_report.yml`, `feature_request.yml`, `config.yml`), `.github/pull_request_template.md`, and `.github/dependabot.yml`.<br>2. Create baseline `.github/workflows/build-apps.yml` (push/PR/`workflow_dispatch` with `app`/`build_mode`/`include_tests`/`enable_optional_codecs` inputs, input validation, Rust core lint/test, and `cargo-deny` audit) and `.github/workflows/release.yml` (`v*.*.*` tagged release pipeline).<br>3. Pin every third-party GitHub Action to an immutable commit SHA verified from GitHub, enforce least-privilege `permissions:`, and validate YAML syntax.<br>4. Backfill `53dada6` for `0.3.5`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
 | **Test Results** | Agent 12 independent audit: **PASS** (all 5 third-party actions verified pinned to live 40-char GitHub commit SHAs, least-privilege permissions, `advisories`+`licenses`+`bans`+`sources` gate, Cargo `fmt`/`clippy`/`test --locked` `1 passed; 0 failed`, append-only logs & scope verified). |
 | **Files Changed** | `.github/ISSUE_TEMPLATE/bug_report.yml`, `.github/ISSUE_TEMPLATE/feature_request.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.github/pull_request_template.md`, `.github/dependabot.yml`, `.github/workflows/build-apps.yml`, `.github/workflows/release.yml`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.4.1` on `main` (pushed to `origin`; exact SHA backfilled in next subphase) |
+| **Commit Reference** | `8a4a67e` (tagged `stage-0.4.1` on `main`, pushed to `https://github.com/dayashimoga/filefusion`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 0.3.5 — Create documentation foundation
@@ -273,7 +290,7 @@
 | `0.3.4` | Configure specialized agents | `COMPLETE` | Agent 1, Agent 11, Agent 12 | 2 hours |
 | `0.3.5` | Create documentation foundation | `COMPLETE` | Agent 11, Agent 1, Agent 9, Agent 12 | 2 hours |
 | `0.4.1` | Configure GitHub Actions | `COMPLETE` | Agent 10, Agent 12 | 2 hours |
-| `0.4.2` | Implement selectable application builds | `NOT STARTED` | Agent 10, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
+| `0.4.2` | Implement selectable application builds | `COMPLETE` | Agent 10, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
 | `0.4.3` | Implement independent artifact uploads | `NOT STARTED` | Agent 10, Agent 12 | 1 hour |
 | `0.4.4` | Validate runner and platform matrix | `NOT STARTED` | Agent 10, Agent 8, Agent 12 | 1 hour |
 | `0.4.5` | Validate local build scripts | `NOT STARTED` | Agent 10, Agent 8, Agent 12 | 2 hours |

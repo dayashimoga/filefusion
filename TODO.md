@@ -133,3 +133,12 @@
 - [x] `[0.4.1]` Create `.github/ISSUE_TEMPLATE/` (`bug_report.yml`, `feature_request.yml`, `config.yml`), `.github/pull_request_template.md`, and `.github/dependabot.yml`.
 - [x] `[0.4.1]` Create `.github/workflows/build-apps.yml` baseline CI (push/PR/`workflow_dispatch` input schema, `validate-inputs`, `rust-core-checks`, `license-and-security-audit`) and `.github/workflows/release.yml` (`v*.*.*`), with least-privilege permissions and live-verified immutable action commit SHAs.
 - [x] `[0.4.1]` Backfill `53dada6` (`stage-0.3.5`) in `docs/PROGRESS.md` and append Subphase `0.4.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 015 — Subphase 0.4.2 Selectable Application Builds
+
+### Completed in Subphase 0.4.2
+- [x] `[0.4.2]` Expand `.github/workflows/build-apps.yml` with dynamic target matrix resolution (`all`, `desktop`, `windows`, `linux`, `macos`, `mobile`, `android`, `ios`, `web`, `cli`, `api`), skipping unrelated jobs on targeted dispatch runs.
+- [x] `[0.4.2]` Add native-runner build jobs (`build-cli`, `build-flutter`, `build-web` with `wasm32-unknown-unknown`, `build-api`), SHA-pinned Flutter/pnpm/Java actions, and Stage-aware honest execution paths.
+- [x] `[0.4.2]` Backfill `8a4a67e` (`stage-0.4.1`) in `docs/PROGRESS.md` and append Subphase `0.4.2` entries to `TODO.md` and `CHANGELOG.md`.

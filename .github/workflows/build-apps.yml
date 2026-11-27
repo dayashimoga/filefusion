@@ -57,15 +57,21 @@ env:
 
 jobs:
   validate-inputs:
-    name: Validate Dispatch & Target Selection
+    name: Validate Dispatch & Resolve Target Matrix
     runs-on: ubuntu-24.04
     outputs:
       app: ${{ steps.resolve.outputs.app }}
       build_mode: ${{ steps.resolve.outputs.build_mode }}
       include_tests: ${{ steps.resolve.outputs.include_tests }}
       enable_optional_codecs: ${{ steps.resolve.outputs.enable_optional_codecs }}
+      run_cli: ${{ steps.resolve.outputs.run_cli }}
+      run_flutter: ${{ steps.resolve.outputs.run_flutter }}
+      run_web: ${{ steps.resolve.outputs.run_web }}
+      run_api: ${{ steps.resolve.outputs.run_api }}
+      cli_matrix: ${{ steps.resolve.outputs.cli_matrix }}
+      flutter_matrix: ${{ steps.resolve.outputs.flutter_matrix }}
     steps:
-      - name: Resolve requested target and options
+      - name: Resolve requested target and platform matrices
         id: resolve
         shell: bash
         run: |
@@ -79,6 +85,7 @@ jobs:
           if [[ -z "$CODECS" ]]; then
             CODECS="false"
           fi
+
           case "$APP" in
             all|desktop|windows|linux|macos|mobile|android|ios|web|cli|api) ;;
             *)
@@ -93,10 +100,74 @@ jobs:
               exit 1
               ;;
           esac
+
+          RUN_CLI="false"
+          RUN_WEB="false"
+          RUN_API="false"
+          CLI_ITEMS=()
+          FLUTTER_ITEMS=()
+
+          if [[ "$APP" == "all" || "$APP" == "cli" ]]; then
+            RUN_CLI="true"
+            CLI_ITEMS+=(
+              '{"target":"cli-windows-x64","os":"windows-latest","artifact_name":"filefusion-cli-windows-x64"}'
+              '{"target":"cli-linux-x64","os":"ubuntu-24.04","artifact_name":"filefusion-cli-linux-x64"}'
+              '{"target":"cli-macos-arm64","os":"macos-latest","artifact_name":"filefusion-cli-macos-arm64"}'
+            )
+          fi
+
+          if [[ "$APP" == "all" || "$APP" == "desktop" || "$APP" == "windows" ]]; then
+            FLUTTER_ITEMS+=('{"target":"windows","os":"windows-latest","app_dir":"apps/desktop","artifact_name":"filefusion-windows-x64","requires_java":false}')
+          fi
+          if [[ "$APP" == "all" || "$APP" == "desktop" || "$APP" == "linux" ]]; then
+            FLUTTER_ITEMS+=('{"target":"linux","os":"ubuntu-24.04","app_dir":"apps/desktop","artifact_name":"filefusion-linux-x64","requires_java":false}')
+          fi
+          if [[ "$APP" == "all" || "$APP" == "desktop" || "$APP" == "macos" ]]; then
+            FLUTTER_ITEMS+=('{"target":"macos","os":"macos-latest","app_dir":"apps/desktop","artifact_name":"filefusion-macos-arm64","requires_java":false}')
+          fi
+          if [[ "$APP" == "all" || "$APP" == "mobile" || "$APP" == "android" ]]; then
+            FLUTTER_ITEMS+=('{"target":"android","os":"ubuntu-24.04","app_dir":"apps/mobile","artifact_name":"filefusion-android-apk","requires_java":true}')
+          fi
+          if [[ "$APP" == "all" || "$APP" == "mobile" || "$APP" == "ios" ]]; then
+            FLUTTER_ITEMS+=('{"target":"ios","os":"macos-latest","app_dir":"apps/mobile","artifact_name":"filefusion-ios-build","requires_java":false}')
+          fi
+
+          if [[ "$APP" == "all" || "$APP" == "web" ]]; then
+            RUN_WEB="true"
+          fi
+          if [[ "$APP" == "all" || "$APP" == "api" ]]; then
+            RUN_API="true"
+          fi
+
+          join_json_array() {
+            local IFS=","
+            echo "[$*]"
+          }
+
+          if [[ ${#CLI_ITEMS[@]} -gt 0 ]]; then
+            CLI_JSON="{\"include\":$(join_json_array "${CLI_ITEMS[@]}")}"
+          else
+            CLI_JSON='{"include":[]}'
+          fi
+
+          if [[ ${#FLUTTER_ITEMS[@]} -gt 0 ]]; then
+            RUN_FLUTTER="true"
+            FLUTTER_JSON="{\"include\":$(join_json_array "${FLUTTER_ITEMS[@]}")}"
+          else
+            RUN_FLUTTER="false"
+            FLUTTER_JSON='{"include":[]}'
+          fi
+
           echo "app=$APP" >> "$GITHUB_OUTPUT"
           echo "build_mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "include_tests=$TESTS" >> "$GITHUB_OUTPUT"
           echo "enable_optional_codecs=$CODECS" >> "$GITHUB_OUTPUT"
+          echo "run_cli=$RUN_CLI" >> "$GITHUB_OUTPUT"
+          echo "run_flutter=$RUN_FLUTTER" >> "$GITHUB_OUTPUT"
+          echo "run_web=$RUN_WEB" >> "$GITHUB_OUTPUT"
+          echo "run_api=$RUN_API" >> "$GITHUB_OUTPUT"
+          echo "cli_matrix=$CLI_JSON" >> "$GITHUB_OUTPUT"
+          echo "flutter_matrix=$FLUTTER_JSON" >> "$GITHUB_OUTPUT"
           echo "Resolved target=$APP build_mode=$MODE include_tests=$TESTS enable_optional_codecs=$CODECS"
 
   rust-core-checks:
@@ -141,3 +212,200 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@81891abc19297b21343b15ef67dc61e4aea74fda # v2.1.4
         with:
           arguments: --all-features check advisories licenses bans sources
+
+  build-cli:
+    name: Build CLI (${{ matrix.target }})
+    needs: [validate-inputs, rust-core-checks]
+    if: needs.validate-inputs.outputs.run_cli == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate-inputs.outputs.cli_matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Build CLI / Core target (${{ needs.validate-inputs.outputs.build_mode }})
+        shell: bash
+        run: |
+          PROFILE_FLAG=""
+          TARGET_SUBDIR="debug"
+          if [[ "${{ needs.validate-inputs.outputs.build_mode }}" == "release" ]]; then
+            PROFILE_FLAG="--release"
+            TARGET_SUBDIR="release"
+          fi
+          mkdir -p "dist/${{ matrix.artifact_name }}"
+          if [[ -f "apps/cli/Cargo.toml" ]]; then
+            cargo build -p filefusion-cli $PROFILE_FLAG --locked
+            if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+              cp "target/${TARGET_SUBDIR}/filefusion.exe" "dist/${{ matrix.artifact_name }}/"
+            else
+              cp "target/${TARGET_SUBDIR}/filefusion" "dist/${{ matrix.artifact_name }}/"
+            fi
+          else
+            echo "Stage 0 baseline: apps/cli activates in Stage 1; compiling file-core workspace anchor for ${{ matrix.target }}"
+            cargo build -p file-core $PROFILE_FLAG --locked
+            cp "target/${TARGET_SUBDIR}/libfile_core.rlib" "dist/${{ matrix.artifact_name }}/"
+          fi
+          if [[ "${{ needs.validate-inputs.outputs.include_tests }}" == "true" ]]; then
+            cargo test --workspace --locked
+          fi
+
+  build-flutter:
+    name: Build Flutter (${{ matrix.target }})
+    needs: [validate-inputs, rust-core-checks]
+    if: needs.validate-inputs.outputs.run_flutter == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.validate-inputs.outputs.flutter_matrix) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Setup JDK 17 for Android builds
+        if: matrix.requires_java == true
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          cache: true
+
+      - name: Build Flutter target or Rust FFI foundation
+        shell: bash
+        run: |
+          flutter --version
+          PROFILE_FLAG=""
+          FLUTTER_MODE="--debug"
+          if [[ "${{ needs.validate-inputs.outputs.build_mode }}" == "release" ]]; then
+            PROFILE_FLAG="--release"
+            FLUTTER_MODE="--release"
+          fi
+          mkdir -p "dist/${{ matrix.artifact_name }}"
+          if [[ -f "${{ matrix.app_dir }}/pubspec.yaml" ]]; then
+            pushd "${{ matrix.app_dir }}"
+            flutter pub get
+            dart analyze
+            if [[ "${{ needs.validate-inputs.outputs.include_tests }}" == "true" ]]; then
+              flutter test
+            fi
+            case "${{ matrix.target }}" in
+              windows) flutter build windows $FLUTTER_MODE ;;
+              linux) flutter build linux $FLUTTER_MODE ;;
+              macos) flutter build macos $FLUTTER_MODE ;;
+              android) flutter build apk $FLUTTER_MODE ;;
+              ios) flutter build ios $FLUTTER_MODE --no-codesign ;;
+            esac
+            popd
+          else
+            echo "Stage 0 baseline: ${{ matrix.app_dir }} activates in Stage 7; verifying Rust core build for ${{ matrix.target }}"
+            cargo build -p file-core $PROFILE_FLAG --locked
+          fi
+
+  build-web:
+    name: Build Web (SvelteKit & WASM)
+    needs: [validate-inputs, rust-core-checks]
+    if: needs.validate-inputs.outputs.run_web == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust stable toolchain with wasm32 target
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Build WASM core & SvelteKit Web target
+        shell: bash
+        run: |
+          PROFILE_FLAG=""
+          if [[ "${{ needs.validate-inputs.outputs.build_mode }}" == "release" ]]; then
+            PROFILE_FLAG="--release"
+          fi
+          mkdir -p dist/filefusion-web
+          cargo build -p file-core --target wasm32-unknown-unknown --no-default-features --features wasm $PROFILE_FLAG --locked
+          if [[ -f "apps/web/package.json" ]]; then
+            pnpm --dir apps/web install --frozen-lockfile
+            pnpm --dir apps/web check
+            if [[ "${{ needs.validate-inputs.outputs.include_tests }}" == "true" ]]; then
+              pnpm --dir apps/web test
+            fi
+            pnpm --dir apps/web build
+          else
+            echo "Stage 0 baseline: apps/web activates in Stage 8; verified wasm32-unknown-unknown compilation for file-core."
+          fi
+
+  build-api:
+    name: Build REST API Server
+    needs: [validate-inputs, rust-core-checks]
+    if: needs.validate-inputs.outputs.run_api == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo registry and build artifacts
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Build API target (${{ needs.validate-inputs.outputs.build_mode }})
+        shell: bash
+        run: |
+          PROFILE_FLAG=""
+          TARGET_SUBDIR="debug"
+          if [[ "${{ needs.validate-inputs.outputs.build_mode }}" == "release" ]]; then
+            PROFILE_FLAG="--release"
+            TARGET_SUBDIR="release"
+          fi
+          mkdir -p dist/filefusion-api
+          if [[ -f "apps/api/Cargo.toml" ]]; then
+            cargo build -p filefusion-api $PROFILE_FLAG --locked
+            cp "target/${TARGET_SUBDIR}/filefusion-api" dist/filefusion-api/
+          else
+            echo "Stage 0 baseline: apps/api activates in Stage 10; compiling file-core workspace anchor for API server."
+            cargo build -p file-core $PROFILE_FLAG --locked
+            cp "target/${TARGET_SUBDIR}/libfile_core.rlib" dist/filefusion-api/
+          fi
+          if [[ "${{ needs.validate-inputs.outputs.include_tests }}" == "true" ]]; then
+            cargo test --workspace --locked
+          fi

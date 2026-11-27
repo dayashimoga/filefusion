@@ -115,3 +115,11 @@
 ### Subphase 0.4.1 — Configure GitHub Actions
 - **Added:** `.github/ISSUE_TEMPLATE/` (`bug_report.yml`, `feature_request.yml`, `config.yml`), `.github/pull_request_template.md`, `.github/dependabot.yml`, `.github/workflows/build-apps.yml` (SHA-pinned CI baseline with `workflow_dispatch` inputs, Rust core verification, and `cargo-deny` gate), and `.github/workflows/release.yml` (`v*.*.*` tagged release pipeline).
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `53dada6` commit reference for `0.3.5`) and appended Entry 014 to `TODO.md`.
+
+---
+
+## [0.0.15-stage0.4.2] — 2026-11-27
+
+### Subphase 0.4.2 — Implement Selectable Application Builds
+- **Changed:** Expanded `.github/workflows/build-apps.yml` with dynamic target matrix resolution across all 11 selectable `app` inputs, native-runner jobs (`build-cli`, `build-flutter`, `build-web`, `build-api`), `wasm32-unknown-unknown` compilation, SHA-pinned Flutter/pnpm/Java setup actions, and truthful Stage-aware build paths.
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `8a4a67e` commit reference for `0.4.1`) and appended Entry 015 to `TODO.md`.
