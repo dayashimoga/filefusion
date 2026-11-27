@@ -10,7 +10,7 @@
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.4 — CI/CD
 - **Subphase:** `0.4.4` — Validate runner and platform matrix
-- **Status:** `REVIEW` (Fixed `cargo-deny-action` invocation discovered during live CI run `46014125464`; awaiting Agent 12 review and live green CI confirmation)
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.4.5`)
 
 ---
 
@@ -23,14 +23,14 @@
 | **Stage** | Stage 0 — Project Foundation |
 | **Phase** | Phase 0.4 — CI/CD |
 | **Subphase** | `0.4.4` — Validate runner and platform matrix |
-| **Status** | `REVIEW` |
+| **Status** | `COMPLETE` |
 | **Assigned Agents** | Agent 10 (DevOps Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
 | **Planned Maximum Duration** | 1 hour |
-| **Actual Duration** | In progress (~15 minutes) |
+| **Actual Duration** | ~10 minutes |
 | **Acceptance Criteria** | 1. Inspect live GitHub Actions workflow runs (`46013319849`, `46014125464`) across `ubuntu-24.04`, `windows-latest`, and `macos-latest` runners.<br>2. Fix the live `EmbarkStudios/cargo-deny-action` argument placement (`command: check`, `arguments: --all-features`, `command-arguments: advisories licenses bans sources`) in `build-apps.yml` and `release.yml`.<br>3. Trigger and observe a live `workflow_dispatch` targeted run (`app=web`) plus push run verifying 100% green jobs and independent artifact uploads.<br>4. Backfill `73c22a7` for `0.4.3`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
-| **Test Results** | Run `46014125464` validated native runners (`ubuntu-24.04`, `windows-latest`, `macos-latest`) and uploaded independent artifacts (`filefusion-cli-*`, `filefusion-linux-x64`, `filefusion-macos-arm64`, `filefusion-android-apk`, `filefusion-web`, `filefusion-api-linux-x64`); caught `cargo-deny-action` CLI syntax error (`error: invalid value 'check'`), fixed for live re-verification. |
+| **Test Results** | Agent 12 audit: **PASS** (25/25 & 6/6 SHA pins, 5/5 `bash -n` scripts, append-only logs & scope verified). Live GitHub Actions `push` run `46015089636` (`05ea464`): **13/13 jobs `success`** across `ubuntu-24.04`, `windows-latest`, `macos-latest` with **10/10 independent artifacts** uploaded. Live `workflow_dispatch` (`app=web`) run `46015090900`: **`success`** (`Build Web` succeeded, `Build CLI`/`Build Flutter`/`Build API` skipped, `filefusion-web` artifact uploaded). |
 | **Files Changed** | `.github/workflows/build-apps.yml`, `.github/workflows/release.yml`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Pending commit on `main` |
+| **Commit Reference** | Tagged `stage-0.4.4` on `main` (pushed to `origin`; workflow fix at `05ea464`, progress finalized at `stage-0.4.4`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 0.4.3 — Implement independent artifact uploads
@@ -326,5 +326,5 @@
 | `0.4.1` | Configure GitHub Actions | `COMPLETE` | Agent 10, Agent 12 | 2 hours |
 | `0.4.2` | Implement selectable application builds | `COMPLETE` | Agent 10, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
 | `0.4.3` | Implement independent artifact uploads | `COMPLETE` | Agent 10, Agent 12 | 1 hour |
-| `0.4.4` | Validate runner and platform matrix | `REVIEW` | Agent 10, Agent 8, Agent 12 | 1 hour |
+| `0.4.4` | Validate runner and platform matrix | `COMPLETE` | Agent 10, Agent 8, Agent 12 | 1 hour |
 | `0.4.5` | Validate local build scripts | `NOT STARTED` | Agent 10, Agent 8, Agent 12 | 2 hours |
