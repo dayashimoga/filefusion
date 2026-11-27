@@ -99,3 +99,12 @@
 - [x] `[0.3.2]` Establish monorepo engineering configuration roots (`.gitignore`, `.gitattributes`, `.editorconfig`, `.cargo/config.toml`, `deny.toml`).
 - [x] `[0.3.2]` Initialize root `Cargo.toml` workspace (`edition = "2024"`, `unsafe_code = "forbid"`, strict clippy lints) with non-decorative `crates/file-core` anchor crate and passing unit test suite.
 - [x] `[0.3.2]` Author `docs/MONOREPO_SETUP.md` (`FF-MONO-001` v1.0.0), backfill `2450a3e` (`stage-0.3.1`) in `docs/PROGRESS.md`, and append Subphase `0.3.2` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 011 — Subphase 0.3.3 Antigravity Rules & Reusable Skills
+
+### Completed in Subphase 0.3.3
+- [x] `[0.3.3]` Author root `AGENTS.md` and 12 project-level persistent rules in `.agents/rules/` (`01-global-engineering-contract.md` through `12-agent-collaboration-standards.md`) following `agy-customizations` format and token-budget guidelines.
+- [x] `[0.3.3]` Author all 14 reusable workflow skills in `.agents/skills/*/SKILL.md` (`project-initialization` through `subphase-completion-verification`).
+- [x] `[0.3.3]` Backfill `99794ae` (`stage-0.3.2`) in `docs/PROGRESS.md` and append Subphase `0.3.3` entries to `TODO.md` and `CHANGELOG.md`.

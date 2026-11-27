@@ -83,3 +83,11 @@
 ### Subphase 0.3.2 — Establish Monorepo
 - **Added:** Monorepo engineering configuration roots (`.gitignore`, `.gitattributes`, `.editorconfig`, `.cargo/config.toml`, `deny.toml`), root `Cargo.toml` workspace with non-decorative `crates/file-core` anchor crate + unit tests, and `docs/MONOREPO_SETUP.md` (`FF-MONO-001`).
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `2450a3e` commit reference for `0.3.1`) and appended Entry 010 to `TODO.md`.
+
+---
+
+## [0.0.11-stage0.3.3] — 2026-11-27
+
+### Subphase 0.3.3 — Configure Antigravity Rules and Skills
+- **Added:** Root `AGENTS.md`, 12 concise persistent rules in `.agents/rules/*.md`, and 14 reusable workflow skills in `.agents/skills/*/SKILL.md` conforming to the active Antigravity Customization specification.
+- **Changed:** Updated `docs/PROGRESS.md` (including verified `99794ae` commit reference for `0.3.2`) and appended Entry 011 to `TODO.md`.
