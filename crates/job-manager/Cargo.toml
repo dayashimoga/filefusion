@@ -1,0 +1,21 @@
+[package]
+name = "job-manager"
+description = "FileFusion L5 control plane: cooperative cancellation, capability orchestration, and job scheduling foundation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+wasm = []
+
+[dependencies]
+codec-registry.workspace = true
+file-core.workspace = true
+validation-engine.workspace = true
+
+[lints]
+workspace = true

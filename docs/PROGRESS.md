@@ -7,14 +7,31 @@
 
 ## Current Active Subphase
 
-- **Stage:** Stage 0 — Project Foundation
-- **Phase:** Phase 0.4 — CI/CD
-- **Subphase:** `0.4.5` — Validate local build scripts
-- **Status:** `COMPLETE` (**Stage 0 Complete**; awaiting user confirmation to advance to **Stage 1 / `1.1.1`**)
+- **Stage:** Stage 1 — Rust Core Foundation
+- **Phase:** Phase 1.1 — Workspace
+- **Subphase:** `1.1.1` — Cargo workspace
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `1.1.2`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 1.1.1 — Cargo workspace
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 1 — Rust Core Foundation |
+| **Phase** | Phase 1.1 — Workspace |
+| **Subphase** | `1.1.1` — Cargo workspace |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 1 (Principal Architect), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~10 minutes |
+| **Acceptance Criteria** | 1. Expand root `Cargo.toml` workspace with `[workspace.dependencies]` (`serde`, `serde_json`, `clap`, internal path crates) and Stage 1 foundation crates: `crates/file-core` (`L0`), `crates/codec-registry` (`L1`), `crates/validation-engine` (`L1`), `crates/job-manager` (`L5`), and `apps/cli` (`filefusion-cli` -> `filefusion`).<br>2. Implement real baseline types & safety functions (`ResourceLimits::for_host`, `ProgressEvent`, `CliExitCode`, `DoctorReport`, `validate_archive_member_path`, `validate_expansion_budget`, `CancellationToken`, and `filefusion doctor [--json]` / `--version`).<br>3. Enforce `#![forbid(unsafe_code)]`, `MOD-RULE-01`..`05`, and pass `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and `scripts/build.ps1 -App cli`.<br>4. Backfill `d297150` for `0.4.5`, append to `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo test --workspace --locked`: 12 passed, 0 failed (`file-core`: 3, `codec-registry`: 1, `validation-engine`: 3, `job-manager`: 2, `filefusion` unit: 1, `cli_smoke`: 2); `--no-default-features --features wasm` check: PASS across all 4 library crates; `scripts/build.ps1 -App cli -BuildMode debug`: PASS (`filefusion.exe` 12,484,096 B, `sha256sum -c` 5/5 OK); Agent 12 independent re-audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/file-core/Cargo.toml`, `crates/file-core/src/lib.rs`, `crates/codec-registry/Cargo.toml`, `crates/codec-registry/src/lib.rs`, `crates/validation-engine/Cargo.toml`, `crates/validation-engine/src/lib.rs`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/lib.rs`, `apps/cli/Cargo.toml`, `apps/cli/src/main.rs`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-1.1.1` on `main` (pushed to `origin`; exact SHA backfilled in `1.1.2`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 0.4.5 — Validate local build scripts
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Author `scripts/build.ps1` (Windows) and `scripts/build.sh` (Linux/macOS) supporting all 11 selectable targets (`all`, `desktop`, `windows`, `linux`, `macos`, `mobile`, `android`, `ios`, `web`, `cli`, `api`), `build_mode`, `include_tests`, `enable_optional_codecs`, and `--dry-run` / `-DryRun`.<br>2. Execute host-supported targets sequentially (`<= 16 GB` RAM safe) and explicitly report/reject unavailable cross-OS targets (`linux`/`macos`/`ios` on Windows).<br>3. Document local vs CI-delegated target support in `DEVELOPER_GUIDE.md`.<br>4. Validate `scripts/build.ps1` and `scripts/build.sh` (`bash -n` + live execution + negative cross-OS target test), backfill `9f3c441` for `0.4.4`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit (closing Stage 0), commit, tag, and push to `origin`. |
 | **Test Results** | `build.ps1` validated (`-App all -DryRun` exit `0`, `-App ios` negative exit `1`, `-App cli -BuildMode debug`, `-App web -BuildMode release`, `-App windows -BuildMode debug`); `build.sh` validated (`bash -n` exit `0`, `--app all --dry-run` exit `0`, `--app api --build-mode debug`, `--include-tests invalid` negative exit `2`); `sha256sum -c SHA256SUMS.txt` **4/4 `OK`** across all 4 `dist/local/*` staged directories (`bom=False`, `cr=False`); Cargo `fmt`/`clippy`/`test --locked` (`1 passed; 0 failed`); Agent 12 independent re-audit: **PASS** (Stage 0 Exit Criteria verified). |
 | **Files Changed** | `scripts/build.ps1`, `scripts/build.sh`, `DEVELOPER_GUIDE.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.4.5` on `main` (pushed to `origin`; exact SHA backfilled in Stage 1 / `1.1.1`) |
+| **Commit Reference** | `d297150` (tagged `stage-0.4.5` on `main`, pushed to `https://github.com/dayashimoga/filefusion`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 0.4.4 — Validate runner and platform matrix
@@ -345,3 +362,22 @@
 | `0.4.3` | Implement independent artifact uploads | `COMPLETE` | Agent 10, Agent 12 | 1 hour |
 | `0.4.4` | Validate runner and platform matrix | `COMPLETE` | Agent 10, Agent 8, Agent 12 | 1 hour |
 | `0.4.5` | Validate local build scripts | `COMPLETE` | Agent 10, Agent 8, Agent 12 | 2 hours |
+
+---
+
+## Upcoming Subphases Queue (Stage 1 — Rust Core Foundation)
+
+| Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
+| :--- | :--- | :--- | :--- | :--- |
+| `1.1.1` | Cargo workspace | `COMPLETE` | Agent 2, Agent 1, Agent 8, Agent 12 | 2 hours |
+| `1.1.2` | Shared error and logging system | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 2 hours |
+| `1.1.3` | Configuration management | `NOT STARTED` | Agent 2, Agent 9, Agent 12 | 2 hours |
+| `1.2.1` | File signature detection | `NOT STARTED` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |
+| `1.2.2` | Metadata inspection | `NOT STARTED` | Agent 2, Agent 4, Agent 9, Agent 12 | 2 hours |
+| `1.2.3` | File classification | `NOT STARTED` | Agent 2, Agent 3, Agent 12 | 1 hour |
+| `1.2.4` | Capability registry | `NOT STARTED` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
+| `1.3.1` | Processing API | `NOT STARTED` | Agent 2, Agent 1, Agent 12 | 2 hours |
+| `1.3.2` | Plugin/backend contracts | `NOT STARTED` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
+| `1.3.3` | Job scheduler | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 4 hours |
+| `1.3.4` | Cancellation and progress | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 2 hours |
+| `1.3.5` | Resource limits | `NOT STARTED` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |

@@ -1,0 +1,20 @@
+[package]
+name = "validation-engine"
+description = "FileFusion L1 validation and security gate: path-traversal guards, decompression bomb limits, and output verification primitives."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+wasm = []
+
+[dependencies]
+file-core.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true

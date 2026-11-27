@@ -168,3 +168,12 @@
 ### Completed in Subphase 0.4.5
 - [x] `[0.4.5]` Author `scripts/build.ps1` and `scripts/build.sh` supporting all 11 selectable targets, `release`/`debug` profiles, `IncludeTests`, `EnableOptionalCodecs`, sequential execution for 16 GB RAM hosts, independent `dist/local/<artifact_name>/` staging + `SHA256SUMS.txt`, and explicit cross-OS unavailability handling.
 - [x] `[0.4.5]` Document local vs CI-delegated target support in `DEVELOPER_GUIDE.md`, backfill `9f3c441` (`stage-0.4.4`) in `docs/PROGRESS.md`, and append Subphase `0.4.5` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 019 — Stage 1 Subphase 1.1.1 Cargo Workspace
+
+### Completed in Subphase 1.1.1
+- [x] `[1.1.1]` Expand root `Cargo.toml` workspace with `crates/file-core` (`L0`), `crates/codec-registry` (`L1`), `crates/validation-engine` (`L1`), `crates/job-manager` (`L5`), and `apps/cli` (`filefusion-cli` -> `filefusion` binary).
+- [x] `[1.1.1]` Implement real baseline contracts (`ResourceLimits::for_host`, `ProgressEvent`, `CliExitCode`, `DoctorReport`, `validate_archive_member_path`, `validate_expansion_budget`, `CancellationToken`, and `filefusion doctor [--json]` / `--version`) with 12 passing unit & CLI integration tests and zero Clippy warnings.
+- [x] `[1.1.1]` Backfill `d297150` (`stage-0.4.5`) in `docs/PROGRESS.md`, add Stage 1 queue, and append Subphase `1.1.1` entries to `TODO.md` and `CHANGELOG.md`.

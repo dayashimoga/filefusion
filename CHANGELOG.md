@@ -147,3 +147,11 @@
 ### Subphase 0.4.5 — Validate Local Build Scripts (Stage 0 Complete)
 - **Added:** Cross-platform local build scripts `scripts/build.ps1` and `scripts/build.sh` matching `.github/workflows/build-apps.yml` target selection, sequential 16 GB RAM execution, `dist/local/` staging + `SHA256SUMS.txt`, and cross-OS target documentation.
 - **Changed:** Documented local vs GitHub-hosted runner targets in `DEVELOPER_GUIDE.md`; updated `docs/PROGRESS.md` (including verified `9f3c441` commit reference for `0.4.4`) and appended Entry 018 to `TODO.md`.
+
+---
+
+## [0.1.0-stage1.1.1] — 2026-11-27
+
+### Subphase 1.1.1 — Cargo Workspace (Stage 1 Begin)
+- **Added:** Multi-crate Cargo workspace (`crates/file-core`, `crates/codec-registry`, `crates/validation-engine`, `crates/job-manager`, `apps/cli` producing `filefusion` binary) with `ResourceLimits::for_host`, `DoctorReport`, path-traversal & bomb-guard validators, `CancellationToken`, `filefusion doctor [--json]`, and 12 passing unit & integration tests.
+- **Changed:** Backfilled `d297150` (`stage-0.4.5`) in `docs/PROGRESS.md`, added Stage 1 subphase queue, and appended Entry 019 to `TODO.md`.

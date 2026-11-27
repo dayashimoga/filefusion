@@ -1,0 +1,22 @@
+[package]
+name = "filefusion-cli"
+description = "FileFusion CLI binary (`filefusion`): local-first file intelligence, conversion, compression, and diagnostics."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "filefusion"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+file-core.workspace = true
+job-manager.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

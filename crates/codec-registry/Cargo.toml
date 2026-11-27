@@ -1,0 +1,20 @@
+[package]
+name = "codec-registry"
+description = "FileFusion L1 capability registry: Tier 1 built-in vs Tier 2 out-of-process tool metadata and doctor reporting."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+wasm = []
+
+[dependencies]
+file-core.workspace = true
+serde.workspace = true
+
+[lints]
+workspace = true
