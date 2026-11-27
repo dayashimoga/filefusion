@@ -27,3 +27,11 @@
 ### Subphase 0.1.3 — Define Supported Formats and Capabilities
 - **Added:** `docs/FORMATS_AND_CAPABILITIES.md` (`FF-FMT-001` v1.0.0) establishing the complete format, codec, engine tier (`Y1` pure-Rust permissive vs `Y2` out-of-process license-isolated adapters), hardware acceleration, security bomb-protection, platform availability (`PLAT-*`), and conversion-graph routing matrices across all supported file families.
 - **Changed:** Cross-referenced `docs/FORMATS_AND_CAPABILITIES.md` in `REQUIREMENTS.md`; updated `docs/PROGRESS.md` (including verified `84207b0` commit reference for `0.1.2`) and appended Entry 003 to `TODO.md`.
+
+---
+
+## [0.0.4-stage0.1.4] — 2026-11-27
+
+### Subphase 0.1.4 — Define MVP and Deferred Features (Phase 0.1 Complete)
+- **Added:** `docs/SCOPE_AND_MVP.md` (`FF-SCP-001` v1.0.0) defining explicit release milestones (`MVP-v0.1`, `v1.0-GA`, `v1.x+`), `P0`/`P1`/`P2` requirement mappings, the 12-item Deferred-Features & Non-Goals Register (`DEF-001` through `DEF-012`), and the 5-point Scope Admission Gate.
+- **Changed:** Cross-referenced `docs/SCOPE_AND_MVP.md` in `REQUIREMENTS.md`; updated `docs/PROGRESS.md` (including verified `4e6d610` commit reference for `0.1.3`) and appended Entry 004 to `TODO.md`.

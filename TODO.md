@@ -42,3 +42,11 @@
 ### Completed in Subphase 0.1.3
 - [x] `[0.1.3]` Author `docs/FORMATS_AND_CAPABILITIES.md` (`FF-FMT-001` v1.0.0) specifying the Tier 1 vs Tier 2 engine & license isolation model, magic-byte & container disambiguation matrix, image/video/audio/document/ebook/PDF/OCR/archive capability matrices, platform availability matrix, and multi-hop conversion graph rules.
 - [x] `[0.1.3]` Cross-link `docs/FORMATS_AND_CAPABILITIES.md` in `REQUIREMENTS.md` and synchronize `docs/PROGRESS.md` (backfilling `84207b0` for `0.1.2`), `TODO.md`, and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 004 — Subphase 0.1.4 MVP & Deferred Features (Phase 0.1 Closure)
+
+### Completed in Subphase 0.1.4
+- [x] `[0.1.4]` Author `docs/SCOPE_AND_MVP.md` (`FF-SCP-001` v1.0.0) defining Milestone A (`MVP-v0.1`: Stages 1–3 + CLI), Milestone B (`v1.0-GA`: Stages 4–8 + 11–12), Milestone C (`v1.x+`: Stages 9–10 optional AI & Cloud), Deferred-Features & Non-Goals Register (`DEF-001`..`DEF-012`), and the 5-point Scope Admission Gate.
+- [x] `[0.1.4]` Cross-link `docs/SCOPE_AND_MVP.md` in `REQUIREMENTS.md`, backfill `4e6d610` for `0.1.3` in `docs/PROGRESS.md`, and complete Phase 0.1 (Product Definition).

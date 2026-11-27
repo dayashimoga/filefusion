@@ -3,7 +3,7 @@
 **Document ID:** `FF-REQ-001`  
 **Version:** `1.0.0`  
 **Status:** `APPROVED FOR STAGE 0 BASELINE`  
-**Subphase Origin:** `0.1.1 — Finalize Product Requirements` (linked with [docs/USE_CASES.md](docs/USE_CASES.md) in `0.1.2` and [docs/FORMATS_AND_CAPABILITIES.md](docs/FORMATS_AND_CAPABILITIES.md) in `0.1.3`)  
+**Subphase Origin:** `0.1.1 — Finalize Product Requirements` (linked with [docs/USE_CASES.md](docs/USE_CASES.md) in `0.1.2`, [docs/FORMATS_AND_CAPABILITIES.md](docs/FORMATS_AND_CAPABILITIES.md) in `0.1.3`, and [docs/SCOPE_AND_MVP.md](docs/SCOPE_AND_MVP.md) in `0.1.4`)  
 **Owner:** Principal Architect (Agent 1) & Documentation Engineer (Agent 11)
 
 ---
