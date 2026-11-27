@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.2 — Architecture
-- **Subphase:** `0.2.3` — Define Rust and application contracts
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.2.4`)
+- **Subphase:** `0.2.4` — Create architecture decision records
+- **Status:** `COMPLETE` (Phase 0.2 Complete; awaiting user confirmation to advance to Phase 0.3 / `0.3.1`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.2.4 — Create architecture decision records
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.2 — Architecture |
+| **Subphase** | `0.2.4` — Create architecture decision records |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 1 (Principal Architect), Agent 11 (Documentation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 1 hour |
+| **Actual Duration** | ~3 minutes |
+| **Acceptance Criteria** | 1. Author `docs/DECISION_LOG.md` (`FF-ADR-001` v1.0.0) documenting `ADR-001` through `ADR-010` covering Rust workspace layering, Two-Tier engine/license isolation, dual-pool concurrency, Flutter/FRB, SvelteKit 5/WASM, SQLite/Cloud storage, atomic staging/No-Op Guard, security gate/IsolatedProcessRunner, opt-in AI privacy, and CI/Podman strategy.<br>2. Cross-link from `ARCHITECTURE.md`, backfill `fff6c24` for `0.2.3` in `docs/PROGRESS.md`, append to `TODO.md` and `CHANGELOG.md`.<br>3. Pass Agent 12 independent review (including Phase `0.2` closure) and commit to `main`. |
+| **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects, 0 contradictions, 0 scope violations; all 10 ADRs, cross-spec consistency, append-only logs, and Phase 0.2 closure verified). |
+| **Files Changed** | `docs/DECISION_LOG.md`, `ARCHITECTURE.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.2.4` on `main` (exact SHA backfilled in next subphase) |
+| **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1` (next subphase). |
 
 ### Subphase 0.2.3 — Define Rust and application contracts
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Author `docs/CONTRACTS.md` (`FF-CTR-001` v1.0.0) specifying the canonical `FileFusionError` / `ErrorCode` taxonomy, `ResourceLimits`, `FileInspectionReport`, and `ProgressEvent` schemas.<br>2. Define Rust core trait contracts (`CompressionEngine`, `ConversionEngine`, `ExternalToolAdapter`, `QualityEvaluator`, `OutputValidator`) and SQLite WAL persistence tables.<br>3. Specify Plane 2 transport contracts for `flutter-bridge` (`flutter_rust_bridge` v2), SvelteKit WASM Web Workers, CLI subcommands/exit codes/`--json`, and `/api/v1` REST OpenAPI envelope.<br>4. Cross-link from `ARCHITECTURE.md` and `docs/MODULE_BOUNDARIES.md`, backfill `606553b` for `0.2.2`, append to `TODO.md` and `CHANGELOG.md`, pass Agent 12 review, and commit to `main`. |
 | **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects, 0 scope violations; error taxonomy, core traits, SQLite WAL schema, Plane 2 transport contracts, and append-only logs verified). |
 | **Files Changed** | `docs/CONTRACTS.md`, `ARCHITECTURE.md`, `docs/MODULE_BOUNDARIES.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.2.3` on `main` (exact SHA backfilled in next subphase) |
+| **Commit Reference** | `fff6c24` (tagged `stage-0.2.3` on `main`) |
 | **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.2.2 — Define module boundaries
@@ -147,7 +164,7 @@
 | `0.2.1` | Define system architecture | `COMPLETE` | Agent 1, Agent 2, Agent 11, Agent 12 | 2 hours |
 | `0.2.2` | Define module boundaries | `COMPLETE` | Agent 1, Agent 2, Agent 12 | 1 hour |
 | `0.2.3` | Define Rust and application contracts | `COMPLETE` | Agent 1, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
-| `0.2.4` | Create architecture decision records | `NOT STARTED` | Agent 1, Agent 11, Agent 12 | 1 hour |
+| `0.2.4` | Create architecture decision records | `COMPLETE` | Agent 1, Agent 11, Agent 12 | 1 hour |
 | `0.3.1` | Create GitHub repository | `NOT STARTED` | Agent 10, Agent 9, Agent 12 | 1 hour |
 | `0.3.2` | Establish monorepo | `NOT STARTED` | Agent 1, Agent 2, Agent 10, Agent 12 | 1 hour |
 | `0.3.3` | Configure Antigravity rules and skills | `NOT STARTED` | Agent 1, Agent 11, Agent 12 | 2 hours |

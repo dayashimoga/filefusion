@@ -74,3 +74,11 @@
 ### Completed in Subphase 0.2.3
 - [x] `[0.2.3]` Author `docs/CONTRACTS.md` (`FF-CTR-001` v1.0.0) defining the canonical error taxonomy (`FF-ERR-*`), `ResourceLimits`, `FileInspectionReport`, `ProgressEvent`, core Rust traits (`CompressionEngine`, `ConversionEngine`, `ExternalToolAdapter`, `QualityEvaluator`, `OutputValidator`), SQLite WAL schema, and Plane 2 transport contracts (`flutter-bridge`, Web/WASM Worker, CLI exit codes/`--json`, `/api/v1` REST envelope).
 - [x] `[0.2.3]` Cross-link `docs/CONTRACTS.md` in `ARCHITECTURE.md` and `docs/MODULE_BOUNDARIES.md`, backfill `606553b` (`stage-0.2.2`) in `docs/PROGRESS.md`, and append Subphase `0.2.3` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 008 — Subphase 0.2.4 Architecture Decision Records (Phase 0.2 Closure)
+
+### Completed in Subphase 0.2.4
+- [x] `[0.2.4]` Author `docs/DECISION_LOG.md` (`FF-ADR-001` v1.0.0) establishing `ADR-001` through `ADR-010` with context, alternatives rejected, consequences, and ADR governance policy.
+- [x] `[0.2.4]` Cross-link `docs/DECISION_LOG.md` in `ARCHITECTURE.md`, backfill `fff6c24` (`stage-0.2.3`) in `docs/PROGRESS.md`, append Subphase `0.2.4` entries to `TODO.md` and `CHANGELOG.md`, and complete Phase 0.2 (Architecture).
