@@ -51,3 +51,11 @@
 ### Subphase 0.2.2 — Define Module Boundaries
 - **Added:** `docs/MODULE_BOUNDARIES.md` (`FF-MOD-001` v1.0.0) specifying the complete monorepo ownership map, 16-crate Rust workspace architecture (`L0`–`L6`), acyclic dependency DAG, 6 enforceable forbidden-coupling rules (`MOD-RULE-01`..`MOD-RULE-06`), and Desktop/Mobile/WASM Cargo feature-flag matrix.
 - **Changed:** Cross-referenced `docs/MODULE_BOUNDARIES.md` in `ARCHITECTURE.md`; updated `docs/PROGRESS.md` (including verified `d6fb2b5` commit reference for `0.2.1`) and appended Entry 006 to `TODO.md`.
+
+---
+
+## [0.0.7-stage0.2.3] — 2026-11-27
+
+### Subphase 0.2.3 — Define Rust and Application Contracts
+- **Added:** `docs/CONTRACTS.md` (`FF-CTR-001` v1.0.0) establishing canonical error codes (`FF-ERR-*`), security/resource limits, inspection/progress DTOs, core Rust engine/validator traits, SQLite WAL persistence tables, and cross-platform interface contracts (`flutter-bridge`, Web/WASM Worker, CLI, and `/api/v1` REST API).
+- **Changed:** Cross-referenced `docs/CONTRACTS.md` in `ARCHITECTURE.md` and `docs/MODULE_BOUNDARIES.md`; updated `docs/PROGRESS.md` (including verified `606553b` commit reference for `0.2.2`) and appended Entry 007 to `TODO.md`.

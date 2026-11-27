@@ -66,3 +66,11 @@
 ### Completed in Subphase 0.2.2
 - [x] `[0.2.2]` Author `docs/MODULE_BOUNDARIES.md` (`FF-MOD-001` v1.0.0) defining monorepo directory ownership, all 16 Rust workspace crates across tiers `L0`–`L6`, the acyclic dependency DAG diagram, 6 forbidden-coupling rules (`MOD-RULE-01`..`06`), and Desktop/Mobile/WASM Cargo feature-flag boundaries.
 - [x] `[0.2.2]` Cross-link `docs/MODULE_BOUNDARIES.md` in `ARCHITECTURE.md`, backfill `d6fb2b5` (`stage-0.2.1`) in `docs/PROGRESS.md`, and append Subphase `0.2.2` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 007 — Subphase 0.2.3 Rust & Application Contracts
+
+### Completed in Subphase 0.2.3
+- [x] `[0.2.3]` Author `docs/CONTRACTS.md` (`FF-CTR-001` v1.0.0) defining the canonical error taxonomy (`FF-ERR-*`), `ResourceLimits`, `FileInspectionReport`, `ProgressEvent`, core Rust traits (`CompressionEngine`, `ConversionEngine`, `ExternalToolAdapter`, `QualityEvaluator`, `OutputValidator`), SQLite WAL schema, and Plane 2 transport contracts (`flutter-bridge`, Web/WASM Worker, CLI exit codes/`--json`, `/api/v1` REST envelope).
+- [x] `[0.2.3]` Cross-link `docs/CONTRACTS.md` in `ARCHITECTURE.md` and `docs/MODULE_BOUNDARIES.md`, backfill `606553b` (`stage-0.2.2`) in `docs/PROGRESS.md`, and append Subphase `0.2.3` entries to `TODO.md` and `CHANGELOG.md`.

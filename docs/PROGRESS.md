@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.2 — Architecture
-- **Subphase:** `0.2.2` — Define module boundaries
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.2.3`)
+- **Subphase:** `0.2.3` — Define Rust and application contracts
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.2.4`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.2.3 — Define Rust and application contracts
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.2 — Architecture |
+| **Subphase** | `0.2.3` — Define Rust and application contracts |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 1 (Principal Architect), Agent 2 (Rust Core Engineer), Agent 5 (Flutter Engineer), Agent 6 (Web Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~3 minutes |
+| **Acceptance Criteria** | 1. Author `docs/CONTRACTS.md` (`FF-CTR-001` v1.0.0) specifying the canonical `FileFusionError` / `ErrorCode` taxonomy, `ResourceLimits`, `FileInspectionReport`, and `ProgressEvent` schemas.<br>2. Define Rust core trait contracts (`CompressionEngine`, `ConversionEngine`, `ExternalToolAdapter`, `QualityEvaluator`, `OutputValidator`) and SQLite WAL persistence tables.<br>3. Specify Plane 2 transport contracts for `flutter-bridge` (`flutter_rust_bridge` v2), SvelteKit WASM Web Workers, CLI subcommands/exit codes/`--json`, and `/api/v1` REST OpenAPI envelope.<br>4. Cross-link from `ARCHITECTURE.md` and `docs/MODULE_BOUNDARIES.md`, backfill `606553b` for `0.2.2`, append to `TODO.md` and `CHANGELOG.md`, pass Agent 12 review, and commit to `main`. |
+| **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects, 0 scope violations; error taxonomy, core traits, SQLite WAL schema, Plane 2 transport contracts, and append-only logs verified). |
+| **Files Changed** | `docs/CONTRACTS.md`, `ARCHITECTURE.md`, `docs/MODULE_BOUNDARIES.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.2.3` on `main` (exact SHA backfilled in next subphase) |
+| **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.2.2 — Define module boundaries
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Author `docs/MODULE_BOUNDARIES.md` (`FF-MOD-001` v1.0.0) mapping all monorepo directories (`apps/*`, `crates/*`, `packages/*`, `infrastructure/`, `scripts/`, `tests/*`, `fixtures/`, `docs/`, `.github/`, `.agents/`) and ownership.<br>2. Specify all 16 Rust workspace crates across 7 acyclic dependency tiers (`L0`–`L6`) with a valid Mermaid DAG.<br>3. Codify forbidden dependency/coupling rules (`MOD-RULE-01`..`MOD-RULE-06`) and Desktop/Mobile/WASM Cargo feature-flag boundaries.<br>4. Cross-link from `ARCHITECTURE.md`, backfill `d6fb2b5` for `0.2.1`, append to `TODO.md` and `CHANGELOG.md`, pass Agent 12 review, and commit to `main`. |
 | **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects, 0 scope violations; 16-crate DAG acyclicity, Mermaid syntax, `MOD-RULE-01..06`, WASM feature gating, and append-only logs verified). |
 | **Files Changed** | `docs/MODULE_BOUNDARIES.md`, `ARCHITECTURE.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.2.2` on `main` (exact SHA backfilled in next subphase) |
+| **Commit Reference** | `606553b` (tagged `stage-0.2.2` on `main`) |
 | **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.2.1 — Define system architecture
@@ -129,7 +146,7 @@
 | `0.1.4` | Define MVP and deferred features | `COMPLETE` | Agent 1, Agent 11, Agent 12 | 1 hour |
 | `0.2.1` | Define system architecture | `COMPLETE` | Agent 1, Agent 2, Agent 11, Agent 12 | 2 hours |
 | `0.2.2` | Define module boundaries | `COMPLETE` | Agent 1, Agent 2, Agent 12 | 1 hour |
-| `0.2.3` | Define Rust and application contracts | `NOT STARTED` | Agent 1, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
+| `0.2.3` | Define Rust and application contracts | `COMPLETE` | Agent 1, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
 | `0.2.4` | Create architecture decision records | `NOT STARTED` | Agent 1, Agent 11, Agent 12 | 1 hour |
 | `0.3.1` | Create GitHub repository | `NOT STARTED` | Agent 10, Agent 9, Agent 12 | 1 hour |
 | `0.3.2` | Establish monorepo | `NOT STARTED` | Agent 1, Agent 2, Agent 10, Agent 12 | 1 hour |

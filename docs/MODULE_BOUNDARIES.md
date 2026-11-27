@@ -3,7 +3,7 @@
 **Document ID:** `FF-MOD-001`  
 **Version:** `1.0.0`  
 **Status:** `APPROVED FOR STAGE 0 BASELINE`  
-**Subphase Origin:** `0.2.2 — Define module boundaries`  
+**Subphase Origin:** `0.2.2 — Define module boundaries` (linked with [docs/CONTRACTS.md](CONTRACTS.md) in `0.2.3`)  
 **Parent Specification:** [ARCHITECTURE.md](../ARCHITECTURE.md) (`FF-ARCH-001`)  
 **Owners:** Agent 1 (Principal Architect), Agent 2 (Rust Core Engineer)
 
