@@ -43,3 +43,11 @@
 ### Subphase 0.2.1 — Define System Architecture
 - **Added:** `ARCHITECTURE.md` (`FF-ARCH-001` v1.0.0) establishing the 5-plane system architecture, forbidden-coupling rules, 8-step request lifecycle with atomic staging and no-op verification, dual Tokio/Rayon resource governance, 4 security trust boundaries, cross-platform integration topologies, and structured observability architecture.
 - **Changed:** Updated `docs/PROGRESS.md` (including verified `df8c41b` commit reference for `0.1.4`) and appended Entry 005 to `TODO.md`.
+
+---
+
+## [0.0.6-stage0.2.2] — 2026-11-27
+
+### Subphase 0.2.2 — Define Module Boundaries
+- **Added:** `docs/MODULE_BOUNDARIES.md` (`FF-MOD-001` v1.0.0) specifying the complete monorepo ownership map, 16-crate Rust workspace architecture (`L0`–`L6`), acyclic dependency DAG, 6 enforceable forbidden-coupling rules (`MOD-RULE-01`..`MOD-RULE-06`), and Desktop/Mobile/WASM Cargo feature-flag matrix.
+- **Changed:** Cross-referenced `docs/MODULE_BOUNDARIES.md` in `ARCHITECTURE.md`; updated `docs/PROGRESS.md` (including verified `d6fb2b5` commit reference for `0.2.1`) and appended Entry 006 to `TODO.md`.

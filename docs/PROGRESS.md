@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.2 — Architecture
-- **Subphase:** `0.2.1` — Define system architecture
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.2.2`)
+- **Subphase:** `0.2.2` — Define module boundaries
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.2.3`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.2.2 — Define module boundaries
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.2 — Architecture |
+| **Subphase** | `0.2.2` — Define module boundaries |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 1 (Principal Architect), Agent 2 (Rust Core Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 1 hour |
+| **Actual Duration** | ~3 minutes |
+| **Acceptance Criteria** | 1. Author `docs/MODULE_BOUNDARIES.md` (`FF-MOD-001` v1.0.0) mapping all monorepo directories (`apps/*`, `crates/*`, `packages/*`, `infrastructure/`, `scripts/`, `tests/*`, `fixtures/`, `docs/`, `.github/`, `.agents/`) and ownership.<br>2. Specify all 16 Rust workspace crates across 7 acyclic dependency tiers (`L0`–`L6`) with a valid Mermaid DAG.<br>3. Codify forbidden dependency/coupling rules (`MOD-RULE-01`..`MOD-RULE-06`) and Desktop/Mobile/WASM Cargo feature-flag boundaries.<br>4. Cross-link from `ARCHITECTURE.md`, backfill `d6fb2b5` for `0.2.1`, append to `TODO.md` and `CHANGELOG.md`, pass Agent 12 review, and commit to `main`. |
+| **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects, 0 scope violations; 16-crate DAG acyclicity, Mermaid syntax, `MOD-RULE-01..06`, WASM feature gating, and append-only logs verified). |
+| **Files Changed** | `docs/MODULE_BOUNDARIES.md`, `ARCHITECTURE.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.2.2` on `main` (exact SHA backfilled in next subphase) |
+| **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.2.1 — Define system architecture
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Author `ARCHITECTURE.md` (`FF-ARCH-001` v1.0.0) establishing the 5-plane layered architecture, Mermaid architecture diagram, and forbidden-coupling rules.<br>2. Specify the 8-step end-to-end processing lifecycle, dual Tokio/Rayon resource governance (16 GB RAM & 3–6 GB mobile guardrails), and 500 ms cancellation propagation.<br>3. Specify the 4 trust boundaries, zero-shell-injection Tier 2 isolation, cross-platform topologies, and observability model.<br>4. Pass Agent 12 independent review, backfill `df8c41b` for `0.1.4`, append to `TODO.md` and `CHANGELOG.md`, and commit to `main`. |
 | **Test Results** | Agent 12 independent audit: **PASS** (0 blocking defects, 0 scope violations; 5-plane isolation, 8-step lifecycle, Mermaid syntax, security trust boundaries, and append-only logs verified). |
 | **Files Changed** | `ARCHITECTURE.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.2.1` on `main` (exact SHA backfilled in next subphase) |
+| **Commit Reference** | `d6fb2b5` (tagged `stage-0.2.1` on `main`) |
 | **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.1.4 — Define MVP and deferred features
@@ -111,7 +128,7 @@
 | `0.1.3` | Define supported formats and capabilities | `COMPLETE` | Agent 1, Agent 3, Agent 4, Agent 11, Agent 12 | 1 hour |
 | `0.1.4` | Define MVP and deferred features | `COMPLETE` | Agent 1, Agent 11, Agent 12 | 1 hour |
 | `0.2.1` | Define system architecture | `COMPLETE` | Agent 1, Agent 2, Agent 11, Agent 12 | 2 hours |
-| `0.2.2` | Define module boundaries | `NOT STARTED` | Agent 1, Agent 2, Agent 12 | 1 hour |
+| `0.2.2` | Define module boundaries | `COMPLETE` | Agent 1, Agent 2, Agent 12 | 1 hour |
 | `0.2.3` | Define Rust and application contracts | `NOT STARTED` | Agent 1, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
 | `0.2.4` | Create architecture decision records | `NOT STARTED` | Agent 1, Agent 11, Agent 12 | 1 hour |
 | `0.3.1` | Create GitHub repository | `NOT STARTED` | Agent 10, Agent 9, Agent 12 | 1 hour |

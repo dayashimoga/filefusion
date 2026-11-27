@@ -3,7 +3,7 @@
 **Document ID:** `FF-ARCH-001`  
 **Version:** `1.0.0`  
 **Status:** `APPROVED FOR STAGE 0 BASELINE`  
-**Subphase Origin:** `0.2.1 — Define system architecture`  
+**Subphase Origin:** `0.2.1 — Define system architecture` (linked with [docs/MODULE_BOUNDARIES.md](docs/MODULE_BOUNDARIES.md) in `0.2.2`)  
 **Parent Specifications:** [REQUIREMENTS.md](REQUIREMENTS.md) (`FF-REQ-001`), [docs/USE_CASES.md](docs/USE_CASES.md) (`FF-UC-001`), [docs/FORMATS_AND_CAPABILITIES.md](docs/FORMATS_AND_CAPABILITIES.md) (`FF-FMT-001`), [docs/SCOPE_AND_MVP.md](docs/SCOPE_AND_MVP.md) (`FF-SCP-001`)  
 **Owners:** Agent 1 (Principal Architect), Agent 2 (Rust Core Engineer), Agent 11 (Documentation Engineer)
 
