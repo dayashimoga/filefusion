@@ -139,3 +139,11 @@
 ### Subphase 0.4.4 — Validate Runner and Platform Matrix
 - **Fixed:** Corrected `EmbarkStudios/cargo-deny-action` inputs (`command`, `arguments`, `command-arguments`) in `.github/workflows/build-apps.yml` and `.github/workflows/release.yml` after live CI matrix diagnostics on run `46014125464`.
 - **Changed:** Validated native GitHub-hosted runner matrix (`ubuntu-24.04`, `windows-latest`, `macos-latest`), updated `docs/PROGRESS.md` (including verified `73c22a7` commit reference for `0.4.3`), and appended Entry 017 to `TODO.md`.
+
+---
+
+## [0.0.18-stage0.4.5] — 2026-11-27
+
+### Subphase 0.4.5 — Validate Local Build Scripts (Stage 0 Complete)
+- **Added:** Cross-platform local build scripts `scripts/build.ps1` and `scripts/build.sh` matching `.github/workflows/build-apps.yml` target selection, sequential 16 GB RAM execution, `dist/local/` staging + `SHA256SUMS.txt`, and cross-OS target documentation.
+- **Changed:** Documented local vs GitHub-hosted runner targets in `DEVELOPER_GUIDE.md`; updated `docs/PROGRESS.md` (including verified `9f3c441` commit reference for `0.4.4`) and appended Entry 018 to `TODO.md`.

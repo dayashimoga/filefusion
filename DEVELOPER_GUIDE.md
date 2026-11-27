@@ -33,7 +33,30 @@ cargo metadata --no-deps --format-version 1
 
 ---
 
-## 3. Resource-Aware Workflow on 16 GB RAM Hosts
+## 3. Local Build Scripts & Cross-Compilation Matrix
+
+FileFusion provides `scripts/build.ps1` (Windows) and `scripts/build.sh` (Linux/macOS/Git Bash) mirroring `.github/workflows/build-apps.yml`:
+
+```powershell
+# Windows: build and verify individual targets or all locally supported targets sequentially
+powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -App cli -BuildMode debug
+powershell -ExecutionPolicy Bypass -File scripts/build.ps1 -App all -BuildMode release
+```
+
+```bash
+# Linux / macOS: build and verify selected targets
+./scripts/build.sh --app cli --build-mode release
+```
+
+| Host OS | Supported Local Targets | Unavailable Locally (Delegated to GitHub Actions) |
+| :--- | :--- | :--- |
+| **Windows 11** | `cli`, `windows`, `web`, `api`, `android` (with SDK) | `linux` desktop, `macos` desktop, `ios` |
+| **Linux** | `cli`, `linux`, `web`, `api`, `android` (with SDK) | `windows` desktop, `macos` desktop, `ios` |
+| **macOS** | `cli`, `macos`, `ios`, `web`, `api`, `android` (with SDK) | `windows` desktop, `linux` desktop |
+
+---
+
+## 4. Resource-Aware Workflow on 16 GB RAM Hosts
 
 1. **Sequential Heavy Builds:** Never run full Flutter Android/Desktop, SvelteKit production, and Rust release LTO builds concurrently on a 16 GB RAM host.
 2. **Delegate Non-Host Targets to CI:** Cross-platform macOS, iOS, and Linux AppImage/binary builds run on native GitHub-hosted runners (`.github/workflows/build-apps.yml`, added in Phase `0.4`).

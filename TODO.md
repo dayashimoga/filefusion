@@ -160,3 +160,11 @@
 - [x] `[0.4.4]` Audit live GitHub Actions runs across `ubuntu-24.04`, `windows-latest`, and `macos-latest` runners and diagnose `EmbarkStudios/cargo-deny-action` input ordering (`error: invalid value 'check'`).
 - [x] `[0.4.4]` Fix `cargo-deny-action` inputs (`command: check`, `arguments: --all-features`, `command-arguments: advisories licenses bans sources`) in `.github/workflows/build-apps.yml` and `.github/workflows/release.yml`.
 - [x] `[0.4.4]` Backfill `73c22a7` (`stage-0.4.3`) in `docs/PROGRESS.md` and append Subphase `0.4.4` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-27] Entry 018 — Subphase 0.4.5 Local Build Scripts (Stage 0 Closure)
+
+### Completed in Subphase 0.4.5
+- [x] `[0.4.5]` Author `scripts/build.ps1` and `scripts/build.sh` supporting all 11 selectable targets, `release`/`debug` profiles, `IncludeTests`, `EnableOptionalCodecs`, sequential execution for 16 GB RAM hosts, independent `dist/local/<artifact_name>/` staging + `SHA256SUMS.txt`, and explicit cross-OS unavailability handling.
+- [x] `[0.4.5]` Document local vs CI-delegated target support in `DEVELOPER_GUIDE.md`, backfill `9f3c441` (`stage-0.4.4`) in `docs/PROGRESS.md`, and append Subphase `0.4.5` entries to `TODO.md` and `CHANGELOG.md`.

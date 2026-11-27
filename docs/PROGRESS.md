@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.4 — CI/CD
-- **Subphase:** `0.4.4` — Validate runner and platform matrix
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.4.5`)
+- **Subphase:** `0.4.5` — Validate local build scripts
+- **Status:** `COMPLETE` (**Stage 0 Complete**; awaiting user confirmation to advance to **Stage 1 / `1.1.1`**)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.4.5 — Validate local build scripts
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.4 — CI/CD |
+| **Subphase** | `0.4.5` — Validate local build scripts |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 10 (DevOps Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~12 minutes |
+| **Acceptance Criteria** | 1. Author `scripts/build.ps1` (Windows) and `scripts/build.sh` (Linux/macOS) supporting all 11 selectable targets (`all`, `desktop`, `windows`, `linux`, `macos`, `mobile`, `android`, `ios`, `web`, `cli`, `api`), `build_mode`, `include_tests`, `enable_optional_codecs`, and `--dry-run` / `-DryRun`.<br>2. Execute host-supported targets sequentially (`<= 16 GB` RAM safe) and explicitly report/reject unavailable cross-OS targets (`linux`/`macos`/`ios` on Windows).<br>3. Document local vs CI-delegated target support in `DEVELOPER_GUIDE.md`.<br>4. Validate `scripts/build.ps1` and `scripts/build.sh` (`bash -n` + live execution + negative cross-OS target test), backfill `9f3c441` for `0.4.4`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit (closing Stage 0), commit, tag, and push to `origin`. |
+| **Test Results** | `build.ps1` validated (`-App all -DryRun` exit `0`, `-App ios` negative exit `1`, `-App cli -BuildMode debug`, `-App web -BuildMode release`, `-App windows -BuildMode debug`); `build.sh` validated (`bash -n` exit `0`, `--app all --dry-run` exit `0`, `--app api --build-mode debug`, `--include-tests invalid` negative exit `2`); `sha256sum -c SHA256SUMS.txt` **4/4 `OK`** across all 4 `dist/local/*` staged directories (`bom=False`, `cr=False`); Cargo `fmt`/`clippy`/`test --locked` (`1 passed; 0 failed`); Agent 12 independent re-audit: **PASS** (Stage 0 Exit Criteria verified). |
+| **Files Changed** | `scripts/build.ps1`, `scripts/build.sh`, `DEVELOPER_GUIDE.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.4.5` on `main` (pushed to `origin`; exact SHA backfilled in Stage 1 / `1.1.1`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 0.4.4 — Validate runner and platform matrix
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Inspect live GitHub Actions workflow runs (`46013319849`, `46014125464`) across `ubuntu-24.04`, `windows-latest`, and `macos-latest` runners.<br>2. Fix the live `EmbarkStudios/cargo-deny-action` argument placement (`command: check`, `arguments: --all-features`, `command-arguments: advisories licenses bans sources`) in `build-apps.yml` and `release.yml`.<br>3. Trigger and observe a live `workflow_dispatch` targeted run (`app=web`) plus push run verifying 100% green jobs and independent artifact uploads.<br>4. Backfill `73c22a7` for `0.4.3`, update `TODO.md` and `CHANGELOG.md`, pass Agent 12 audit, commit, tag, and push to `origin`. |
 | **Test Results** | Agent 12 audit: **PASS** (25/25 & 6/6 SHA pins, 5/5 `bash -n` scripts, append-only logs & scope verified). Live GitHub Actions `push` run `46015089636` (`05ea464`): **13/13 jobs `success`** across `ubuntu-24.04`, `windows-latest`, `macos-latest` with **10/10 independent artifacts** uploaded. Live `workflow_dispatch` (`app=web`) run `46015090900`: **`success`** (`Build Web` succeeded, `Build CLI`/`Build Flutter`/`Build API` skipped, `filefusion-web` artifact uploaded). |
 | **Files Changed** | `.github/workflows/build-apps.yml`, `.github/workflows/release.yml`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-0.4.4` on `main` (pushed to `origin`; workflow fix at `05ea464`, progress finalized at `stage-0.4.4`) |
+| **Commit Reference** | `9f3c441` (tagged `stage-0.4.4` on `main`; workflow fix at `05ea464`, pushed to `https://github.com/dayashimoga/filefusion`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 0.4.3 — Implement independent artifact uploads
@@ -327,4 +344,4 @@
 | `0.4.2` | Implement selectable application builds | `COMPLETE` | Agent 10, Agent 2, Agent 5, Agent 6, Agent 12 | 2 hours |
 | `0.4.3` | Implement independent artifact uploads | `COMPLETE` | Agent 10, Agent 12 | 1 hour |
 | `0.4.4` | Validate runner and platform matrix | `COMPLETE` | Agent 10, Agent 8, Agent 12 | 1 hour |
-| `0.4.5` | Validate local build scripts | `NOT STARTED` | Agent 10, Agent 8, Agent 12 | 2 hours |
+| `0.4.5` | Validate local build scripts | `COMPLETE` | Agent 10, Agent 8, Agent 12 | 2 hours |
