@@ -26,3 +26,11 @@
 - [ ] `[0.3.4]` Create all 12 specialist agent `SKILL.md` definitions in `.agents/skills/`.
 - [ ] `[0.3.5]` Author core governance documents (`docs/ENGINEERING_CONTRACT.md`, `CODEBASE_GUIDE.md`, `USER_GUIDE.md`, `DEVELOPER_GUIDE.md`, `SECURITY.md`, `PERFORMANCE.md`, `LICENSES.md`, `docs/ROADMAP.md`, `README.md`, `CONTRIBUTING.md`, `LICENSE`).
 - [ ] `[0.4.1–0.4.5]` Implement and validate `.github/workflows/build-apps.yml`, release workflow, and local `scripts/build.ps1` + `scripts/build.sh`.
+
+---
+
+## [2026-11-27] Entry 002 — Subphase 0.1.2 Target Users & Use Cases
+
+### Completed in Subphase 0.1.2
+- [x] `[0.1.2]` Author `docs/USE_CASES.md` (`FF-UC-001` v1.0.0) defining 6 target user personas (`USR-01`..`USR-06`), 14-screen core navigation mapping, 16 concrete end-to-end use cases (`UC-001`..`UC-016`), 4 cross-cutting UX/accessibility journeys (`UXJ-01`..`UXJ-04`), and a complete traceability matrix back to all 20 capability domains in `REQUIREMENTS.md`.
+- [x] `[0.1.2]` Cross-link `docs/USE_CASES.md` from `REQUIREMENTS.md` and synchronize `docs/PROGRESS.md`, `TODO.md`, and `CHANGELOG.md`.

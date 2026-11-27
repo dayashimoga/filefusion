@@ -3,7 +3,7 @@
 **Document ID:** `FF-REQ-001`  
 **Version:** `1.0.0`  
 **Status:** `APPROVED FOR STAGE 0 BASELINE`  
-**Subphase Origin:** `0.1.1 — Finalize Product Requirements`  
+**Subphase Origin:** `0.1.1 — Finalize Product Requirements` (linked with [docs/USE_CASES.md](docs/USE_CASES.md) in `0.1.2`)  
 **Owner:** Principal Architect (Agent 1) & Documentation Engineer (Agent 11)
 
 ---

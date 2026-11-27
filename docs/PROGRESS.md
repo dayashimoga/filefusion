@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 0 — Project Foundation
 - **Phase:** Phase 0.1 — Product Definition
-- **Subphase:** `0.1.1` — Finalize product requirements
-- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.1.2`)
+- **Subphase:** `0.1.2` — Define target users and use cases
+- **Status:** `COMPLETE` (Awaiting user confirmation to advance to `0.1.3`)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 0.1.2 — Define target users and use cases
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 0 — Project Foundation |
+| **Phase** | Phase 0.1 — Product definition |
+| **Subphase** | `0.1.2` — Define target users and use cases |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 1 (Principal Architect), Agent 7 (UI/UX Designer), Agent 11 (Documentation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 1 hour |
+| **Actual Duration** | ~5 minutes |
+| **Acceptance Criteria** | 1. Define comprehensive target user personas (`USR-01`..`USR-06`) covering Desktop, Mobile, Web, CLI/API, low-resource, and accessibility needs.<br>2. Map all 14 core navigation studios to concrete workflows.<br>3. Author end-to-end use cases (`UC-001`..`UC-016`) and cross-cutting UX journeys (`UXJ-01`..`UXJ-04`) with main flows, error/cancellation flows, and progressive disclosure.<br>4. Verify 100% traceability across all 20 `FR-*` domains and `NFR-*` constraints in `REQUIREMENTS.md`.<br>5. Pass Agent 12 independent review, update append-only `TODO.md` and `CHANGELOG.md`, and commit to `main`. |
+| **Test Results** | Agent 12 independent audit: **PASS** (0 defects; 6/6 personas, 14/14 navigation views, 20/20 capability domains & 47/47 `FR-*` IDs verified traced; append-only logs intact). |
+| **Files Changed** | `docs/USE_CASES.md`, `REQUIREMENTS.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-0.1.2` on `main` (exact SHA recorded in git log & next subphase backfill) |
+| **Outstanding Issues** | Repository visibility preference (`public` vs `private`) still awaiting user decision ahead of Subphase `0.3.1`. |
 
 ### Subphase 0.1.1 — Finalize product requirements
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Conduct full environment, hardware, toolchain, and GitHub auth audit.<br>2. Author authoritative `REQUIREMENTS.md` covering all 20 capability domains, 8 target platforms, functional requirements (`FR-*`), non-functional requirements (`NFR-*`), traceability matrix, and Two-Tier Engine Architecture.<br>3. Initialize `docs/PROGRESS.md`, `TODO.md` (append-only), and `CHANGELOG.md` (append-only).<br>4. Pass independent review by Agent 12 checking completeness against Master Engineering Contract.<br>5. Initialize local Git repository on `main` and commit baseline artifacts. |
 | **Test Results** | Environment audit executed (`rustc 1.99.1`, `cargo 1.99.1`, `flutter 3.38.4`, `node v25.8.2`, `podman 6.1.4`, `git 2.56.0`). Requirements completeness verification: 20/20 capability domains mapped (`FR-DET` through `FR-VAL`), 9/9 NFR baselines specified, 0 placeholders. |
 | **Files Changed** | `REQUIREMENTS.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | `238d9d4` (initial baseline commit on `main`) |
+| **Commit Reference** | `3e2650d` (initial baseline commit on `main`) |
 | **Outstanding Issues** | 1. GitHub CLI (`gh`) is not installed on host PATH; repository visibility preference (`public` vs `private`) requested from user ahead of Subphase `0.3.1`.<br>2. Optional external CLI tools (`ffmpeg`, `qpdf`, `tesseract`, `7z`, `libreoffice`, `pandoc`, `calibre`) are not installed on host PATH; documented in Two-Tier Engine Architecture for capability probing and CI/container integration. |
 
 ---
@@ -39,7 +56,7 @@
 
 | Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
 | :--- | :--- | :--- | :--- | :--- |
-| `0.1.2` | Define target users and use cases | `NOT STARTED` | Agent 1, Agent 7, Agent 11, Agent 12 | 1 hour |
+| `0.1.2` | Define target users and use cases | `COMPLETE` | Agent 1, Agent 7, Agent 11, Agent 12 | 1 hour |
 | `0.1.3` | Define supported formats and capabilities | `NOT STARTED` | Agent 1, Agent 3, Agent 4, Agent 11, Agent 12 | 1 hour |
 | `0.1.4` | Define MVP and deferred features | `NOT STARTED` | Agent 1, Agent 11, Agent 12 | 1 hour |
 | `0.2.1` | Define system architecture | `NOT STARTED` | Agent 1, Agent 2, Agent 11, Agent 12 | 2 hours |
