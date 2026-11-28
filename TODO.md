@@ -303,3 +303,12 @@
 - [x] `[2.2.1]` Materialize L3 `crates/compression-image` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-IMG-001`..`003`) implementing pure-Rust decode (`JPEG`, `PNG`, `WebP`, `GIF`, `BMP`, `TIFF`, `ICO`) & encode (`JPEG`, `PNG` via `oxipng`, lossless `WebP`, `AVIF` via `ravif`, plus `GIF`/`BMP`/`TIFF`/`ICO`).
 - [x] `[2.2.1]` Implement EXIF TIFF orientation (`0x0112`, values `1..=8`) detection and normalization (`detect_exif_orientation`, `apply_exif_orientation`), SIMD resizing via `fast_image_resize` (`ResizeFilter`, `ImageResizeSpec`), `RasterQualityEvaluator` (empirical SSIM/PSNR via `quality_engine`), and `RasterCompressionEngine` wired with `JobContext` memory reservations and `compression_core::finalize_staged_compression` (`FR-CMP-002` No-Op guard).
 - [x] `[2.2.1]` Backfill `a702338` (`stage-2.1.2`) in `docs/PROGRESS.md` and append Subphase `2.2.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-28] Entry 034 — Stage 2 Subphase 2.2.2 Archive Compression Crate (`compression-archive`)
+
+### Completed in Subphase 2.2.2
+- [x] `[2.2.2]` Materialize L3 `crates/compression-archive` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-ARC-001`..`003`, `FR-SEC-001`..`002`, `FR-REP-001`) supporting pure/permissive multi-format archive create/list/extract across `Zip`, `Tar`, `TarGz`, `TarZst`, `TarXz`, `TarBz2`, `TarLz4`, `TarBrotli`, and `SevenZ`, plus `native-process` Tier 2 `7z` `IsolatedProcessRunner` helpers.
+- [x] `[2.2.2]` Implement `StreamCodec` (`Zstd`, `Lz4`, `Brotli`, `Gzip`, `Xz` via `lzma-rust2`, `Bzip2` via `oxiarc-bzip2`), `.ffenc` authenticated encryption (`AES-256-GCM` & `ChaCha20-Poly1305` + `Argon2id` + CSPRNG salt/nonce + header AAD), `repair_truncated_zip` local-header recovery + Central Directory reconstruction, and `ArchiveCompressionEngine` (`FR-CMP-002` No-Op guard & bit-exact BLAKE3 `ArchiveQualityEvaluator`).
+- [x] `[2.2.2]` Enforce Zip-Slip traversal/symlink rejection (`ErrorCode::SecTraversal`) and mid-stream decompression-bomb ceilings (`ErrorCode::SecBomb`) with partial directory cleanup, backfill `25d97e5` (`stage-2.2.1`) in `docs/PROGRESS.md`, and append Subphase `2.2.2` entries to `TODO.md` and `CHANGELOG.md`.

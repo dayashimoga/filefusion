@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 2 — Universal Compression Engine
 - **Phase:** Phase 2.2 — Format Compression Engines
-- **Subphase:** `2.2.1` — Image compression crate (`compression-image`)
-- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.2.2` — Archive compression crate)
+- **Subphase:** `2.2.2` — Archive compression crate (`compression-archive`)
+- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.2.3` — Audio compression crate)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 2.2.2 — Archive compression crate (`compression-archive`)
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 2 — Universal Compression Engine |
+| **Phase** | Phase 2.2 — Format Compression Engines |
+| **Subphase** | `2.2.2` — Archive compression crate (`compression-archive`) |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 3 (Compression & Codec Engineer), Agent 9 (Security Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 4 hours |
+| **Actual Duration** | ~25 minutes |
+| **Acceptance Criteria** | 1. Materialize L3 `crates/compression-archive` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-ARC-001`..`003`, `FR-SEC-001`..`002`, `FR-REP-001`) supporting multi-format archive creation, listing, and bomb/traversal-safe extraction across `Zip`, `Tar`, `TarGz`, `TarZst`, `TarXz`, `TarBz2`, `TarLz4`, `TarBrotli`, and `SevenZ` (`sevenz-rust` + optional `native-process` Tier 2 `7z` via `IsolatedProcessRunner`).<br>2. Implement high-ratio standalone stream codecs (`StreamCodec`: `Zstd`, `Lz4`, `Brotli`, `Gzip`, `Xz` via `lzma-rust2`, `Bzip2` via `oxiarc-bzip2`) with mid-stream decompression-bomb enforcement (`validation_engine`).<br>3. Implement `.ffenc` authenticated encryption containers (`Aes256Gcm` & `ChaCha20Poly1305` + `Argon2id` + CSPRNG `getrandom` salt/nonce + header AAD binding) and ZIP central-directory recovery (`repair_truncated_zip`), plus `ArchiveCompressionEngine` (`FR-CMP-002` No-Op guard) and `ArchiveQualityEvaluator` (bit-exact BLAKE3 entry/stream equivalence).<br>4. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (75 tests), WASM-featured unit tests (28 tests), verify permissive `Cargo.lock` licenses, backfill `25d97e5` (`stage-2.2.1`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-2.2.2`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `hardware-acceleration`, `quality-engine`, `validation-engine`, `compression-core`, `compression-image`, `compression-archive`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 75 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-core`: 3, `compression-image`: 3, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 6, `hardware-acceleration`: 3, `job-manager`: 16, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-core`: 3, `compression-image`: 3, `hardware-acceleration`: 3, `job-manager`: 12, `quality-engine`: 2): 28 passed, 0 failed; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/compression-archive/Cargo.toml`, `crates/compression-archive/src/{lib.rs,streams.rs,container.rs,ffenc.rs,repair.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-2.2.2` on `main` (pushed to `origin`; exact SHA backfilled in `2.2.3`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 2.2.1 — Image compression crate (`compression-image`)
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Materialize L3 `crates/compression-image` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-IMG-001`..`003`) supporting pure-Rust decode (`JPEG`, `PNG`, `WebP`, `GIF`, `BMP`, `TIFF`, `ICO`) and encode (`JPEG` via `image::codecs::jpeg::JpegEncoder`, `PNG` via `oxipng`, lossless `WebP` via `image::codecs::webp::WebPEncoder`, `AVIF` via `ravif`, plus `GIF`/`BMP`/`TIFF`/`ICO`).<br>2. Implement EXIF TIFF orientation (`0x0112`, values `1..=8`) detection and normalization (`detect_exif_orientation`, `apply_exif_orientation`) and SIMD-accelerated resizing via `fast_image_resize` (`ResizeFilter`, `ImageResizeSpec`, aspect-ratio preservation).<br>3. Implement `RasterQualityEvaluator` (`file_core::QualityEvaluator`) using `quality_engine::evaluate_pixel_buffers`, and `RasterCompressionEngine` (`file_core::CompressionEngine`) + `compress_with_options` with `JobContext::reserve_working_set_mb`, `compression_core::finalize_staged_compression` (`FR-CMP-002` No-Op guard & `MagicByteOutputValidator`), and atomic cleanup.<br>4. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (70 tests), WASM unit tests (23 tests), verify permissive `Cargo.lock` licenses, backfill `a702338` (`stage-2.1.2`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-2.2.1`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `hardware-acceleration`, `quality-engine`, `validation-engine`, `compression-core`, `compression-image`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 70 passed, 0 failed (`codec-registry`: 3, `compression-core`: 3, `compression-image`: 3, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 6, `hardware-acceleration`: 3, `job-manager`: 16, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-core`: 3, `compression-image`: 3, `hardware-acceleration`: 3, `job-manager`: 12, `quality-engine`: 2): 23 passed, 0 failed; Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/compression-image/Cargo.toml`, `crates/compression-image/src/lib.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-2.2.1` on `main` (pushed to `origin`; exact SHA backfilled in `2.2.2`) |
+| **Commit Reference** | `25d97e5` (tag `stage-2.2.1`, pushed to `origin/main`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 2.1.2 — Hardware acceleration probe
@@ -629,7 +646,7 @@
 | `2.1.1` | Compression Core & Quality Engine (`L1`/`L2`) | `COMPLETE` | Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
 | `2.1.2` | Hardware acceleration probe (`L1`) | `COMPLETE` | Agent 3, Agent 2, Agent 12 | 2 hours |
 | `2.2.1` | Image compression crate (`compression-image`) | `COMPLETE` | Agent 3, Agent 8, Agent 12 | 4 hours |
-| `2.2.2` | Archive compression crate (`compression-archive`) | `NOT STARTED` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
+| `2.2.2` | Archive compression crate (`compression-archive`) | `COMPLETE` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
 | `2.2.3` | Audio compression crate (`compression-audio`) | `NOT STARTED` | Agent 3, Agent 8, Agent 12 | 3 hours |
 | `2.2.4` | Video compression crate (`compression-video`) | `NOT STARTED` | Agent 3, Agent 9, Agent 8, Agent 12 | 3 hours |
 | `2.2.5` | PDF & Office compression crates (`compression-pdf`, `compression-office`) | `NOT STARTED` | Agent 3, Agent 4, Agent 8, Agent 12 | 4 hours |

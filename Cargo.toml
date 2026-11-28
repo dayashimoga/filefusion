@@ -8,6 +8,7 @@ members = [
     "crates/validation-engine",
     "crates/compression-core",
     "crates/compression-image",
+    "crates/compression-archive",
     "crates/job-manager",
     "apps/cli",
 ]
@@ -21,23 +22,37 @@ repository = "https://github.com/dayashimoga/filefusion"
 authors = ["FileFusion Contributors"]
 
 [workspace.dependencies]
+aes-gcm = "0.11"
+argon2 = "0.6"
 blake3 = "1.5"
+brotli = "9.1"
+chacha20poly1305 = "0.11"
 clap = { version = "4.5", features = ["derive"] }
+crc32fast = "1.4"
 fast_image_resize = "5.1"
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+getrandom = "0.4"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
+lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-encode", "safe-decode", "frame", "checked-decode"] }
+lzma-rust2 = "0.26"
 oxipng = { version = "9.1", default-features = false }
+oxiarc-bzip2 = "0.4"
 ravif = { version = "0.11", default-features = false }
 rayon = "1.10"
 rgb = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sevenz-rust = { version = "0.6", default-features = false, features = ["compress"] }
 sha2 = "0.10"
+tar = "0.4"
 thiserror = "2.0"
 tokio = { version = "1", default-features = false, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 toml = "0.8"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 xxhash-rust = { version = "0.8", features = ["xxh64"] }
+zip = { version = "7.3", default-features = false, features = ["deflate-flate2", "aes-crypto", "time"] }
+zstd = "0.14"
 
 file-core = { path = "crates/file-core" }
 codec-registry = { path = "crates/codec-registry" }
@@ -46,6 +61,7 @@ quality-engine = { path = "crates/quality-engine" }
 validation-engine = { path = "crates/validation-engine" }
 compression-core = { path = "crates/compression-core" }
 compression-image = { path = "crates/compression-image" }
+compression-archive = { path = "crates/compression-archive" }
 job-manager = { path = "crates/job-manager" }
 
 [workspace.lints.rust]

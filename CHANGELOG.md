@@ -269,3 +269,11 @@
 ### Subphase 2.2.1 — Image Compression Crate (`compression-image`, `L3`)
 - **Added:** L3 `compression-image` crate (`crates/compression-image/Cargo.toml`, `crates/compression-image/src/lib.rs`) supporting pure-Rust decode (`JPEG`, `PNG`, `WebP`, `GIF`, `BMP`, `TIFF`, `ICO`) and encode (`JPEG`, `oxipng` PNG, lossless `WebP`, `ravif` AVIF, `GIF`, `BMP`, `TIFF`, `ICO`), EXIF `0x0112` orientation detection/normalization (`detect_exif_orientation`, `apply_exif_orientation`), SIMD resizing via `fast_image_resize` (`ResizeFilter`, `ImageResizeSpec`), `RasterQualityEvaluator`, and `RasterCompressionEngine` with `FR-CMP-002` No-Op guard and memory reservations.
 - **Changed:** Added `compression-image` and permissive raster codec dependencies (`fast_image_resize`, `image`, `oxipng`, `ravif`, `rgb`) to workspace `Cargo.toml` / `Cargo.lock`, backfilled `a702338` (`stage-2.1.2`) in `docs/PROGRESS.md`, and appended Entry 033 to `TODO.md`.
+
+---
+
+## [0.2.3-stage2.2.2] — 2026-11-28
+
+### Subphase 2.2.2 — Archive Compression Crate (`compression-archive`, `L3`)
+- **Added:** L3 `compression-archive` crate (`crates/compression-archive/{Cargo.toml,src/{lib.rs,streams.rs,container.rs,ffenc.rs,repair.rs}}`) implementing `StreamCodec` (`Zstd`, `Lz4`, `Brotli`, `Gzip`, `Xz`, `Bzip2`), `ArchiveContainerKind` create/list/extract (`Zip`, `Tar`, `TarGz`, `TarZst`, `TarXz`, `TarBz2`, `TarLz4`, `TarBrotli`, `SevenZ`) with bomb & Zip-Slip rollback protection, `.ffenc` (`AES-256-GCM`/`ChaCha20-Poly1305` + `Argon2id` + AAD), `repair_truncated_zip`, and `ArchiveCompressionEngine` / `ArchiveQualityEvaluator`.
+- **Changed:** Added `compression-archive` and permissive archive/crypto crates (`aes-gcm`, `argon2`, `brotli`, `chacha20poly1305`, `crc32fast`, `flate2`, `getrandom`, `lz4_flex`, `lzma-rust2`, `oxiarc-bzip2`, `sevenz-rust`, `tar`, `zip`, `zstd`) to workspace `Cargo.toml` / `Cargo.lock`, backfilled `25d97e5` (`stage-2.2.1`) in `docs/PROGRESS.md`, and appended Entry 034 to `TODO.md`.

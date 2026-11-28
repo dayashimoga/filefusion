@@ -1,0 +1,40 @@
+[package]
+name = "compression-archive"
+description = "FileFusion L3 archive, stream compression, encrypted .ffenc container, and ZIP central-directory repair engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-logging", "native-process"]
+native-logging = ["compression-core/native-logging", "file-core/native-logging", "quality-engine/native-logging"]
+native-process = []
+wasm = ["compression-core/wasm", "file-core/wasm", "quality-engine/wasm", "validation-engine/wasm"]
+
+[dependencies]
+aes-gcm.workspace = true
+argon2.workspace = true
+brotli.workspace = true
+chacha20poly1305.workspace = true
+codec-registry = { workspace = true, default-features = false }
+compression-core = { workspace = true, default-features = false }
+crc32fast.workspace = true
+file-core = { workspace = true, default-features = false }
+flate2.workspace = true
+getrandom.workspace = true
+lz4_flex.workspace = true
+lzma-rust2.workspace = true
+oxiarc-bzip2.workspace = true
+quality-engine = { workspace = true, default-features = false }
+serde.workspace = true
+sevenz-rust.workspace = true
+tar.workspace = true
+validation-engine = { workspace = true, default-features = false }
+zip.workspace = true
+zstd.workspace = true
+
+[lints]
+workspace = true
