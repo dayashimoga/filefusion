@@ -9,6 +9,7 @@ members = [
     "crates/compression-core",
     "crates/compression-image",
     "crates/compression-archive",
+    "crates/compression-audio",
     "crates/job-manager",
     "apps/cli",
 ]
@@ -28,10 +29,14 @@ blake3 = "1.5"
 brotli = "9.1"
 chacha20poly1305 = "0.11"
 clap = { version = "4.5", features = ["derive"] }
+claxon = "0.4"
 crc32fast = "1.4"
 fast_image_resize = "5.1"
+flacenc = { version = "0.5", default-features = false, features = ["serde"] }
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 getrandom = "0.4"
+hound = "3.5"
+id3 = "1.17"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
 lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-encode", "safe-decode", "frame", "checked-decode"] }
 lzma-rust2 = "0.26"
@@ -44,6 +49,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sevenz-rust = { version = "0.6", default-features = false, features = ["compress"] }
 sha2 = "0.10"
+symphonia = { version = "0.6", default-features = false, features = ["opt-simd", "all-meta", "all-codecs", "all-formats"] }
 tar = "0.4"
 thiserror = "2.0"
 tokio = { version = "1", default-features = false, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
@@ -62,6 +68,7 @@ validation-engine = { path = "crates/validation-engine" }
 compression-core = { path = "crates/compression-core" }
 compression-image = { path = "crates/compression-image" }
 compression-archive = { path = "crates/compression-archive" }
+compression-audio = { path = "crates/compression-audio" }
 job-manager = { path = "crates/job-manager" }
 
 [workspace.lints.rust]

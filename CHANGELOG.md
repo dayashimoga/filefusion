@@ -277,3 +277,11 @@
 ### Subphase 2.2.2 — Archive Compression Crate (`compression-archive`, `L3`)
 - **Added:** L3 `compression-archive` crate (`crates/compression-archive/{Cargo.toml,src/{lib.rs,streams.rs,container.rs,ffenc.rs,repair.rs}}`) implementing `StreamCodec` (`Zstd`, `Lz4`, `Brotli`, `Gzip`, `Xz`, `Bzip2`), `ArchiveContainerKind` create/list/extract (`Zip`, `Tar`, `TarGz`, `TarZst`, `TarXz`, `TarBz2`, `TarLz4`, `TarBrotli`, `SevenZ`) with bomb & Zip-Slip rollback protection, `.ffenc` (`AES-256-GCM`/`ChaCha20-Poly1305` + `Argon2id` + AAD), `repair_truncated_zip`, and `ArchiveCompressionEngine` / `ArchiveQualityEvaluator`.
 - **Changed:** Added `compression-archive` and permissive archive/crypto crates (`aes-gcm`, `argon2`, `brotli`, `chacha20poly1305`, `crc32fast`, `flate2`, `getrandom`, `lz4_flex`, `lzma-rust2`, `oxiarc-bzip2`, `sevenz-rust`, `tar`, `zip`, `zstd`) to workspace `Cargo.toml` / `Cargo.lock`, backfilled `25d97e5` (`stage-2.2.1`) in `docs/PROGRESS.md`, and appended Entry 034 to `TODO.md`.
+
+---
+
+## [0.2.4-stage2.2.3] — 2026-11-28
+
+### Subphase 2.2.3 — Audio Compression Crate (`compression-audio`, `L3`)
+- **Added:** L3 `compression-audio` crate (`crates/compression-audio/{Cargo.toml,src/{lib.rs,dsp.rs,tags.rs,ffmpeg_adapter.rs}}`) providing pure-Rust decode (`WAV`/`FLAC`/`MP3`/`Ogg/Vorbis`/`AAC`/`M4A`/`ALAC`/`MKV`), lossless `WAV` & `FLAC` (`flacenc`) encode, `resample_pcm`, `remap_channels`, ITU-R BS.1770 / EBU R128 loudness measurement/normalization (`measure_integrated_lufs`, `normalize_loudness_lufs`), `ID3v2` read/write/strip, `AudioQualityEvaluator`, `AudioCompressionEngine` (`FR-CMP-002` No-Op guard), and `native-process` Tier 2 `FFmpeg` transcoding/stream-copy extraction via `IsolatedProcessRunner`.
+- **Changed:** Added `compression-audio` and permissive audio dependencies (`claxon`, `flacenc`, `hound`, `id3`, `symphonia`) to workspace `Cargo.toml` / `Cargo.lock`, backfilled `ba2658d` (`stage-2.2.2`) in `docs/PROGRESS.md`, and appended Entry 035 to `TODO.md`.

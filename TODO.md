@@ -312,3 +312,12 @@
 - [x] `[2.2.2]` Materialize L3 `crates/compression-archive` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-ARC-001`..`003`, `FR-SEC-001`..`002`, `FR-REP-001`) supporting pure/permissive multi-format archive create/list/extract across `Zip`, `Tar`, `TarGz`, `TarZst`, `TarXz`, `TarBz2`, `TarLz4`, `TarBrotli`, and `SevenZ`, plus `native-process` Tier 2 `7z` `IsolatedProcessRunner` helpers.
 - [x] `[2.2.2]` Implement `StreamCodec` (`Zstd`, `Lz4`, `Brotli`, `Gzip`, `Xz` via `lzma-rust2`, `Bzip2` via `oxiarc-bzip2`), `.ffenc` authenticated encryption (`AES-256-GCM` & `ChaCha20-Poly1305` + `Argon2id` + CSPRNG salt/nonce + header AAD), `repair_truncated_zip` local-header recovery + Central Directory reconstruction, and `ArchiveCompressionEngine` (`FR-CMP-002` No-Op guard & bit-exact BLAKE3 `ArchiveQualityEvaluator`).
 - [x] `[2.2.2]` Enforce Zip-Slip traversal/symlink rejection (`ErrorCode::SecTraversal`) and mid-stream decompression-bomb ceilings (`ErrorCode::SecBomb`) with partial directory cleanup, backfill `25d97e5` (`stage-2.2.1`) in `docs/PROGRESS.md`, and append Subphase `2.2.2` entries to `TODO.md` and `CHANGELOG.md`.
+
+---
+
+## [2026-11-28] Entry 035 — Stage 2 Subphase 2.2.3 Audio Compression Crate (`compression-audio`)
+
+### Completed in Subphase 2.2.3
+- [x] `[2.2.3]` Materialize L3 `crates/compression-audio` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-AV-002`, `FR-AV-003`, `FR-CMP-001`..`002`, `FR-MET-001`..`002`) implementing pure-Rust decoding (`hound`, `claxon`, `symphonia`) and lossless `WAV`/`FLAC` (`flacenc`) encoding tuned to `CompressionProfile`.
+- [x] `[2.2.3]` Implement sample-rate conversion (`resample_pcm`), channel remapping (`remap_channels`), ITU-R BS.1770 / EBU R128 K-weighted gated loudness measurement & peak-clamped normalization (`measure_integrated_lufs`, `normalize_loudness_lufs`), `ID3v1`/`ID3v2` metadata reading/writing/stripping (`tags.rs`), `AudioQualityEvaluator`, `AudioCompressionEngine`, and `native-process` Tier 2 `FFmpeg` `IsolatedProcessRunner` helpers.
+- [x] `[2.2.3]` Backfill `ba2658d` (`stage-2.2.2`) in `docs/PROGRESS.md` and append Subphase `2.2.3` entries to `TODO.md` and `CHANGELOG.md`.
