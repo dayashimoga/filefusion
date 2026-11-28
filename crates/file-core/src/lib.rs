@@ -43,9 +43,11 @@ pub use metadata::{
     inspect_path, inspect_reader,
 };
 pub use pipeline::{
-    CancellationToken, CompressionProfile, CompressionStatus, ItemOutcome, ItemStatus, JobContext,
-    JobReceipt, NoOpProgressSink, ProcessingHandler, ProcessingOperation, ProcessingRequest,
-    ProgressSink, StagedPath, ValidatedSource, VecProgressSink, resolve_output_destination,
+    CallbackProgressSink, CancelSubscription, CancellationToken, CompressionProfile,
+    CompressionStatus, ItemOutcome, ItemStatus, JobContext, JobReceipt, MonotonicProgressSink,
+    NoOpProgressSink, ProcessingHandler, ProcessingOperation, ProcessingRequest, ProgressSink,
+    StagedPath, ThrottledProgressSink, ValidatedSource, VecProgressSink,
+    resolve_output_destination,
 };
 pub use signature::{
     DetectionConfidence, SignatureMatch, detect_signature_from_bytes, detect_signature_from_path,

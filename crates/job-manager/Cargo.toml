@@ -20,6 +20,7 @@ codec-registry = { workspace = true, default-features = false }
 file-core = { workspace = true, default-features = false }
 rayon = { workspace = true, optional = true }
 serde.workspace = true
+serde_json.workspace = true
 tokio = { workspace = true, optional = true }
 tracing.workspace = true
 validation-engine.workspace = true

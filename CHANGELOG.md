@@ -229,3 +229,11 @@
 - **Added:** Bounded dual-pool `tokio` + `rayon` job scheduler (`crates/job-manager/src/scheduler.rs`: `JobScheduler`, `SchedulerController`, `JobPriority`, `ScheduledItemSpec`, `SchedulerStats`) with priority ordering, FIFO ties, memory-weighted permits, pause/resume, per-item cancellation, `< 500 ms` abort, and zero-warning WASM sequential fallback.
 - **Changed:** Wired `JobManager` batch execution through `JobScheduler` (`crates/job-manager/src/lib.rs`), fixed `wasm` test feature imports in `crates/job-manager/src/backends.rs`, backfilled `b26ae47` (`stage-1.3.2`) in `docs/PROGRESS.md`, and appended Entry 028 to `TODO.md`.
 
+---
+
+## [0.1.10-stage1.3.4] — 2026-11-28
+
+### Subphase 1.3.4 — Cancellation and Progress
+- **Added:** Hierarchical `CancellationToken::child()` & `subscribe_on_cancel` hooks, `CallbackProgressSink`, `MonotonicProgressSink`, `ThrottledProgressSink`, and `JobContext::emit_progress_estimate` (`crates/file-core/src/pipeline.rs`); multi-subscriber `ProgressBus` with empirical ETA estimation and NDJSON formatting (`crates/job-manager/src/progress.rs`); `JobManager::cancel_job` / `active_job_ids` registry and live subprocess cancellation latency test (`crates/job-manager/src/{lib.rs,backends.rs}`).
+- **Changed:** Wired `JobScheduler` reactive `subscribe_on_cancel` hooks and `run_validated_item` monotonic lifecycle stages (`Processing` / `Validating`), added `serde_json` to `crates/job-manager/Cargo.toml`, backfilled `02e86d7` (`stage-1.3.3`) in `docs/PROGRESS.md`, and appended Entry 029 to `TODO.md`.
+

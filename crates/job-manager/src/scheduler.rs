@@ -481,6 +481,7 @@ impl JobScheduler {
             .map(|(idx, path)| {
                 let item_index = u32::try_from(idx + 1).unwrap_or(u32::MAX);
                 ScheduledItemSpec::new(item_index, idx + 1, path.clone())
+                    .with_cancellation(ctx.cancellation.child())
             })
             .collect();
         self.execute_scheduled_items(req, &specs, handler, None, ctx)
@@ -843,6 +844,11 @@ impl JobScheduler {
             handler,
             ctx,
         };
+
+        let _cancel_sub = ctx.cancellation.subscribe_on_cancel({
+            let ctrl = controller.clone();
+            move || ctrl.cancel_all()
+        });
 
         let loop_res: FileFusionResult<()> = rayon_pool.in_place_scope(|cpu_scope| {
             rt.block_on(async {

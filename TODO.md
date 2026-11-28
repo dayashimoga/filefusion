@@ -259,3 +259,12 @@
 - [x] `[1.3.3]` Implement `JobScheduler`, `SchedulerController`, `JobPriority`, `ScheduledItemSpec`, and `SchedulerStats` in `crates/job-manager/src/scheduler.rs` enforcing `max_workers`, `max_memory_mb` permits (`FF-ERR-RES-MEMORY`), priority + FIFO ties, pause/resume, per-item cancellation, and `< 500 ms` global abort (`FR-BAT-001`, `NFR-PERF-003`, `NFR-REL-002`).
 - [x] `[1.3.3]` Wire `JobManager::execute_batch` / `execute_scheduled_batch` in `crates/job-manager/src/lib.rs`, verify 1,200-item concurrency & WASM parity tests, backfill `b26ae47` (`stage-1.3.2`), and append entries to `TODO.md` and `CHANGELOG.md`.
 
+---
+
+## [2026-11-28] Entry 029 — Stage 1 Subphase 1.3.4 Cancellation and Progress
+
+### Completed in Subphase 1.3.4
+- [x] `[1.3.4]` Upgrade `CancellationToken` in `crates/file-core/src/pipeline.rs` with hierarchical parent-child linking (`child()`), reactive cancellation callbacks (`subscribe_on_cancel` / RAII `CancelSubscription`), `CallbackProgressSink`, `MonotonicProgressSink`, `ThrottledProgressSink`, and `JobContext::emit_progress_estimate`.
+- [x] `[1.3.4]` Implement `ProgressBus`, `ProgressSubscription`, `ProgressBusStats`, rolling empirical ETA estimation, and `ndjson_line` formatting in `crates/job-manager/src/progress.rs`.
+- [x] `[1.3.4]` Add `ActiveJobGuard`, `JobManager::cancel_job`, `JobManager::active_job_ids`, reactive scheduler wake hooks, monotonic lifecycle progress stages, and live `< 500 ms` cancellation tests across scheduler and isolated subprocess execution; backfill `02e86d7` (`stage-1.3.3`) in `docs/PROGRESS.md` and append to `TODO.md` and `CHANGELOG.md`.
+

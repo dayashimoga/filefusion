@@ -443,4 +443,51 @@ mod tests {
         }
         Ok(())
     }
+
+    #[cfg(feature = "native-logging")]
+    #[test]
+    fn isolated_process_runner_kills_active_child_within_latency_budget() {
+        let runner = NativeIsolatedProcessRunner::new();
+        let ctx = JobContext::new("iso_live_kill", file_core::ResourceLimits::default());
+        let cancel_token = ctx.cancellation.clone();
+
+        #[cfg(target_os = "windows")]
+        let inv = ProcessInvocation {
+            executable: PathBuf::from("ping"),
+            args: vec![
+                OsString::from("-n"),
+                OsString::from("15"),
+                OsString::from("127.0.0.1"),
+            ],
+            working_dir: None,
+            timeout_secs: 30,
+            allow_env_keys: Vec::new(),
+        };
+
+        #[cfg(not(target_os = "windows"))]
+        let inv = ProcessInvocation {
+            executable: PathBuf::from("sleep"),
+            args: vec![OsString::from("15")],
+            working_dir: None,
+            timeout_secs: 30,
+            allow_env_keys: Vec::new(),
+        };
+
+        let killer = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(45));
+            let t0 = std::time::Instant::now();
+            cancel_token.cancel();
+            t0
+        });
+
+        let res = runner.run_isolated(&inv, &ctx);
+        let cancelled_at = killer.join().unwrap_or_else(|_| std::time::Instant::now());
+        let elapsed = cancelled_at.elapsed();
+
+        assert!(res.is_err());
+        if let Err(err) = res {
+            assert_eq!(err.diagnostic.code, ErrorCode::JobCancelled);
+        }
+        assert!(elapsed < std::time::Duration::from_millis(450));
+    }
 }

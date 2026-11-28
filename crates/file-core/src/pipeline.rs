@@ -2,11 +2,12 @@
 //! wrappers, atomic temp-file staging, and batch naming/collision contracts
 //! (`FF-CTR-001` §3–§4, `MOD-RULE-01`).
 
+use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::{Arc, Mutex, Weak};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,29 +32,193 @@ fn next_staging_suffix() -> String {
     )
 }
 
-/// Cooperative thread-safe cancellation token checked at chunk/step boundaries (`NFR-REL-002`).
-#[derive(Debug, Clone, Default)]
+type CancelHook = Arc<dyn Fn() + Send + Sync>;
+
+struct CancelNode {
+    cancelled: AtomicBool,
+    parent: Option<Arc<CancelNode>>,
+    next_hook_id: AtomicU64,
+    hooks: Mutex<Vec<(u64, CancelHook)>>,
+    children: Mutex<Vec<Weak<CancelNode>>>,
+}
+
+impl std::fmt::Debug for CancelNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CancelNode")
+            .field("cancelled", &self.cancelled.load(Ordering::SeqCst))
+            .field("has_parent", &self.parent.is_some())
+            .finish_non_exhaustive()
+    }
+}
+
+impl CancelNode {
+    fn new(parent: Option<Arc<CancelNode>>, pre_cancelled: bool) -> Arc<Self> {
+        Arc::new(Self {
+            cancelled: AtomicBool::new(pre_cancelled),
+            parent,
+            next_hook_id: AtomicU64::new(1),
+            hooks: Mutex::new(Vec::new()),
+            children: Mutex::new(Vec::new()),
+        })
+    }
+
+    fn is_cancelled(&self) -> bool {
+        if self.cancelled.load(Ordering::SeqCst) {
+            return true;
+        }
+        if let Some(parent) = &self.parent {
+            return parent.is_cancelled();
+        }
+        false
+    }
+
+    fn cancel_cascade(&self) {
+        let was_cancelled = self.cancelled.swap(true, Ordering::SeqCst);
+        if !was_cancelled {
+            tracing::info!(event = "job_cancelled", "cancellation signal raised");
+        }
+
+        let callbacks: Vec<CancelHook> = {
+            let mut guard = match self.hooks.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            guard.drain(..).map(|(_, cb)| cb).collect()
+        };
+        for cb in callbacks {
+            cb();
+        }
+
+        let live_children: Vec<Arc<CancelNode>> = {
+            let mut guard = match self.children.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let upgraded: Vec<Arc<CancelNode>> = guard.iter().filter_map(Weak::upgrade).collect();
+            guard.retain(|w| w.strong_count() > 0);
+            upgraded
+        };
+        for child in live_children {
+            child.cancel_cascade();
+        }
+    }
+}
+
+/// RAII guard removing a cancellation hook when dropped (`NFR-REL-002`).
+#[derive(Debug)]
+pub struct CancelSubscription {
+    node: Option<Arc<CancelNode>>,
+    hook_id: u64,
+}
+
+impl Drop for CancelSubscription {
+    fn drop(&mut self) {
+        if let Some(node) = self.node.take() {
+            let mut guard = match node.hooks.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            guard.retain(|(id, _)| *id != self.hook_id);
+        }
+    }
+}
+
+/// Cooperative hierarchical thread-safe cancellation token checked at chunk/step boundaries (`NFR-REL-002`).
+#[derive(Debug, Clone)]
 pub struct CancellationToken {
-    cancelled: Arc<AtomicBool>,
+    node: Arc<CancelNode>,
+}
+
+impl Default for CancellationToken {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CancellationToken {
-    /// Creates a new active (non-cancelled) token.
+    /// Creates a new active (non-cancelled) root token.
     #[must_use]
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            node: CancelNode::new(None, false),
+        }
     }
 
-    /// Signals cancellation across all cloned handles immediately.
+    /// Creates a linked child token.
+    ///
+    /// Cancelling the parent cascades immediately to the child, whereas cancelling
+    /// only the child leaves the parent and sibling tokens active.
+    #[must_use]
+    pub fn child(&self) -> Self {
+        let already = self.is_cancelled();
+        let child_node = CancelNode::new(Some(Arc::clone(&self.node)), already);
+        if !already {
+            let mut guard = match self.node.children.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            guard.retain(|w| w.strong_count() > 0);
+            guard.push(Arc::downgrade(&child_node));
+        }
+        Self { node: child_node }
+    }
+
+    /// Registers a callback executed immediately on cancellation (or right away if already cancelled).
+    #[must_use]
+    pub fn subscribe_on_cancel<F>(&self, callback: F) -> CancelSubscription
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        if self.is_cancelled() {
+            callback();
+            return CancelSubscription {
+                node: None,
+                hook_id: 0,
+            };
+        }
+        let hook_id = self.node.next_hook_id.fetch_add(1, Ordering::Relaxed);
+        let hook: CancelHook = Arc::new(callback);
+        {
+            let mut guard = match self.node.hooks.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            guard.push((hook_id, hook));
+        }
+        if self.is_cancelled() {
+            let maybe_cb = {
+                let mut guard = match self.node.hooks.lock() {
+                    Ok(g) => g,
+                    Err(p) => p.into_inner(),
+                };
+                guard
+                    .iter()
+                    .position(|(id, _)| *id == hook_id)
+                    .map(|pos| guard.remove(pos).1)
+            };
+            if let Some(cb) = maybe_cb {
+                cb();
+            }
+            return CancelSubscription {
+                node: None,
+                hook_id: 0,
+            };
+        }
+        CancelSubscription {
+            node: Some(Arc::clone(&self.node)),
+            hook_id,
+        }
+    }
+
+    /// Signals cancellation across all cloned handles and linked child tokens immediately.
     pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
-        tracing::info!(event = "job_cancelled", "cancellation signal raised");
+        self.node.cancel_cascade();
     }
 
-    /// Returns `true` once [`CancellationToken::cancel`] has been called.
+    /// Returns `true` once [`CancellationToken::cancel`] has been called on this token or an ancestor.
     #[must_use]
     pub fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::SeqCst)
+        self.node.is_cancelled()
     }
 
     /// Returns `Err(FileFusionError)` (`FF-ERR-JOB-CANCELLED`) if cancelled.
@@ -113,6 +278,177 @@ impl ProgressSink for VecProgressSink {
         match self.events.lock() {
             Ok(mut guard) => guard.push(event),
             Err(poisoned) => poisoned.into_inner().push(event),
+        }
+    }
+}
+
+/// Closure-backed [`ProgressSink`] forwarding updates cleanly to Plane 2 adapters.
+pub struct CallbackProgressSink<F> {
+    callback: F,
+}
+
+impl<F> std::fmt::Debug for CallbackProgressSink<F> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CallbackProgressSink")
+            .finish_non_exhaustive()
+    }
+}
+
+impl<F> CallbackProgressSink<F>
+where
+    F: Fn(ProgressEvent) + Send + Sync,
+{
+    /// Wraps `callback` as a [`ProgressSink`].
+    #[must_use]
+    pub const fn new(callback: F) -> Self {
+        Self { callback }
+    }
+}
+
+impl<F> ProgressSink for CallbackProgressSink<F>
+where
+    F: Fn(ProgressEvent) + Send + Sync,
+{
+    fn emit(&self, event: ProgressEvent) {
+        (self.callback)(event);
+    }
+}
+
+/// [`ProgressSink`] decorator enforcing per-item monotonic percentages (`FF-CTR-001` §2.3).
+#[derive(Debug)]
+pub struct MonotonicProgressSink<S> {
+    inner: S,
+    high_water: Mutex<HashMap<u32, f32>>,
+}
+
+impl<S: ProgressSink> MonotonicProgressSink<S> {
+    /// Creates a monotonic wrapper around `inner`.
+    #[must_use]
+    pub fn new(inner: S) -> Self {
+        Self {
+            inner,
+            high_water: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Consumes the wrapper and returns the inner [`ProgressSink`].
+    #[must_use]
+    pub fn into_inner(self) -> S {
+        self.inner
+    }
+}
+
+impl<S: ProgressSink> ProgressSink for MonotonicProgressSink<S> {
+    fn emit(&self, mut event: ProgressEvent) {
+        let clamped = if event.percent.is_finite() {
+            event.percent.clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
+        let normalized = {
+            let mut guard = match self.high_water.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let prev = guard.get(&event.item_index).copied().unwrap_or(0.0);
+            let next = if matches!(event.stage, JobStage::Completed) {
+                100.0
+            } else {
+                prev.max(clamped)
+            };
+            guard.insert(event.item_index, next);
+            next
+        };
+        event.percent = normalized;
+        self.inner.emit(event);
+    }
+}
+
+/// [`ProgressSink`] decorator coalescing rapid non-terminal ticks within `min_interval`.
+#[derive(Debug)]
+pub struct ThrottledProgressSink<S> {
+    inner: S,
+    min_interval: Duration,
+    #[cfg(not(target_arch = "wasm32"))]
+    last_emitted: Mutex<HashMap<u32, (JobStage, std::time::Instant)>>,
+    #[cfg(target_arch = "wasm32")]
+    last_stage: Mutex<HashMap<u32, JobStage>>,
+}
+
+impl<S: ProgressSink> ThrottledProgressSink<S> {
+    /// Creates a throttled decorator forwarding stage transitions immediately and rate-limiting same-stage ticks.
+    #[must_use]
+    pub fn new(inner: S, min_interval: Duration) -> Self {
+        Self {
+            inner,
+            min_interval,
+            #[cfg(not(target_arch = "wasm32"))]
+            last_emitted: Mutex::new(HashMap::new()),
+            #[cfg(target_arch = "wasm32")]
+            last_stage: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Returns the configured throttling interval.
+    #[must_use]
+    pub const fn min_interval(&self) -> Duration {
+        self.min_interval
+    }
+
+    /// Consumes the wrapper and returns the inner [`ProgressSink`].
+    #[must_use]
+    pub fn into_inner(self) -> S {
+        self.inner
+    }
+}
+
+const fn is_terminal_stage(stage: JobStage) -> bool {
+    matches!(
+        stage,
+        JobStage::Completed | JobStage::Cancelled | JobStage::Failed
+    )
+}
+
+impl<S: ProgressSink> ProgressSink for ThrottledProgressSink<S> {
+    fn emit(&self, event: ProgressEvent) {
+        #[cfg(not(target_arch = "wasm32"))]
+        let should_emit = {
+            let now = std::time::Instant::now();
+            let mut guard = match self.last_emitted.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let forward = match guard.get(&event.item_index) {
+                None => true,
+                Some((prev_stage, prev_at)) => {
+                    is_terminal_stage(event.stage)
+                        || *prev_stage != event.stage
+                        || self.min_interval.is_zero()
+                        || now.duration_since(*prev_at) >= self.min_interval
+                }
+            };
+            if forward {
+                guard.insert(event.item_index, (event.stage, now));
+            }
+            forward
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let should_emit = {
+            let mut guard = match self.last_stage.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            let forward = is_terminal_stage(event.stage)
+                || guard.get(&event.item_index).copied() != Some(event.stage);
+            if forward {
+                guard.insert(event.item_index, event.stage);
+            }
+            forward
+        };
+
+        if should_emit {
+            self.inner.emit(event);
         }
     }
 }
@@ -205,15 +541,38 @@ impl JobContext {
         bytes_in: u64,
         detail: impl Into<String>,
     ) {
+        self.emit_progress_estimate(
+            item_index, item_total, stage, percent, bytes_in, None, None, detail,
+        );
+    }
+
+    /// Emits a [`ProgressEvent`] including optional output-byte and ETA estimates (`FF-CTR-001` §2.3).
+    #[allow(clippy::too_many_arguments)]
+    pub fn emit_progress_estimate(
+        &self,
+        item_index: u32,
+        item_total: u32,
+        stage: JobStage,
+        percent: f32,
+        bytes_in: u64,
+        bytes_out_estimate: Option<u64>,
+        eta_ms: Option<u64>,
+        detail: impl Into<String>,
+    ) {
+        let safe_pct = if percent.is_finite() {
+            percent.clamp(0.0, 100.0)
+        } else {
+            0.0
+        };
         self.progress.emit(ProgressEvent {
             job_id: self.job_id.clone(),
             item_index,
             item_total,
             stage,
-            percent: percent.clamp(0.0, 100.0),
+            percent: safe_pct,
             bytes_in,
-            bytes_out_estimate: None,
-            eta_ms: None,
+            bytes_out_estimate,
+            eta_ms,
             detail: detail.into(),
         });
     }
@@ -725,5 +1084,117 @@ mod tests {
 
         let _ = fs::remove_dir_all(&dir);
         Ok(())
+    }
+
+    #[test]
+    fn hierarchical_cancellation_cascades_and_subscriptions_fire_once() {
+        let root = CancellationToken::new();
+        let child_a = root.child();
+        let child_b = root.child();
+
+        let hook_hits = Arc::new(AtomicU64::new(0));
+        let hits_clone = Arc::clone(&hook_hits);
+        let _sub = child_a.subscribe_on_cancel(move || {
+            hits_clone.fetch_add(1, Ordering::SeqCst);
+        });
+
+        let dropped_hits = Arc::new(AtomicU64::new(0));
+        let dropped_clone = Arc::clone(&dropped_hits);
+        {
+            let temp_sub = root.subscribe_on_cancel(move || {
+                dropped_clone.fetch_add(1, Ordering::SeqCst);
+            });
+            drop(temp_sub);
+        }
+
+        // Cancelling child_b does not cancel root or child_a.
+        child_b.cancel();
+        assert!(child_b.is_cancelled());
+        assert!(!root.is_cancelled());
+        assert!(!child_a.is_cancelled());
+        assert_eq!(hook_hits.load(Ordering::SeqCst), 0);
+
+        // Cancelling root cascades immediately to child_a and triggers its live hook.
+        root.cancel();
+        assert!(root.is_cancelled());
+        assert!(child_a.is_cancelled());
+        assert_eq!(hook_hits.load(Ordering::SeqCst), 1);
+        assert_eq!(dropped_hits.load(Ordering::SeqCst), 0);
+
+        // Subscribing after cancellation fires immediately.
+        let late_hits = Arc::clone(&hook_hits);
+        let late_sub = child_a.subscribe_on_cancel(move || {
+            late_hits.fetch_add(1, Ordering::SeqCst);
+        });
+        drop(late_sub);
+        assert_eq!(hook_hits.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn monotonic_and_throttled_sinks_preserve_order_and_stages() {
+        let recorded = Arc::new(VecProgressSink::new());
+        let throttled = ThrottledProgressSink::new(
+            MonotonicProgressSink::new(CallbackProgressSink::new({
+                let out = Arc::clone(&recorded);
+                move |ev| out.emit(ev)
+            })),
+            Duration::from_secs(60),
+        );
+
+        throttled.emit(ProgressEvent {
+            job_id: String::from("j1"),
+            item_index: 1,
+            item_total: 1,
+            stage: JobStage::Processing,
+            percent: 40.0,
+            bytes_in: 100,
+            bytes_out_estimate: None,
+            eta_ms: None,
+            detail: String::from("first"),
+        });
+        // Same non-terminal stage within 60s min_interval should be coalesced.
+        throttled.emit(ProgressEvent {
+            job_id: String::from("j1"),
+            item_index: 1,
+            item_total: 1,
+            stage: JobStage::Processing,
+            percent: 50.0,
+            bytes_in: 100,
+            bytes_out_estimate: None,
+            eta_ms: None,
+            detail: String::from("throttled"),
+        });
+        // Regressing stage change emits immediately and clamps to monotonic 40.0.
+        throttled.emit(ProgressEvent {
+            job_id: String::from("j1"),
+            item_index: 1,
+            item_total: 1,
+            stage: JobStage::Validating,
+            percent: 15.0,
+            bytes_in: 100,
+            bytes_out_estimate: None,
+            eta_ms: None,
+            detail: String::from("validating"),
+        });
+        // Terminal completion always passes immediately and snaps to 100.0.
+        throttled.emit(ProgressEvent {
+            job_id: String::from("j1"),
+            item_index: 1,
+            item_total: 1,
+            stage: JobStage::Completed,
+            percent: 90.0,
+            bytes_in: 100,
+            bytes_out_estimate: Some(64),
+            eta_ms: Some(0),
+            detail: String::from("done"),
+        });
+
+        let events = recorded.snapshot();
+        assert_eq!(events.len(), 3);
+        assert!((events[0].percent - 40.0).abs() < f32::EPSILON);
+        assert_eq!(events[1].stage, JobStage::Validating);
+        assert!((events[1].percent - 40.0).abs() < f32::EPSILON);
+        assert_eq!(events[2].stage, JobStage::Completed);
+        assert!((events[2].percent - 100.0).abs() < f32::EPSILON);
     }
 }

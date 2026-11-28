@@ -7,10 +7,12 @@
 #![forbid(unsafe_code)]
 
 pub mod backends;
+pub mod progress;
 pub mod scheduler;
 
+use std::collections::HashMap;
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 pub use backends::{BackendCatalog, NativeIsolatedProcessRunner};
 pub use codec_registry::{
@@ -18,25 +20,26 @@ pub use codec_registry::{
     collect_baseline_doctor_report, collect_doctor_report,
 };
 pub use file_core::{
-    BatchDefaults, CancellationToken, CliConfigOverrides, CliExitCode, CollisionPolicy,
-    CompressibilityTier, CompressionEngine, CompressionOutcome, CompressionProfile,
-    CompressionRequest, CompressionStatus, ConfigSource, ConversionEngine,
+    BatchDefaults, CallbackProgressSink, CancelSubscription, CancellationToken, CliConfigOverrides,
+    CliExitCode, CollisionPolicy, CompressibilityTier, CompressionEngine, CompressionOutcome,
+    CompressionProfile, CompressionRequest, CompressionStatus, ConfigSource, ConversionEngine,
     ConversionFidelityReport, ConversionRequest, ConversionRoute, DetectionConfidence, DigestSet,
     ErrorCategory, ErrorCode, ErrorDiagnostic, ExternalToolAdapter, FidelitySeverity,
     FileClassification, FileFusionConfig, FileFusionError, FileFusionResult, FileInspectionReport,
     FormatId, IsolatedProcessRunner, ItemOutcome, ItemStatus, JobContext, JobReceipt, JobStage,
-    LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind, MetadataSummary, NoOpProgressSink,
-    OutputValidator, PathConfig, PreflightAssessment, PreflightWarning, PrivacyConfig,
-    ProcessInvocation, ProcessOutput, ProcessingDomain, ProcessingHandler, ProcessingOperation,
-    ProcessingRequest, ProgressEvent, ProgressSink, QualityEvaluator, QualityMetrics,
-    RecommendedAction, ResourceLimits, SignatureMatch, StagedPath, StreamDescriptor, StreamKind,
-    ValidatedSource, ValidationOutcome, VecProgressSink, classify_inspection_report,
-    classify_processing_domain, compute_digests_from_bytes, compute_entropy_milli_bits,
-    detect_signature_from_bytes, detect_signature_from_path, enforce_spoofing_policy, init_logging,
-    inspect_bytes, inspect_path, load_config_from_path, load_effective_config, redact_path_for_log,
-    resolve_default_config_path, resolve_output_destination, save_config_atomic,
-    workspace_identity,
+    LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind, MetadataSummary,
+    MonotonicProgressSink, NoOpProgressSink, OutputValidator, PathConfig, PreflightAssessment,
+    PreflightWarning, PrivacyConfig, ProcessInvocation, ProcessOutput, ProcessingDomain,
+    ProcessingHandler, ProcessingOperation, ProcessingRequest, ProgressEvent, ProgressSink,
+    QualityEvaluator, QualityMetrics, RecommendedAction, ResourceLimits, SignatureMatch,
+    StagedPath, StreamDescriptor, StreamKind, ThrottledProgressSink, ValidatedSource,
+    ValidationOutcome, VecProgressSink, classify_inspection_report, classify_processing_domain,
+    compute_digests_from_bytes, compute_entropy_milli_bits, detect_signature_from_bytes,
+    detect_signature_from_path, enforce_spoofing_policy, init_logging, inspect_bytes, inspect_path,
+    load_config_from_path, load_effective_config, redact_path_for_log, resolve_default_config_path,
+    resolve_output_destination, save_config_atomic, workspace_identity,
 };
+pub use progress::{ProgressBus, ProgressBusStats, ProgressSubscription};
 pub use scheduler::{
     JobPriority, JobScheduler, ScheduledItemSpec, SchedulerController, SchedulerStats,
 };
@@ -45,11 +48,58 @@ pub use validation_engine::{
     validate_expansion_budget,
 };
 
+#[derive(Debug, Clone)]
+struct ActiveJobEntry {
+    cancellation: CancellationToken,
+    controller: Option<SchedulerController>,
+}
+
+struct ActiveJobGuard {
+    registry: Arc<Mutex<HashMap<String, ActiveJobEntry>>>,
+    job_id: String,
+}
+
+impl ActiveJobGuard {
+    fn register(
+        registry: &Arc<Mutex<HashMap<String, ActiveJobEntry>>>,
+        job_id: &str,
+        cancellation: CancellationToken,
+        controller: Option<SchedulerController>,
+    ) -> Self {
+        let mut guard = match registry.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        guard.insert(
+            job_id.to_owned(),
+            ActiveJobEntry {
+                cancellation,
+                controller,
+            },
+        );
+        Self {
+            registry: Arc::clone(registry),
+            job_id: job_id.to_owned(),
+        }
+    }
+}
+
+impl Drop for ActiveJobGuard {
+    fn drop(&mut self) {
+        let mut guard = match self.registry.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        guard.remove(&self.job_id);
+    }
+}
+
 /// Top-level L5 processing coordinator enforcing cancellation, validation, and receipts.
 #[derive(Debug, Clone)]
 pub struct JobManager {
     limits: ResourceLimits,
     defaults: BatchDefaults,
+    active_jobs: Arc<Mutex<HashMap<String, ActiveJobEntry>>>,
 }
 
 impl Default for JobManager {
@@ -61,8 +111,12 @@ impl Default for JobManager {
 impl JobManager {
     /// Creates a [`JobManager`] bound to explicit runtime limits and batch defaults.
     #[must_use]
-    pub const fn new(limits: ResourceLimits, defaults: BatchDefaults) -> Self {
-        Self { limits, defaults }
+    pub fn new(limits: ResourceLimits, defaults: BatchDefaults) -> Self {
+        Self {
+            limits,
+            defaults,
+            active_jobs: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     /// Creates a [`JobManager`] from a validated [`FileFusionConfig`].
@@ -71,6 +125,7 @@ impl JobManager {
         Self {
             limits: config.limits,
             defaults: config.batch.clone(),
+            active_jobs: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -99,6 +154,39 @@ impl JobManager {
         SchedulerController::new(self.limits)
     }
 
+    /// Cancels an active running job by `job_id`, triggering immediate `< 500 ms` abort
+    /// (`NFR-REL-002`). Returns `true` if `job_id` was registered as running.
+    #[must_use]
+    pub fn cancel_job(&self, job_id: &str) -> bool {
+        let entry = {
+            let guard = match self.active_jobs.lock() {
+                Ok(g) => g,
+                Err(p) => p.into_inner(),
+            };
+            guard.get(job_id).cloned()
+        };
+        let Some(active) = entry else {
+            return false;
+        };
+        active.cancellation.cancel();
+        if let Some(ctrl) = active.controller {
+            ctrl.cancel_all();
+        }
+        true
+    }
+
+    /// Returns a sorted snapshot of currently active running `job_id` identifiers.
+    #[must_use]
+    pub fn active_job_ids(&self) -> Vec<String> {
+        let guard = match self.active_jobs.lock() {
+            Ok(g) => g,
+            Err(p) => p.into_inner(),
+        };
+        let mut ids: Vec<String> = guard.keys().cloned().collect();
+        ids.sort();
+        ids
+    }
+
     /// Executes a scheduled batch of [`ScheduledItemSpec`] work items through the bounded scheduler.
     ///
     /// # Errors
@@ -111,6 +199,12 @@ impl JobManager {
         controller: Option<&SchedulerController>,
         ctx: &JobContext,
     ) -> FileFusionResult<JobReceipt> {
+        let _active_guard = ActiveJobGuard::register(
+            &self.active_jobs,
+            &req.job_id,
+            ctx.cancellation.clone(),
+            controller.cloned(),
+        );
         self.scheduler()
             .execute_scheduled_items(req, items, handler, controller, ctx)
     }
@@ -130,7 +224,28 @@ impl JobManager {
         handler: Option<&dyn ProcessingHandler>,
         ctx: &JobContext,
     ) -> FileFusionResult<JobReceipt> {
-        self.scheduler().execute_batch(req, handler, ctx)
+        let ctrl = self.create_scheduler_controller();
+        let _active_guard = ActiveJobGuard::register(
+            &self.active_jobs,
+            &req.job_id,
+            ctx.cancellation.clone(),
+            Some(ctrl.clone()),
+        );
+        let specs: Vec<ScheduledItemSpec> = req
+            .inputs
+            .iter()
+            .enumerate()
+            .map(|(idx, path)| {
+                let item_index = u32::try_from(idx + 1).unwrap_or(u32::MAX);
+                ScheduledItemSpec::new(item_index, idx + 1, path.clone())
+                    .with_cancellation(ctx.cancellation.child())
+            })
+            .collect();
+        if specs.is_empty() {
+            return self.scheduler().execute_batch(req, handler, ctx);
+        }
+        self.scheduler()
+            .execute_scheduled_items(req, &specs, handler, Some(&ctrl), ctx)
     }
 }
 
@@ -146,10 +261,7 @@ pub(crate) fn run_validated_item(
     ctx: &JobContext,
 ) -> FileFusionResult<ItemOutcome> {
     ctx.check_cancelled()?;
-    let start_percent =
-        (f32::from(u16::try_from(item_index.saturating_sub(1)).unwrap_or(u16::MAX))
-            / f32::from(u16::try_from(total.max(1)).unwrap_or(1)))
-            * 100.0;
+    let start_percent = 0.0_f32;
     ctx.emit_progress(
         item_index,
         total,
@@ -162,9 +274,7 @@ pub(crate) fn run_validated_item(
         ),
     );
 
-    let done_percent = (f32::from(u16::try_from(item_index).unwrap_or(u16::MAX))
-        / f32::from(u16::try_from(total.max(1)).unwrap_or(1)))
-        * 100.0;
+    let done_percent = 100.0_f32;
     let source = match ValidatedSource::open(input_path, req.strict_spoofing, limits) {
         Ok(src) => src,
         Err(err) => {
@@ -280,8 +390,28 @@ fn execute_handler_or_default(
         });
     };
 
+    ctx.emit_progress(
+        item_index,
+        total,
+        JobStage::Processing,
+        40.0,
+        bytes_in,
+        "Executing processing handler",
+    );
     match active_handler.process_item(source, resolved_dest.as_deref(), req, item_index, ctx) {
-        Ok(out) => Ok(out),
+        Ok(out) => {
+            ctx.emit_progress_estimate(
+                item_index,
+                total,
+                JobStage::Validating,
+                90.0,
+                bytes_in,
+                Some(out.bytes_out),
+                None,
+                "Verifying processed output",
+            );
+            Ok(out)
+        }
         Err(err) => {
             if err.diagnostic.code == ErrorCode::JobCancelled {
                 return Err(err);
