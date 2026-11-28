@@ -734,8 +734,7 @@ mod tests {
         fs::write(&dup1, sentinel_a)?;
         fs::write(&dup2, sentinel_b)?;
 
-        let skipped_res =
-            restore_quarantine_batch(&m2, file_core::CollisionPolicy::Skip, &ctx)?;
+        let skipped_res = restore_quarantine_batch(&m2, file_core::CollisionPolicy::Skip, &ctx)?;
         assert_eq!(skipped_res.restored_count, 0);
         assert_eq!(skipped_res.skipped_count, 2);
         assert_eq!(fs::read(&dup1)?, sentinel_a);

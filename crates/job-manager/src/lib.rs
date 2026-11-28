@@ -10,6 +10,7 @@ pub mod backends;
 pub mod progress;
 pub mod scheduler;
 pub mod stage4;
+pub mod stage5;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -51,19 +52,25 @@ pub use hardware_acceleration::{
 };
 pub use optimization_engine::{
     ArchiveContainerKind, ArchiveExtractionReport, ArchiveInputEntry, ArchiveMemberMetadata,
-    ArchiveWriteSummary, CodecRecommendation, EditableMetadataFields, FFENC_MAGIC, FastCdcConfig,
-    FfencCipherSuite, FfencHeaderInfo, FfencKdfParams, MetadataOperationReport, OcrDocumentResult,
-    OcrOptions, OcrPageResult, OcrWordBox, OptimizationDispatcher, PdfCropMargins,
-    PdfEncryptionAlgorithm, PdfHealthReport, PdfPermissions, PdfProtectionOptions,
-    PdfRepairAssessment, PdfScanInspection, PdfSecurityReport, PdfSignatureInfo,
-    PdfSignatureReport, PdfSignatureStatus, PdfWatermarkOptions, QualityTargetConstraint,
-    RecommendationHints, RecoverabilityClass, StreamCodec, TesseractOutputMode,
-    UnifiedRepairDiagnosis, UnifiedRepairOutcome, ZipHealthReport, ZipRepairReport,
-    archive_kind_from_output_path, build_simple_text_pdf_bytes, chunk_bytes_fastcdc,
-    collect_archive_input_entries, compress_stream_bytes, create_archive_from_entries,
-    decrypt_ffenc_bytes, encrypt_ffenc_bytes, extract_archive_safely, inspect_ffenc_header,
-    inspect_pdf_security, inspect_zip_health, list_archive_members, recommend_codec,
-    solve_and_stage_jpeg, verify_pdf_signatures,
+    ArchiveWriteSummary, CdcChunk, CdcDeduplicationReport, CdcDeltaSummary, CodecRecommendation,
+    DirectoryUsageNode, DomainStorageBreakdown, DuplicateScanOptions, EditableMetadataFields,
+    ExactDuplicateGroup, ExactDuplicateScanReport, FFENC_MAGIC, FastCdcConfig, FfencCipherSuite,
+    FfencHeaderInfo, FfencKdfParams, FileDiffOptions, FileDiffReport, FormatStorageBreakdown,
+    LargestFileItem, MetadataFieldDiff, MetadataOperationReport, NearDuplicateCluster,
+    NearDuplicateOptions, NearDuplicateScanReport, OcrDocumentResult, OcrOptions, OcrPageResult,
+    OcrWordBox, OptimizationDispatcher, PdfCropMargins, PdfEncryptionAlgorithm, PdfHealthReport,
+    PdfPermissions, PdfProtectionOptions, PdfRepairAssessment, PdfScanInspection,
+    PdfSecurityReport, PdfSignatureInfo, PdfSignatureReport, PdfSignatureStatus,
+    PdfWatermarkOptions, PerceptualHashSet, QualityTargetConstraint, QuarantineBatchManifest,
+    QuarantineEntry, QuarantinePurgeReport, QuarantineRestoreReport, ReclamationAction,
+    ReclamationExecutionReport, ReclamationPlan, ReclamationStrategy, RecommendationHints,
+    RecoverabilityClass, SimilarityMember, StorageTreemapReport, StreamCodec, TesseractOutputMode,
+    TextDiffHunk, TextDiffSummary, UnifiedRepairDiagnosis, UnifiedRepairOutcome, VisualDiffSummary,
+    ZipHealthReport, ZipRepairReport, archive_kind_from_output_path, build_simple_text_pdf_bytes,
+    chunk_bytes_fastcdc, collect_archive_input_entries, compress_stream_bytes,
+    create_archive_from_entries, decrypt_ffenc_bytes, encrypt_ffenc_bytes, extract_archive_safely,
+    inspect_ffenc_header, inspect_pdf_security, inspect_zip_health, list_archive_members,
+    recommend_codec, solve_and_stage_jpeg, verify_pdf_signatures,
 };
 pub use progress::{ProgressBus, ProgressBusStats, ProgressSubscription};
 pub use scheduler::{
@@ -72,6 +79,7 @@ pub use scheduler::{
 pub use stage4::{
     JobEncryptResult, JobMetadataResult, JobPdfOcrResult, JobPdfResult, JobRepairResult,
 };
+pub use stage5::{JobCleanupExecutionResult, JobCleanupPlanResult};
 pub use validation_engine::{
     BombGuardError, MagicByteOutputValidator, PathSafetyError, validate_archive_member_path,
     validate_expansion_budget,
@@ -1410,6 +1418,91 @@ mod tests {
         )?;
         assert_eq!(meta_res.report.format, FormatId::Docx);
         assert_eq!(meta_res.report.after.title.as_deref(), Some("Audited Doc"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn job_manager_orchestrates_stage5_dedup_diff_treemap_and_quarantine()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let dir = std::env::temp_dir().join(format!("ff_jm_s5_{nanos}"));
+        std::fs::create_dir_all(&dir)?;
+        let manager = JobManager::default();
+        let ctx = manager.create_context("jm-s5-e2e");
+
+        let payload = vec![0x7Eu8; 16 * 1024];
+        let keep = dir.join("alpha.bin");
+        let dup = dir.join("beta.bin");
+        let txt_a = dir.join("a.txt");
+        let txt_b = dir.join("b.txt");
+        std::fs::write(&keep, &payload)?;
+        std::fs::write(&dup, &payload)?;
+        std::fs::write(&txt_a, "line1\nline2\n")?;
+        std::fs::write(&txt_b, "line1\nline2_edited\n")?;
+
+        let exact = manager.scan_exact_duplicates(
+            std::slice::from_ref(&dir),
+            &DuplicateScanOptions::default(),
+            &ctx,
+        )?;
+        assert_eq!(exact.total_duplicate_files, 1);
+        assert_eq!(exact.total_wasted_bytes, 16 * 1024);
+
+        let treemap = manager.analyze_storage_treemap(
+            std::slice::from_ref(&dir),
+            &DuplicateScanOptions::default(),
+            5,
+            &ctx,
+        )?;
+        assert_eq!(treemap.total_files, 4);
+
+        let cdc = manager.analyze_cdc_dedup(
+            &[keep.clone(), dup.clone()],
+            FastCdcConfig::default(),
+            &ctx,
+        )?;
+        assert_eq!(cdc.duplicate_bytes, 16 * 1024);
+
+        let diff = manager.diff_files(&txt_a, &txt_b, &FileDiffOptions::default(), &ctx)?;
+        assert!(!diff.bit_exact);
+        assert_eq!(diff.text_diff.as_ref().map(|t| t.common_lines), Some(1));
+
+        // Dry-run cleanup plans without deleting; live quarantine moves & restores safely.
+        let dry = manager.cleanup_duplicates(
+            std::slice::from_ref(&dir),
+            &DuplicateScanOptions::default(),
+            ReclamationStrategy::Quarantine,
+            None,
+            true,
+            false,
+            &ctx,
+        )?;
+        assert!(dry.execution.is_none());
+        assert_eq!(dry.plan.actions.len(), 1);
+        assert!(dup.exists());
+
+        let live = manager.cleanup_duplicates(
+            std::slice::from_ref(&dir),
+            &DuplicateScanOptions::default(),
+            ReclamationStrategy::Quarantine,
+            None,
+            false,
+            false,
+            &ctx,
+        )?;
+        let exec = live.execution.ok_or("expected quarantine execution")?;
+        assert_eq!(exec.applied_count, 1);
+        assert!(!dup.exists());
+
+        let mpath = std::path::PathBuf::from(exec.manifest_path.ok_or("expected manifest_path")?);
+        let restored =
+            manager.restore_quarantine(&mpath, CollisionPolicy::OverwriteWithBackup, &ctx)?;
+        assert_eq!(restored.restored_count, 1);
+        assert!(dup.exists());
 
         let _ = std::fs::remove_dir_all(&dir);
         Ok(())

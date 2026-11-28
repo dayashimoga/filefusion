@@ -418,3 +418,13 @@
 - **Added:** Unified file comparison/diff module (`crates/optimization-engine/src/diff.rs`: `compare_files`) combining streaming byte/`BLAKE3` equality, streaming `FastCDC` overlap, `SSIM`/`PSNR`/pixel summary & `aHash`/`dHash`/`pHash` distances via `quality-engine`, bounded LCS UTF-8 text line hunks, and metadata diffs (`FR-VAL-002`, `FR-DET-004`).
 - **Added:** Safe space-reclamation planner & executor (`crates/optimization-engine/src/reclaim.rs`: `build_reclamation_plan`, `execute_reclamation_plan`, `restore_quarantine_batch`, `purge_quarantine_batch`) with TOCTOU `BLAKE3` verification, atomic same-volume hardlink swapping, reversible `.filefusion-quarantine/<batch>/manifest.json` quarantine/restore, and explicit consent-gated purge (`FR-DUP-003`, `DEF-009`), re-exported from `crates/optimization-engine/src/lib.rs`.
 - **Changed:** Backfilled `8c034ee` (`stage-5.1.1`) in `docs/PROGRESS.md`, expanded `optimization-engine` to 10 tests (`124` native / `65` WASM passing), and appended Entry 049 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.
+
+
+
+---
+
+## [0.5.2-stage5.2.1] — 2026-11-28
+
+### Subphase 5.2.1 — L5 Storage Intelligence & Safe Cleanup Orchestration (`job-manager`, `L5`)
+- **Added:** L5 Stage 5 storage intelligence & cleanup orchestrator (`crates/job-manager/src/stage5.rs`: `JobCleanupPlanResult`, `JobCleanupExecutionResult`, and `JobManager` methods for exact/near duplicate scanning, streaming `FastCDC`, storage treemaps, unified file diff, dry-run/live reclamation, hardlink consolidation, and reversible quarantine restore/purge) (`FR-DUP-001`..`003`, `FR-VAL-002`).
+- **Changed:** Re-exported Stage 5 storage/diff/reclamation types in `crates/job-manager/src/lib.rs`, added `job_manager_orchestrates_stage5_dedup_diff_treemap_and_quarantine` (`125` native / `66` WASM passing), backfilled `d573a48` (`stage-5.1.2`) in `docs/PROGRESS.md`, and appended Entry 050 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.

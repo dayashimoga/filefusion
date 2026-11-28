@@ -464,3 +464,14 @@
 - [x] `[5.1.2]` Implement `crates/optimization-engine/src/diff.rs` (`compare_files`, `FileDiffOptions`, `FileDiffReport`): streaming byte/`BLAKE3`/`SHA-256`/`xxHash64` comparison, streaming `FastCDC` chunk overlap (`CdcDeltaSummary`), visual `SSIM`/`PSNR`/`PixelDiffSummary` & perceptual Hamming deltas (`VisualDiffSummary`), bounded LCS UTF-8 line hunks (`TextDiffSummary`), and normalized metadata attribute diffs (`MetadataFieldDiff`, `FR-VAL-002`, `FR-DET-004`).
 - [x] `[5.1.2]` Implement `crates/optimization-engine/src/reclaim.rs` (`build_reclamation_plan`, `execute_reclamation_plan`, `restore_quarantine_batch`, `purge_quarantine_batch`): inspectable dry-run reclamation plans, TOCTOU `BLAKE3` verification, atomic same-volume hardlink consolidation (`atomic_hardlink_replace`), reversible `.filefusion-quarantine/<batch>/manifest.json` isolation, collision-aware restoration, and explicitly gated permanent purge (`FR-DUP-003`, `DEF-009`).
 - [x] `[5.1.2]` Re-export `diff` and `reclaim` APIs in `crates/optimization-engine/src/lib.rs`, backfill `8c034ee` (`stage-5.1.1`) in `docs/PROGRESS.md`, verify `124` native / `65` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 049 to `TODO.md` / `CHANGELOG.md`.
+
+
+
+---
+
+## [2026-11-28] Entry 050 — Stage 5 Subphase 5.2.1 L5 Storage Intelligence & Cleanup Orchestration (`job-manager`)
+
+### Completed in Subphase 5.2.1
+- [x] `[5.2.1]` Implement `crates/job-manager/src/stage5.rs` (`JobCleanupPlanResult`, `JobCleanupExecutionResult`, and `JobManager::{scan_exact_duplicates, scan_near_duplicates, analyze_cdc_dedup, analyze_storage_treemap, diff_files, plan_duplicate_cleanup, execute_reclamation_plan, cleanup_duplicates, restore_quarantine, purge_quarantine}`) with `ActiveJobGuard` cancellation tracking and `MOD-RULE-03` compliance.
+- [x] `[5.2.1]` Re-export Stage 5 intelligence/reclamation types from `crates/job-manager/src/lib.rs` across native and `wasm` builds and add `job_manager_orchestrates_stage5_dedup_diff_treemap_and_quarantine`.
+- [x] `[5.2.1]` Backfill `d573a48` (`stage-5.1.2`) in `docs/PROGRESS.md`, verify `125` native / `66` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 050 to `TODO.md` / `CHANGELOG.md`.
