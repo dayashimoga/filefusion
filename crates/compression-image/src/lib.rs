@@ -3,8 +3,8 @@
 
 #![forbid(unsafe_code)]
 
-use std::fs::{self, File};
-use std::io::BufWriter;
+use std::fs;
+use std::io::Cursor;
 use std::path::Path;
 
 use compression_core::{
@@ -405,7 +405,13 @@ impl RasterCompressionEngine {
             ctx.check_cancelled()?;
         }
 
-        encode_target_image(&img, target_format, staged_output.staged_path(), req, cfg)?;
+        encode_target_image(
+            &img,
+            target_format,
+            staged_output.staged_path(),
+            req.strip_metadata,
+            cfg,
+        )?;
         ctx.check_cancelled()?;
 
         let validator = MagicByteOutputValidator;
@@ -431,24 +437,11 @@ fn compress_png_bytes(
     cfg: CompressionProfileConfig,
     ctx: &JobContext,
 ) -> FileFusionResult<CompressionOutcome> {
-    let preset = match cfg.effort_level {
-        0..=3 => 1,
-        4..=6 => 2,
-        7..=8 => 3,
-        _ => 4,
-    };
-    let mut oxi_opts = OxiOptions::from_preset(preset);
-    oxi_opts.strip = if req.strip_metadata || cfg.strip_metadata_default {
-        StripChunks::Safe
-    } else {
-        StripChunks::None
-    };
-    let optimized = oxipng::optimize_from_memory(raw_bytes, &oxi_opts).map_err(|err| {
-        FileFusionError::new(
-            ErrorCode::FmtCorrupt,
-            format!("oxipng optimization failed: {err}"),
-        )
-    })?;
+    let optimized = optimize_png_bytes(
+        raw_bytes,
+        req.strip_metadata || cfg.strip_metadata_default,
+        cfg,
+    )?;
     fs::write(staged_output.staged_path(), &optimized)?;
     ctx.check_cancelled()?;
 
@@ -465,20 +458,84 @@ fn compress_png_bytes(
     )
 }
 
+fn optimize_png_bytes(
+    raw_bytes: &[u8],
+    strip_safe: bool,
+    cfg: CompressionProfileConfig,
+) -> FileFusionResult<Vec<u8>> {
+    let preset = match cfg.effort_level {
+        0..=3 => 1,
+        4..=6 => 2,
+        7..=8 => 3,
+        _ => 4,
+    };
+    let mut oxi_opts = OxiOptions::from_preset(preset);
+    oxi_opts.strip = if strip_safe {
+        StripChunks::Safe
+    } else {
+        StripChunks::None
+    };
+    oxipng::optimize_from_memory(raw_bytes, &oxi_opts).map_err(|err| {
+        FileFusionError::new(
+            ErrorCode::FmtCorrupt,
+            format!("oxipng optimization failed: {err}"),
+        )
+    })
+}
+
+/// Optimizes and optionally resizes an encoded raster asset (`JPEG`, `PNG`, `WebP`, `AVIF`,
+/// `GIF`, `BMP`, `TIFF`, `ICO`) entirely in memory for container engines (`compression-pdf`,
+/// `compression-office`, `MOD-RULE-02`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] if decoding, SIMD resizing, or re-encoding fails.
+pub fn optimize_raster_in_memory(
+    raw_bytes: &[u8],
+    source_format: FormatId,
+    target_format: FormatId,
+    profile: CompressionProfile,
+    strip_metadata: bool,
+    resize: Option<&ImageResizeSpec>,
+) -> FileFusionResult<Vec<u8>> {
+    let cfg = CompressionProfileConfig::for_profile(profile);
+    if source_format == FormatId::Png && target_format == FormatId::Png && resize.is_none() {
+        return optimize_png_bytes(raw_bytes, strip_metadata || cfg.strip_metadata_default, cfg);
+    }
+
+    let decoded_fmt = map_format_to_image_crate(source_format).ok_or_else(|| {
+        FileFusionError::new(
+            ErrorCode::FmtUnsupported,
+            format!("raster decoder unavailable for {source_format:?}"),
+        )
+    })?;
+    let mut img = image::load_from_memory_with_format(raw_bytes, decoded_fmt).map_err(|err| {
+        FileFusionError::new(
+            ErrorCode::FmtCorrupt,
+            format!("failed to decode embedded raster image: {err}"),
+        )
+    })?;
+    if source_format == FormatId::Jpeg {
+        let orient = detect_exif_orientation(raw_bytes);
+        img = apply_exif_orientation(img, orient);
+    }
+    if let Some(spec) = resize {
+        img = resize_dynamic_image(&img, spec)?;
+    }
+    encode_target_image_bytes(&img, target_format, strip_metadata, cfg)
+}
+
 fn codec_label_for(format: FormatId, profile: CompressionProfile) -> String {
     format!("tier1-image-{format:?}-{}", profile.slug()).to_ascii_lowercase()
 }
 
-fn encode_jpeg_output(
+fn encode_jpeg_bytes(
     img: &DynamicImage,
-    out_path: &Path,
     cfg: CompressionProfileConfig,
-) -> FileFusionResult<()> {
+) -> FileFusionResult<Vec<u8>> {
     let quality = cfg.lossy_quality_q.clamp(40, 95);
     let rgb = img.to_rgb8();
-    let file = File::create(out_path)?;
-    let writer = BufWriter::new(file);
-    let mut encoder = JpegEncoder::new_with_quality(writer, quality);
+    let mut buf = Vec::new();
+    let mut encoder = JpegEncoder::new_with_quality(&mut buf, quality);
     encoder
         .encode(
             rgb.as_raw(),
@@ -491,15 +548,15 @@ fn encode_jpeg_output(
                 ErrorCode::IntInvariant,
                 format!("JPEG encoding failed: {err}"),
             )
-        })
+        })?;
+    Ok(buf)
 }
 
-fn encode_png_output(
+fn encode_png_bytes(
     img: &DynamicImage,
-    out_path: &Path,
-    req: &CompressionRequest,
+    strip_metadata: bool,
     cfg: CompressionProfileConfig,
-) -> FileFusionResult<()> {
+) -> FileFusionResult<Vec<u8>> {
     let mut encoded_buf = Vec::new();
     let rgba = img.to_rgba8();
     PngEncoder::new(&mut encoded_buf)
@@ -515,27 +572,17 @@ fn encode_png_output(
                 format!("PNG encoding failed: {err}"),
             )
         })?;
-    let mut oxi_opts = OxiOptions::from_preset(2);
-    oxi_opts.strip = if req.strip_metadata || cfg.strip_metadata_default {
-        StripChunks::Safe
-    } else {
-        StripChunks::None
-    };
-    let final_png = oxipng::optimize_from_memory(&encoded_buf, &oxi_opts).map_err(|err| {
-        FileFusionError::new(
-            ErrorCode::IntInvariant,
-            format!("oxipng pass failed: {err}"),
-        )
-    })?;
-    fs::write(out_path, final_png)?;
-    Ok(())
+    optimize_png_bytes(
+        &encoded_buf,
+        strip_metadata || cfg.strip_metadata_default,
+        cfg,
+    )
 }
 
-fn encode_avif_output(
+fn encode_avif_bytes(
     img: &DynamicImage,
-    out_path: &Path,
     cfg: CompressionProfileConfig,
-) -> FileFusionResult<()> {
+) -> FileFusionResult<Vec<u8>> {
     let rgba = img.to_rgba8();
     let width = usize::try_from(rgba.width()).unwrap_or(1);
     let height = usize::try_from(rgba.height()).unwrap_or(1);
@@ -553,26 +600,23 @@ fn encode_avif_output(
                 format!("AVIF encoding failed: {err}"),
             )
         })?;
-    fs::write(out_path, encoded.avif_file)?;
-    Ok(())
+    Ok(encoded.avif_file)
 }
 
-fn encode_target_image(
+fn encode_target_image_bytes(
     img: &DynamicImage,
     target_format: FormatId,
-    out_path: &Path,
-    req: &CompressionRequest,
+    strip_metadata: bool,
     cfg: CompressionProfileConfig,
-) -> FileFusionResult<()> {
+) -> FileFusionResult<Vec<u8>> {
     match target_format {
-        FormatId::Jpeg => encode_jpeg_output(img, out_path, cfg),
-        FormatId::Png => encode_png_output(img, out_path, req, cfg),
-        FormatId::Avif => encode_avif_output(img, out_path, cfg),
+        FormatId::Jpeg => encode_jpeg_bytes(img, cfg),
+        FormatId::Png => encode_png_bytes(img, strip_metadata, cfg),
+        FormatId::Avif => encode_avif_bytes(img, cfg),
         FormatId::Webp => {
             let rgba = img.to_rgba8();
-            let file = File::create(out_path)?;
-            let writer = BufWriter::new(file);
-            WebPEncoder::new_lossless(writer)
+            let mut buf = Vec::new();
+            WebPEncoder::new_lossless(&mut buf)
                 .encode(
                     rgba.as_raw(),
                     rgba.width(),
@@ -584,7 +628,8 @@ fn encode_target_image(
                         ErrorCode::IntInvariant,
                         format!("WebP encoding failed: {err}"),
                     )
-                })
+                })?;
+            Ok(buf)
         }
         other => {
             let image_fmt = map_format_to_image_crate(other).ok_or_else(|| {
@@ -593,16 +638,28 @@ fn encode_target_image(
                     format!("unsupported image encoder {other:?}"),
                 )
             })?;
-            let file = File::create(out_path)?;
-            let mut writer = BufWriter::new(file);
-            img.write_to(&mut writer, image_fmt).map_err(|err| {
+            let mut cursor = Cursor::new(Vec::new());
+            img.write_to(&mut cursor, image_fmt).map_err(|err| {
                 FileFusionError::new(
                     ErrorCode::IntInvariant,
                     format!("image encoding failed for {other:?}: {err}"),
                 )
-            })
+            })?;
+            Ok(cursor.into_inner())
         }
     }
+}
+
+fn encode_target_image(
+    img: &DynamicImage,
+    target_format: FormatId,
+    out_path: &Path,
+    strip_metadata: bool,
+    cfg: CompressionProfileConfig,
+) -> FileFusionResult<()> {
+    let encoded = encode_target_image_bytes(img, target_format, strip_metadata, cfg)?;
+    fs::write(out_path, encoded)?;
+    Ok(())
 }
 
 impl CompressionEngine for RasterCompressionEngine {
@@ -682,7 +739,7 @@ mod tests {
             }
         }
         // Write intentionally unoptimized uncompressed PNG to give oxipng optimization headroom.
-        let file = File::create(path)?;
+        let file = fs::File::create(path)?;
         let encoder = image::codecs::png::PngEncoder::new_with_quality(
             file,
             image::codecs::png::CompressionType::Fast,

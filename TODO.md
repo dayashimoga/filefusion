@@ -331,3 +331,13 @@
 - [x] `[2.2.4]` Materialize L3 `crates/compression-video` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_VID -> L2_CMP & L1_REG & L1_HW`, `FR-AV-001`, `FR-AV-003`, `FR-ADP-002`, `FR-CMP-001`..`002`) with zero new third-party dependencies in `Cargo.lock`.
 - [x] `[2.2.4]` Implement `ffprobe` JSON inventory parsing (`parse_ffprobe_json_probe`), lossless container fast-path remux compatibility (`can_fast_path_remux`), unfinalized container atom health check (`diagnose_unfinalized_video_container`), pure-Rust SRT <-> WebVTT subtitle parser & converter (`subtitles.rs`), hardware-vs-CPU encoder routing (`resolve_video_route`), explicit `-f <muxer>` staged `FFmpeg` `IsolatedProcessRunner` command generation, `libvmaf` parser, and `VideoCompressionEngine` (`FR-CMP-002` No-Op Guard).
 - [x] `[2.2.4]` Backfill `ee5957b` (`stage-2.2.3`) in `docs/PROGRESS.md` and append Subphase `2.2.4` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 037 — Stage 2 Subphase 2.2.5 PDF & Office Compression Crates (`compression-pdf`, `compression-office`)
+
+### Completed in Subphase 2.2.5
+- [x] `[2.2.5]` Materialize L3 `crates/compression-pdf` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_PDF -> L2_CMP & L1_REG & L3_IMG`, `FR-PDF-001`..`002`, `FR-REP-001`..`002`, `FR-MET-002`) with MIT-licensed `lopdf` `0.42`, shared `compression-image::optimize_raster_in_memory`, Flate stream compaction, object pruning, `/Info`/`XMP` privacy scrubbing, honest `PdfRepairAssessment`, and `native-process` Tier 2 `qpdf` `IsolatedProcessRunner` helpers.
+- [x] `[2.2.5]` Materialize L3 `crates/compression-office` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_OFF -> L2_CMP & L1_REG & L3_IMG`, `FR-DOC-002`..`003`, `FR-SEC-001`, `FR-MET-002`) supporting `DOCX`, `XLSX`, `PPTX`, `ODT`, `ODS`, `ODP`, and `EPUB` with Zip-Slip & decompression-bomb guards, embedded raster compression via `compression-image`, lossless XML minification, privacy metadata scrubbing, `mimetype`-first `Stored` packaging, and `FR-CMP-002` No-Op Guard.
+- [x] `[2.2.5]` Backfill `2660aed` (`stage-2.2.4`) in `docs/PROGRESS.md` and append Subphase `2.2.5` entries to `TODO.md` and `CHANGELOG.md`.

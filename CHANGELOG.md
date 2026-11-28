@@ -294,3 +294,12 @@
 ### Subphase 2.2.4 — Video Compression Crate (`compression-video`, `L3`)
 - **Added:** L3 `compression-video` crate (`crates/compression-video/{Cargo.toml,src/{lib.rs,probe.rs,subtitles.rs,pipeline.rs}}`) providing `ffprobe` JSON stream inventory parsing (`parse_ffprobe_json_probe`), container fast-path remuxing (`can_fast_path_remux`), unfinalized atom diagnostics (`diagnose_unfinalized_video_container`), pure-Rust SRT <-> WebVTT subtitle conversion (`parse_srt_cues`, `parse_webvtt_cues`, `convert_subtitle_text`) + `FFmpeg` subtitle extraction args, hardware-vs-CPU routing (`resolve_video_route`), explicit `-f <muxer>` staged `FFmpeg` transcode invocation builder, `libvmaf` parser, and `VideoCompressionEngine` (`FR-CMP-002` No-Op guard & `VideoQualityEvaluator`).
 - **Changed:** Added `compression-video` to workspace `Cargo.toml` / `Cargo.lock` with zero new third-party dependencies, backfilled `ee5957b` (`stage-2.2.3`) in `docs/PROGRESS.md`, and appended Entry 036 to `TODO.md`.
+
+
+---
+
+## [0.2.6-stage2.2.5] — 2026-11-28
+
+### Subphase 2.2.5 — PDF & Office Compression Crates (`compression-pdf`, `compression-office`, `L3`)
+- **Added:** L3 `compression-pdf` crate (`crates/compression-pdf/{Cargo.toml,src/{lib.rs,optimizer.rs,repair.rs}}`) and L3 `compression-office` crate (`crates/compression-office/{Cargo.toml,src/{lib.rs,container.rs,xml.rs}}`), plus `compression_image::optimize_raster_in_memory` for zero-temp-file embedded raster recompression inside PDF, OOXML, ODF, and EPUB containers.
+- **Changed:** Added `compression-pdf`, `compression-office`, and MIT-licensed `lopdf` (`0.42`, `default-features = false`) to workspace `Cargo.toml` / `Cargo.lock`, backfilled `2660aed` (`stage-2.2.4`) in `docs/PROGRESS.md`, and appended Entry 037 to `TODO.md`.

@@ -1,0 +1,30 @@
+[package]
+name = "compression-office"
+description = "FileFusion L3 OOXML (DOCX/XLSX/PPTX), ODF (ODT/ODS/ODP), and EPUB structural asset, XML, and media compression engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-logging", "native-process"]
+native-logging = ["compression-core/native-logging", "compression-image/native-logging", "file-core/native-logging", "quality-engine/native-logging"]
+native-process = ["codec-registry/native-probe"]
+wasm = ["compression-core/wasm", "compression-image/wasm", "file-core/wasm", "quality-engine/wasm", "validation-engine/wasm"]
+
+[dependencies]
+codec-registry = { workspace = true, default-features = false }
+compression-core = { workspace = true, default-features = false }
+compression-image = { workspace = true, default-features = false }
+file-core = { workspace = true, default-features = false }
+flate2.workspace = true
+quality-engine = { workspace = true, default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+validation-engine = { workspace = true, default-features = false }
+zip.workspace = true
+
+[lints]
+workspace = true

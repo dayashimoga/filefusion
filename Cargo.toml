@@ -11,6 +11,8 @@ members = [
     "crates/compression-archive",
     "crates/compression-audio",
     "crates/compression-video",
+    "crates/compression-pdf",
+    "crates/compression-office",
     "crates/job-manager",
     "apps/cli",
 ]
@@ -39,6 +41,7 @@ getrandom = "0.4"
 hound = "3.5"
 id3 = "1.17"
 image = { version = "0.25", default-features = false, features = ["bmp", "gif", "ico", "jpeg", "png", "tiff", "webp"] }
+lopdf = { version = "0.42", default-features = false }
 lz4_flex = { version = "0.14", default-features = false, features = ["std", "safe-encode", "safe-decode", "frame", "checked-decode"] }
 lzma-rust2 = "0.26"
 oxipng = { version = "9.1", default-features = false }
@@ -71,6 +74,8 @@ compression-image = { path = "crates/compression-image" }
 compression-archive = { path = "crates/compression-archive" }
 compression-audio = { path = "crates/compression-audio" }
 compression-video = { path = "crates/compression-video" }
+compression-pdf = { path = "crates/compression-pdf" }
+compression-office = { path = "crates/compression-office" }
 job-manager = { path = "crates/job-manager" }
 
 [workspace.lints.rust]

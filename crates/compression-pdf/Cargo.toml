@@ -1,0 +1,31 @@
+[package]
+name = "compression-pdf"
+description = "FileFusion L3 pure-Rust & Tier 2 qpdf PDF stream/image compression, privacy scrub, and structural repair diagnostics."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-logging", "native-process"]
+native-logging = ["compression-core/native-logging", "compression-image/native-logging", "file-core/native-logging", "quality-engine/native-logging"]
+native-process = ["codec-registry/native-probe"]
+wasm = ["compression-core/wasm", "compression-image/wasm", "file-core/wasm", "lopdf/wasm_js", "quality-engine/wasm", "validation-engine/wasm"]
+
+[dependencies]
+codec-registry = { workspace = true, default-features = false }
+compression-core = { workspace = true, default-features = false }
+compression-image = { workspace = true, default-features = false }
+file-core = { workspace = true, default-features = false }
+flate2.workspace = true
+image.workspace = true
+lopdf.workspace = true
+quality-engine = { workspace = true, default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+validation-engine = { workspace = true, default-features = false }
+
+[lints]
+workspace = true
