@@ -7,14 +7,31 @@
 
 ## Current Active Subphase
 
-- **Stage:** Stage 5 — File Intelligence & Storage
-- **Phase:** Phase 5.2 — L5 Storage Orchestration, Stage 5 CLI & Corpus Verification
-- **Subphase:** `5.2.2` — Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests
+- **Stage:** Stage 6 — Workflow Automation
+- **Phase:** Phase 6.1 — Batch Templates, Mirroring & Declarative DAG Graph Engine
+- **Subphase:** `6.1.1` — Batch output naming templates (`YYYY-MM-DD` `{date}`, mirroring), reusable preset store (JSON/YAML) & local schedule evaluator (`file-core`, `job-manager`)
 - **Status:** `COMPLETE`
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 6.1.1 — Batch output naming templates (`YYYY-MM-DD` `{date}`, mirroring), reusable preset store (JSON/YAML) & local schedule evaluator (`file-core`, `job-manager`)
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 6 — Workflow Automation |
+| **Phase** | Phase 6.1 — Batch Templates, Mirroring & Declarative DAG Graph Engine |
+| **Subphase** | `6.1.1` — Batch output naming templates (`YYYY-MM-DD` `{date}`, mirroring), reusable preset store (JSON/YAML) & local schedule evaluator (`file-core`, `job-manager`) |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 4 (Document & Conversion Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 3 hours |
+| **Actual Duration** | ~15 minutes |
+| **Acceptance Criteria** | 1. Upgrade `crates/file-core/src/pipeline.rs` and export from `crates/file-core/src/lib.rs` (`FR-BAT-002`): pure-Rust UTC calendar `utc_date_from_unix_secs` replacing hardcoded `"today"` in `{date}` templates, plus `resolve_mirrored_output_destination` preserving safe relative directory trees under `mirror_root` while rejecting out-of-root / `..` traversal (`ErrorCode::SecTraversal`) and honoring `CollisionPolicy::{Skip, RenameWithSuffix, OverwriteWithBackup}`.<br>2. Implement `crates/job-manager/src/presets.rs` and wire into `crates/job-manager/src/lib.rs` (`FR-LOC-002`): 5 factory built-in `OptimizationPreset` entries, JSON/YAML import/export (`export_preset_yaml`, `parse_preset_str` via `conversion-core::tabular`), atomic `PresetStore` (`save_preset`, `load_preset`, `list_presets`, `delete_preset` with strict slug validation), and 5-field UTC cron + fixed-interval schedule registry & due evaluator (`is_cron_matching_utc`, `evaluate_due_tasks`, `save_schedule`, `list_schedules`, `evaluate_due_schedules`).<br>3. Backfill `cb73285` (`stage-5.2.2`) onto `5.2.2` and initialize Stage 6 queue in `docs/PROGRESS.md`, add unit tests in `file-core` and `job-manager`, pass `cargo fmt --all -- --check`, native & WASM Clippy (`-D warnings`), `cargo test --workspace --locked` (`131` passed), and WASM-featured tests (`67` passed across 12 crates) with `Cargo.toml`/`Cargo.lock` untouched, append `TODO.md`/`CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-6.1.1`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 131 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 11, `compression-video`: 4, `conversion-core`: 8, `file-core`: 29, `filefusion` unit: 1, `cli_smoke`: 17, `hardware-acceleration`: 3, `job-manager`: 20, `optimization-engine`: 10, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (12 crates): 67 passed, 0 failed; Agent 12 independent audit: **PASS**; `Cargo.lock`: untouched. |
+| **Files Changed** | `crates/file-core/src/{lib.rs,pipeline.rs}`, `crates/job-manager/src/{lib.rs,presets.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-6.1.1` on `main` (pushed to `origin`; exact SHA backfilled in `6.1.2`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 5.2.2 — Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests (Stage 5 Completion)
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Implement `apps/cli/src/stage5_cmds.rs` and wire `Commands::{Dedup, Diff, Storage}` cleanly into `apps/cli/src/main.rs` (`MOD-RULE-03` compliant: Plane 1 CLI delegates strictly to L5 `JobManager` without direct `L4`/`L3` calls), exposing `filefusion dedup <exact|near|cdc|cleanup|restore|purge>`, `filefusion diff`, and `filefusion storage` with dry-run default safety (`--apply` + `--yes-permanent-delete` consent gates, `--collision <skip|rename|overwrite>`, and `--json` output).<br>2. Add 4 Stage 5 E2E & security/recovery corpus tests in `apps/cli/tests/cli_smoke.rs` (`cli_dedup_exact_near_cdc_and_storage_treemap_corpus_e2e`, `cli_dedup_cleanup_dry_run_quarantine_and_restore_e2e`, `cli_dedup_purge_and_atomic_hardlink_e2e`, `cli_diff_visual_text_cdc_and_bit_exact_e2e`) covering multi-stage I/O pruning, perceptual similarity, storage treemaps, quarantine restore collisions, purge consent gates, same-volume atomic hardlinks, and visual SSIM/PSNR + LCS diffs.<br>3. Backfill `251711a` (`stage-5.2.1`) onto `5.2.1` in `docs/PROGRESS.md`, pass `cargo fmt --all -- --check`, native & WASM Clippy (`-D warnings`), `cargo test --workspace --locked` (`129` passed, including all `17` `cli_smoke` E2E tests), and WASM-featured tests (`66` passed across 12 crates) with `Cargo.toml`/`Cargo.lock` untouched, append `TODO.md`/`CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-5.2.2`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 129 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 11, `compression-video`: 4, `conversion-core`: 8, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 17, `hardware-acceleration`: 3, `job-manager`: 19, `optimization-engine`: 10, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (12 crates): 66 passed, 0 failed; Agent 12 independent audit: **PASS**; `Cargo.lock`: untouched. |
 | **Files Changed** | `apps/cli/src/{main.rs,stage5_cmds.rs}`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-5.2.2` on `main` (pushed to `origin`; exact SHA backfilled in `6.1.1`) |
+| **Commit Reference** | `cb73285` (`tag stage-5.2.2` on `main`, pushed to `origin`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 5.2.1 — L5 storage intelligence & safe cleanup orchestration (`JobManager` Stage 5 coordinator, batch dedup/treemap/diff/quarantine/restore)
@@ -974,3 +991,14 @@
 | `5.1.2` | Unified file comparison/diff (`compare_files` / visual SSIM/PSNR / CDC delta) & safe space-reclamation planner (hardlinks + reversible quarantine) (`optimization-engine`) | `COMPLETE` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
 | `5.2.1` | L5 storage intelligence & safe cleanup orchestration (`JobManager` Stage 5 coordinator, batch dedup/treemap/diff/quarantine/restore) | `COMPLETE` | Agent 2, Agent 9, Agent 8, Agent 12 | 3 hours |
 | `5.2.2` | Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests | `COMPLETE` | Agent 2, Agent 8, Agent 9, Agent 12 | 3 hours |
+
+---
+
+## Upcoming Subphases Queue (Stage 6 — Workflow Automation)
+
+| Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
+| :--- | :--- | :--- | :--- | :--- |
+| `6.1.1` | Batch output naming templates (`{date}`, directory mirroring), reusable preset store (JSON/YAML) & local schedule evaluator (`file-core`, `job-manager`) | `COMPLETE` | Agent 2, Agent 4, Agent 8, Agent 12 | 3 hours |
+| `6.1.2` | Declarative JSON/YAML DAG workflow definition, validator & topological graph planner (`job-manager/src/workflow.rs`) | `QUEUED` | Agent 3, Agent 2, Agent 9, Agent 12 | 4 hours |
+| `6.2.1` | L5 DAG pipeline executor (`JobManager::execute_workflow`) & multi-step fan-out/conditional routing | `QUEUED` | Agent 2, Agent 3, Agent 8, Agent 12 | 4 hours |
+| `6.2.2` | Stage 6 CLI (`filefusion workflow`, batch `--mirror-root`/`--template`) & multi-step DAG corpus tests | `QUEUED` | Agent 2, Agent 8, Agent 9, Agent 12 | 3 hours |

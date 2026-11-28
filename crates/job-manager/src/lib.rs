@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod backends;
+pub mod presets;
 pub mod progress;
 pub mod scheduler;
 pub mod stage4;
@@ -44,7 +45,8 @@ pub use file_core::{
     detect_signature_from_bytes, detect_signature_from_path, enforce_spoofing_policy, init_logging,
     inspect_bytes, inspect_path, load_config_from_path, load_effective_config,
     parse_proc_meminfo_mb, redact_path_for_log, resolve_default_config_path,
-    resolve_output_destination, save_config_atomic, workspace_identity,
+    resolve_mirrored_output_destination, resolve_output_destination, save_config_atomic,
+    utc_date_from_unix_secs, workspace_identity,
 };
 pub use hardware_acceleration::{
     HardwareEncoderCapability, HardwareProfile, HardwareRoutingDecision, HardwareVendorBackend,
@@ -71,6 +73,11 @@ pub use optimization_engine::{
     create_archive_from_entries, decrypt_ffenc_bytes, encrypt_ffenc_bytes, extract_archive_safely,
     inspect_ffenc_header, inspect_pdf_security, inspect_zip_health, list_archive_members,
     recommend_codec, solve_and_stage_jpeg, verify_pdf_signatures,
+};
+pub use presets::{
+    OptimizationPreset, PresetDomain, PresetParameters, ScheduleTrigger, ScheduledTaskDue,
+    ScheduledWorkflowTask, builtin_presets, evaluate_due_tasks, export_preset_yaml,
+    is_cron_matching_utc, parse_preset_str,
 };
 pub use progress::{ProgressBus, ProgressBusStats, ProgressSubscription};
 pub use scheduler::{
@@ -1503,6 +1510,87 @@ mod tests {
             manager.restore_quarantine(&mpath, CollisionPolicy::OverwriteWithBackup, &ctx)?;
         assert_eq!(restored.restored_count, 1);
         assert!(dup.exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn manages_json_yaml_presets_and_evaluates_utc_cron_and_interval_schedules()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let dir = std::env::temp_dir().join(format!("ff_jm_s6_presets_{nanos}"));
+        let presets_dir = dir.join("presets");
+        let schedules_dir = dir.join("schedules");
+        let manager = JobManager::default();
+
+        // 1. Factory presets + YAML export/parse round-trip + atomic persistence.
+        let builtins = manager.builtin_presets();
+        assert!(builtins.len() >= 5);
+        let mut custom = manager.load_preset(None, "web-image-webp")?;
+        custom.preset_id = String::from("custom-web-lossy");
+        custom.is_builtin = false;
+        let yaml = export_preset_yaml(&custom)?;
+        let parsed_yaml = parse_preset_str(&yaml)?;
+        assert_eq!(parsed_yaml.preset_id, "custom-web-lossy");
+
+        let _ = manager.save_preset(&presets_dir, &parsed_yaml)?;
+        let loaded = manager.load_preset(Some(&presets_dir), "custom-web-lossy")?;
+        assert_eq!(loaded.config.target_format, Some(FormatId::Webp));
+        let all = manager.list_presets(Some(&presets_dir))?;
+        assert!(all.iter().any(|p| p.preset_id == "custom-web-lossy"));
+        assert!(manager.delete_preset(&presets_dir, "custom-web-lossy")?);
+
+        // Slug validation blocks traversal.
+        assert!(manager.load_preset(Some(&presets_dir), "../evil").is_err());
+
+        // 2. 5-field UTC cron & interval schedule evaluation.
+        // 2023-11-14 22:13:20 UTC (Tuesday = dow 2) => unix = 1_700_000_000.
+        assert!(is_cron_matching_utc("13 22 14 11 2", 1_700_000_000)?);
+        assert!(!is_cron_matching_utc("14 22 14 11 2", 1_700_000_000)?);
+        assert!(is_cron_matching_utc("*/13 */2 * * *", 1_700_000_000)?);
+
+        let cron_task = ScheduledWorkflowTask {
+            schema_version: file_core::CORE_SCHEMA_VERSION,
+            task_id: String::from("nightly-webp"),
+            workflow_id: String::from("wf-webp"),
+            description: String::from("Run WebP optimization at 22:13 UTC"),
+            trigger: ScheduleTrigger::CronUtc {
+                expression: String::from("13 22 * * *"),
+            },
+            input_roots: vec![dir.clone()],
+            output_dir: Some(dir.join("out")),
+            enabled: true,
+            last_run_unix_s: Some(1_699_999_000),
+        };
+        let already_ran_task = ScheduledWorkflowTask {
+            task_id: String::from("already-ran-this-minute"),
+            last_run_unix_s: Some(1_700_000_010),
+            ..cron_task.clone()
+        };
+        let interval_task = ScheduledWorkflowTask {
+            schema_version: file_core::CORE_SCHEMA_VERSION,
+            task_id: String::from("hourly-sync"),
+            workflow_id: String::from("wf-sync"),
+            description: String::from("Every 3600s"),
+            trigger: ScheduleTrigger::IntervalSeconds {
+                every_seconds: 3600,
+            },
+            input_roots: vec![dir.clone()],
+            output_dir: None,
+            enabled: true,
+            last_run_unix_s: Some(1_699_996_000),
+        };
+        let _ = manager.save_schedule(&schedules_dir, &cron_task)?;
+        let _ = manager.save_schedule(&schedules_dir, &already_ran_task)?;
+        let _ = manager.save_schedule(&schedules_dir, &interval_task)?;
+
+        let due = manager.evaluate_due_schedules(&schedules_dir, Some(1_700_000_000))?;
+        assert_eq!(due.len(), 2);
+        assert!(due.iter().any(|d| d.task_id == "nightly-webp"));
+        assert!(due.iter().any(|d| d.task_id == "hourly-sync"));
 
         let _ = std::fs::remove_dir_all(&dir);
         Ok(())

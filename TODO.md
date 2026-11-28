@@ -486,3 +486,14 @@
 - [x] `[5.2.2]` Implement `apps/cli/src/stage5_cmds.rs` and wire `Commands::{Dedup, Diff, Storage}` cleanly into `apps/cli/src/main.rs` (`MOD-RULE-03` compliant delegation through `JobManager`), providing `filefusion dedup <exact|near|cdc|cleanup|restore|purge>` (dry-run default safety, `--apply`, `--yes-permanent-delete`, `--collision <skip|rename|overwrite>`), `filefusion diff`, and `filefusion storage`.
 - [x] `[5.2.2]` Add 4 end-to-end Stage 5 CLI & security/recovery corpus tests in `apps/cli/tests/cli_smoke.rs` (`cli_dedup_exact_near_cdc_and_storage_treemap_corpus_e2e`, `cli_dedup_cleanup_dry_run_quarantine_and_restore_e2e`, `cli_dedup_purge_and_atomic_hardlink_e2e`, `cli_diff_visual_text_cdc_and_bit_exact_e2e`).
 - [x] `[5.2.2]` Backfill `251711a` (`stage-5.2.1`) onto `5.2.1` in `docs/PROGRESS.md`, verify `129` native / `66` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 051 to `TODO.md` / `CHANGELOG.md`.
+
+
+
+---
+
+## [2026-11-28] Entry 052 — Stage 6 Subphase 6.1.1 Batch Naming Templates, Directory Mirroring, Preset Store & Local Schedules
+
+### Completed in Subphase 6.1.1
+- [x] `[6.1.1]` Upgrade `crates/file-core/src/{pipeline.rs,lib.rs}` (`FR-BAT-002`): add pure-Rust `utc_date_from_unix_secs` (`YYYY-MM-DD` for `{date}`) and `resolve_mirrored_output_destination` preserving safe nested directory subtrees under `mirror_root` while enforcing `ErrorCode::SecTraversal` against out-of-root / `..` escapes.
+- [x] `[6.1.1]` Implement `crates/job-manager/src/presets.rs` and wire into `crates/job-manager/src/lib.rs` (`FR-LOC-002`): 5 factory built-in `OptimizationPreset` items, JSON/YAML serialization (`export_preset_yaml`, `parse_preset_str`), atomic slug-validated `PresetStore` CRUD (`save_preset`, `load_preset`, `list_presets`, `delete_preset`), and 5-field UTC cron + interval schedule persistence and evaluator (`is_cron_matching_utc`, `evaluate_due_tasks`, `save_schedule`, `list_schedules`, `evaluate_due_schedules`).
+- [x] `[6.1.1]` Initialize the Stage 6 queue and backfill `cb73285` (`stage-5.2.2`) in `docs/PROGRESS.md`, verify `131` native / `67` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 052 to `TODO.md` / `CHANGELOG.md`.

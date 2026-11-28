@@ -816,6 +816,32 @@ impl Drop for StagedPath {
     }
 }
 
+/// Formats a `UNIX_EPOCH` timestamp in seconds into a `YYYY-MM-DD` UTC calendar date string
+/// without external timezone dependencies (`FR-BAT-002`).
+#[must_use]
+pub fn utc_date_from_unix_secs(unix_secs: u64) -> String {
+    // Civil calendar conversion from days since 1970-01-01 (Howard Hinnant algorithm).
+    let days = i64::try_from(unix_secs / 86_400).unwrap_or(0);
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = mp + if mp < 10 { 3 } else { -9 };
+    let year = y + i64::from(m <= 2);
+    format!("{year:04}-{m:02}-{d:02}")
+}
+
+fn current_utc_date() -> String {
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    utc_date_from_unix_secs(secs)
+}
+
 /// Resolves an output destination path from `BatchDefaults` naming template & collision rules (`FR-BAT-002`).
 ///
 /// Returns `Ok(None)` when `CollisionPolicy::Skip` applies to an existing destination.
@@ -831,12 +857,45 @@ pub fn resolve_output_destination(
     target_ext: Option<&str>,
     batch: &BatchDefaults,
 ) -> FileFusionResult<Option<PathBuf>> {
+    resolve_mirrored_output_destination(
+        source,
+        output_dir,
+        None,
+        hash8,
+        profile_slug,
+        index,
+        target_ext,
+        batch,
+    )
+}
+
+/// Resolves an output destination path honoring `BatchDefaults` templates (`{stem}`, `{ext}`,
+/// `{date}`, `{hash8}`, `{profile}`, `{index}`), optional relative directory mirroring under
+/// `mirror_root`, and collision rules (`FR-BAT-002`).
+///
+/// Returns `Ok(None)` when `CollisionPolicy::Skip` applies to an existing destination.
+///
+/// # Errors
+/// Returns [`FileFusionError`] (`ErrorCode::SecTraversal`) if the rendered filename or relative
+/// mirrored subtree attempts path traversal outside `mirror_root` / `output_dir`.
+#[allow(clippy::too_many_arguments)]
+pub fn resolve_mirrored_output_destination(
+    source: &Path,
+    output_dir: Option<&Path>,
+    mirror_root: Option<&Path>,
+    hash8: &str,
+    profile_slug: &str,
+    index: usize,
+    target_ext: Option<&str>,
+    batch: &BatchDefaults,
+) -> FileFusionResult<Option<PathBuf>> {
     let stem = source
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
     let src_ext = source.extension().and_then(|e| e.to_str()).unwrap_or("");
     let ext = target_ext.unwrap_or(src_ext);
+    let today = current_utc_date();
 
     let rendered = batch
         .naming_template
@@ -845,7 +904,7 @@ pub fn resolve_output_destination(
         .replace("{hash8}", hash8)
         .replace("{profile}", profile_slug)
         .replace("{index}", &index.to_string())
-        .replace("{date}", "today");
+        .replace("{date}", &today);
     let clean_name = rendered.trim_end_matches('.');
     if clean_name.is_empty()
         || clean_name.contains('\0')
@@ -867,7 +926,15 @@ pub fn resolve_output_destination(
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new(".")),
     };
-    let candidate = base_dir.join(clean_name);
+
+    let target_dir = if let Some(root) = mirror_root {
+        let rel = compute_safe_relative_parent(source, root)?;
+        base_dir.join(rel)
+    } else {
+        base_dir.to_path_buf()
+    };
+
+    let candidate = target_dir.join(clean_name);
     if !candidate.exists() {
         return Ok(Some(candidate));
     }
@@ -886,7 +953,7 @@ pub fn resolve_output_destination(
                     Some(e) if !e.is_empty() => format!("{candidate_stem}_{n}.{e}"),
                     _ => format!("{candidate_stem}_{n}"),
                 };
-                let alt = base_dir.join(alt_name);
+                let alt = target_dir.join(alt_name);
                 if !alt.exists() {
                     return Ok(Some(alt));
                 }
@@ -897,6 +964,48 @@ pub fn resolve_output_destination(
             ))
         }
     }
+}
+
+fn compute_safe_relative_parent(source: &Path, mirror_root: &Path) -> FileFusionResult<PathBuf> {
+    let source_parent = source
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+
+    let stripped = source_parent
+        .strip_prefix(mirror_root)
+        .ok()
+        .map(Path::to_path_buf)
+        .or_else(|| {
+            let canon_root = fs::canonicalize(mirror_root).ok()?;
+            let canon_parent = fs::canonicalize(source_parent).ok()?;
+            canon_parent
+                .strip_prefix(canon_root)
+                .ok()
+                .map(Path::to_path_buf)
+        });
+
+    let Some(rel) = stripped else {
+        return Err(FileFusionError::new(
+            ErrorCode::SecTraversal,
+            format!(
+                "source `{}` lies outside mirror root `{}`",
+                source.display(),
+                mirror_root.display()
+            ),
+        )
+        .with_remediation("Ensure all batch inputs sit inside the configured mirror_root."));
+    };
+
+    for comp in rel.components() {
+        if !matches!(comp, std::path::Component::Normal(_)) {
+            return Err(FileFusionError::new(
+                ErrorCode::SecTraversal,
+                "mirrored relative directory contains unsafe path components",
+            ));
+        }
+    }
+    Ok(rel)
 }
 
 /// Terminal state of a single item in a [`JobReceipt`].
@@ -1224,5 +1333,68 @@ mod tests {
         assert!((events[1].percent - 40.0).abs() < f32::EPSILON);
         assert_eq!(events[2].stage, JobStage::Completed);
         assert!((events[2].percent - 100.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn mirrored_templates_format_utc_dates_preserve_subdirs_and_block_escapes()
+    -> Result<(), Box<dyn Error>> {
+        assert_eq!(utc_date_from_unix_secs(0), "1970-01-01");
+        assert_eq!(utc_date_from_unix_secs(1_700_000_000), "2023-11-14");
+        assert_eq!(utc_date_from_unix_secs(1_709_200_000), "2024-02-29");
+
+        let dir = temp_work_dir("mirrored_tpl")?;
+        let mirror_root = dir.join("in_root");
+        let nested_dir = mirror_root.join("photos").join("2026");
+        let out_root = dir.join("out_root");
+        let outside = dir.join("outside.png");
+        fs::create_dir_all(&nested_dir)?;
+        let src = nested_dir.join("vacation.png");
+        fs::write(&src, b"png")?;
+        fs::write(&outside, b"png")?;
+
+        let batch = BatchDefaults {
+            naming_template: String::from("{stem}_{date}_{hash8}.{ext}"),
+            collision_policy: CollisionPolicy::RenameWithSuffix,
+            ..BatchDefaults::default()
+        };
+        let resolved = resolve_mirrored_output_destination(
+            &src,
+            Some(&out_root),
+            Some(&mirror_root),
+            "abcdef12",
+            "web",
+            1,
+            Some("webp"),
+            &batch,
+        )?
+        .ok_or("expected resolved destination")?;
+
+        let rel = resolved.strip_prefix(&out_root)?;
+        let expected_date = current_utc_date();
+        assert_eq!(
+            rel,
+            Path::new("photos")
+                .join("2026")
+                .join(format!("vacation_{expected_date}_abcdef12.webp"))
+        );
+
+        let escape_err = resolve_mirrored_output_destination(
+            &outside,
+            Some(&out_root),
+            Some(&mirror_root),
+            "abcdef12",
+            "web",
+            1,
+            Some("webp"),
+            &batch,
+        )
+        .err();
+        assert_eq!(
+            escape_err.map(|e| e.diagnostic.code),
+            Some(ErrorCode::SecTraversal)
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
     }
 }

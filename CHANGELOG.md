@@ -439,3 +439,14 @@
 - **Added:** Stage 5 CLI subcommands (`apps/cli/src/stage5_cmds.rs` wired via `apps/cli/src/main.rs`) delivering `filefusion dedup <exact|near|cdc|cleanup|restore|purge>`, `filefusion diff`, and `filefusion storage` with dry-run default cleanup safety, `--apply` / `--yes-permanent-delete` / `--confirm` gates, `--collision <skip|rename|overwrite>`, and JSON/human output (`FR-DUP-001`..`003`, `FR-DET-004`, `FR-VAL-002`).
 - **Added:** 4 end-to-end Stage 5 CLI corpus tests in `apps/cli/tests/cli_smoke.rs` (bringing `cli_smoke` to 17 tests, `129` total native workspace tests, and `66` WASM-featured tests) covering 3-stage I/O pruning, near-duplicate image clustering, `FastCDC`, storage treemaps, quarantine restore collisions, purge consent gates, same-volume atomic hardlinks, and visual/LCS diffing.
 - **Changed:** Backfilled `251711a` (`stage-5.2.1`) in `docs/PROGRESS.md` and appended Entry 051 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.
+
+
+
+---
+
+## [0.6.1-stage6.1.1] — 2026-11-28
+
+### Subphase 6.1.1 — Batch Naming Templates, Directory Mirroring, Preset Store & Schedule Evaluator (`file-core`, `job-manager`)
+- **Added:** Real `YYYY-MM-DD` UTC `{date}` formatting (`utc_date_from_unix_secs`) and relative directory mirroring (`resolve_mirrored_output_destination`) with out-of-root `SecTraversal` enforcement in `crates/file-core/src/{pipeline.rs,lib.rs}` (`FR-BAT-002`).
+- **Added:** Reusable preset registry & local schedule evaluator (`crates/job-manager/src/presets.rs`) featuring 5 built-in `OptimizationPreset` presets, JSON/YAML round-trip helpers via `conversion-core::tabular`, atomic `PresetStore` / `ScheduleStore` persistence, and deterministic 5-field UTC cron + fixed-interval evaluation (`FR-LOC-002`).
+- **Changed:** Re-exported Stage `6.1.1` primitives in `crates/job-manager/src/lib.rs`, added tests in `file-core` (29 passing) and `job-manager` (20 passing; `131` native / `67` WASM total), backfilled `cb73285` (`stage-5.2.2`) & initialized the Stage 6 queue in `docs/PROGRESS.md`, and appended Entry 052 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.

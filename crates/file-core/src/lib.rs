@@ -52,7 +52,7 @@ pub use pipeline::{
     CompressionStatus, ItemOutcome, ItemStatus, JobContext, JobReceipt, MonotonicProgressSink,
     NoOpProgressSink, ProcessingHandler, ProcessingOperation, ProcessingRequest, ProgressSink,
     StagedPath, ThrottledProgressSink, ValidatedSource, VecProgressSink,
-    resolve_output_destination,
+    resolve_mirrored_output_destination, resolve_output_destination, utc_date_from_unix_secs,
 };
 pub use signature::{
     DetectionConfidence, SignatureMatch, detect_signature_from_bytes, detect_signature_from_path,
