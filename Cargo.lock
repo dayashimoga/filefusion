@@ -1372,6 +1372,7 @@ name = "job-manager"
 version = "0.1.0-alpha.1"
 dependencies = [
  "codec-registry",
+ "conversion-core",
  "file-core",
  "hardware-acceleration",
  "optimization-engine",

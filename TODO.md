@@ -391,3 +391,13 @@
 - [x] `[3.2.1]` Reuse L3 `compression-office` Zip-Slip/bomb-guarded container I/O (`read_validated_zip_entries`, `write_office_container_entries` with `mimetype`-first `Stored` packaging) cleanly in L4 `conversion-core` without duplicating ZIP crates (`MOD-RULE-02`).
 - [x] `[3.2.1]` Implement pure-Rust WASM-native Office/ODF/EPUB conversion engine (`crates/conversion-core/src/office_epub.rs`) across `XLSX`/`ODS` <-> tabular/markup and `DOCX`/`ODT`/`EPUB` <-> `Markdown`/`HTML`/`PlainText` (preserving TOC `nav.xhtml`, spine ordering, hyperlinks, headings, tables, privacy scrubbing, and XML entity-bomb blocking).
 - [x] `[3.2.1]` Implement sanitized `ExternalToolAdapter` implementations (`LibreOfficeAdapter`, `PandocAdapter`, `CalibreAdapter`, `crates/conversion-core/src/tier2_adapters.rs`), wire Tier 1 & Tier 2 routes through `ConversionGraph` and `UniversalConversionEngine`, backfill `6ea5132` (`stage-3.1.2`) in `docs/PROGRESS.md`, and append Subphase `3.2.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 043 — Stage 3 Subphase 3.2.2 Stage 3 CLI (`convert`), `job-manager` Wiring & Fidelity Corpus
+
+### Completed in Subphase 3.2.2
+- [x] `[3.2.2]` Wire L5 `crates/job-manager` to L4 `crates/conversion-core` (`FF-MOD-001` §4 DAG `L5_JOB -> L0 & L1_REG & L4_OPT & L4_CNV`), exposing `JobManager::preflight_conversion`, `JobManager::convert_file`, and `ConvertFileReport` across both native and `wasm` feature builds.
+- [x] `[3.2.2]` Implement `filefusion convert` CLI subcommand (`--to`, `-o/--output`, `--preflight-only`, `--force-loss`, `--no-preserve-structure`, `--strip-metadata`, `--overwrite`, `--json`) in `apps/cli/src/main.rs` (`MOD-RULE-03`) with expanded `CliTargetFormat` coverage across markup, tabular, OOXML/ODF/EPUB, audio, video, and archive targets.
+- [x] `[3.2.2]` Add E2E Stage 3 conversion & fidelity corpus tests (`apps/cli/tests/cli_smoke.rs`) and `JobManager::convert_file` unit tests, backfill `1c90d81` (`stage-3.2.1`) in `docs/PROGRESS.md`, and append Subphase `3.2.2` entries to `TODO.md` and `CHANGELOG.md`.

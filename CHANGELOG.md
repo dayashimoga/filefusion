@@ -348,3 +348,12 @@
 ### Subphase 3.2.1 — Native Office, ODF & EPUB Conversions + Tier 2 `LibreOffice`/`Pandoc`/`Calibre` Adapters (`FR-DOC-002`..`003`)
 - **Added:** Pure-Rust Office/ODF/EPUB container converter (`crates/conversion-core/src/office_epub.rs`) supporting `XLSX`/`ODS` spreadsheets, `DOCX`/`ODT` documents, and `EPUB` 3 ebooks (`nav.xhtml` TOC + spine ordering + XML entity-bomb defense), sanitized `ExternalToolAdapter` subprocess wrappers for `LibreOffice`, `Pandoc`, and `Calibre` (`crates/conversion-core/src/tier2_adapters.rs`), and public container helpers (`read_validated_zip_entries`, `write_office_container_entries`) in `crates/compression-office`.
 - **Changed:** Expanded `ConversionGraph` (`graph.rs`), formula/stripping warnings (`preflight.rs`), and `UniversalConversionEngine` (`lib.rs`) for Tier 1 Office/EPUB and Tier 2 `LibreOffice`/`Pandoc`/`Calibre` dispatch, backfilled `6ea5132` (`stage-3.1.2`) in `docs/PROGRESS.md`, and appended Entry 042 to `TODO.md`.
+
+
+---
+
+## [0.3.4-stage3.2.2] — 2026-11-28
+
+### Subphase 3.2.2 — Stage 3 CLI (`filefusion convert`), `job-manager` Wiring & Conversion Fidelity Corpus (Stage 3 Completion)
+- **Added:** Real `filefusion convert` CLI subcommand (`--to`, `--preflight-only`, `--force-loss`, `--strip-metadata`, `--overwrite`, `--json`) with full target-format coverage in `apps/cli/src/main.rs`, L5 `JobManager::preflight_conversion`, `JobManager::convert_file`, and `ConvertFileReport` in `crates/job-manager/src/lib.rs`, plus E2E Stage 3 conversion & fidelity corpus coverage in `apps/cli/tests/cli_smoke.rs`.
+- **Changed:** Wired `job-manager -> conversion-core` across `native-process`, `native-logging`, and `wasm` features (`crates/job-manager/Cargo.toml`, `Cargo.lock`) with zero new external dependencies, backfilled `1c90d81` (`stage-3.2.1`) in `docs/PROGRESS.md`, and appended Entry 043 to `TODO.md`.

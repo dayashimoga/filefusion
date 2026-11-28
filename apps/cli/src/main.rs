@@ -14,13 +14,14 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand, ValueEnum};
 use file_core::{
     CORE_SCHEMA_VERSION, CliConfigOverrides, CliExitCode, CollisionPolicy, CompressionProfile,
-    CompressionRequest, CompressionStatus, ErrorCode, FileFusionError, FileInspectionReport,
-    FormatId, LogFormat, LogLevel, SignatureMatch, init_logging, resolve_default_config_path,
-    save_config_atomic, workspace_identity,
+    CompressionRequest, CompressionStatus, ConversionRequest, ErrorCode, FileFusionError,
+    FileInspectionReport, FormatId, LogFormat, LogLevel, PreflightAssessment, SignatureMatch,
+    init_logging, resolve_default_config_path, save_config_atomic, workspace_identity,
 };
 use job_manager::{
-    ArchiveCreateReport, BenchSuiteReport, CompressFileReport, DoctorReport, JobManager,
-    inspect_file, load_runtime_config, probe_file_signature, run_doctor_probe_with_config,
+    ArchiveCreateReport, BenchSuiteReport, CompressFileReport, ConvertFileReport, DoctorReport,
+    JobManager, inspect_file, load_runtime_config, probe_file_signature,
+    run_doctor_probe_with_config,
 };
 use serde::Serialize;
 
@@ -123,8 +124,30 @@ enum CliTargetFormat {
     Ods,
     Odp,
     Epub,
+    Mobi,
+    Rtf,
+    Html,
+    Xml,
+    Json,
+    #[value(name = "yaml", alias = "yml")]
+    Yaml,
+    Csv,
+    #[value(name = "markdown", alias = "md")]
+    Markdown,
+    #[value(name = "txt", alias = "plain-text")]
+    PlainText,
+    Mp4,
+    Mov,
+    Mkv,
+    Webm,
+    Avi,
     Wav,
     Flac,
+    Mp3,
+    Ogg,
+    Opus,
+    Aac,
+    M4a,
     Zip,
     Tar,
     Gzip,
@@ -155,8 +178,27 @@ impl From<CliTargetFormat> for FormatId {
             CliTargetFormat::Ods => Self::Ods,
             CliTargetFormat::Odp => Self::Odp,
             CliTargetFormat::Epub => Self::Epub,
+            CliTargetFormat::Mobi => Self::Mobi,
+            CliTargetFormat::Rtf => Self::Rtf,
+            CliTargetFormat::Html => Self::Html,
+            CliTargetFormat::Xml => Self::Xml,
+            CliTargetFormat::Json => Self::Json,
+            CliTargetFormat::Yaml => Self::Yaml,
+            CliTargetFormat::Csv => Self::Csv,
+            CliTargetFormat::Markdown => Self::Markdown,
+            CliTargetFormat::PlainText => Self::PlainText,
+            CliTargetFormat::Mp4 => Self::Mp4,
+            CliTargetFormat::Mov => Self::Mov,
+            CliTargetFormat::Mkv => Self::Mkv,
+            CliTargetFormat::Webm => Self::Webm,
+            CliTargetFormat::Avi => Self::Avi,
             CliTargetFormat::Wav => Self::Wav,
             CliTargetFormat::Flac => Self::Flac,
+            CliTargetFormat::Mp3 => Self::Mp3,
+            CliTargetFormat::Ogg => Self::Ogg,
+            CliTargetFormat::Opus => Self::Opus,
+            CliTargetFormat::Aac => Self::Aac,
+            CliTargetFormat::M4a => Self::M4a,
             CliTargetFormat::Zip => Self::Zip,
             CliTargetFormat::Tar => Self::Tar,
             CliTargetFormat::Gzip => Self::Gzip,
@@ -221,6 +263,36 @@ enum Commands {
         /// Allow writing a same-format output even if it is not smaller than the input.
         #[arg(long)]
         no_noop_guard: bool,
+        /// Overwrite existing destination file (saving a `.bak` backup per safety policy).
+        #[arg(long)]
+        overwrite: bool,
+        /// Emit machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Convert documents, markup, tabular datasets, ebooks, archives, or media files (`FR-DOC-001`..`003`, `FR-FID-001`..`002`).
+    Convert {
+        /// Input file path to convert.
+        #[arg(value_name = "INPUT")]
+        input: PathBuf,
+        /// Target format to convert into.
+        #[arg(long = "to", value_enum)]
+        target_format: CliTargetFormat,
+        /// Destination output path (defaults to sibling `<stem>.<ext>`).
+        #[arg(short, long, value_name = "OUTPUT")]
+        output: Option<PathBuf>,
+        /// Run pre-flight compatibility & feature-loss check without writing any output (`FR-FID-002`).
+        #[arg(long)]
+        preflight_only: bool,
+        /// Allow conversion even when pre-flight reports breaking structural loss (e.g. XLSX -> CSV).
+        #[arg(long)]
+        force_loss: bool,
+        /// Do not attempt structural preservation during conversion.
+        #[arg(long)]
+        no_preserve_structure: bool,
+        /// Strip non-essential author/generator/EXIF metadata (`FR-MET-002`).
+        #[arg(long)]
+        strip_metadata: bool,
         /// Overwrite existing destination file (saving a `.bak` backup per safety policy).
         #[arg(long)]
         overwrite: bool,
@@ -497,6 +569,7 @@ const fn command_requests_json(command: &Commands) -> bool {
         Commands::Doctor { json }
         | Commands::Inspect { json, .. }
         | Commands::Compress { json, .. }
+        | Commands::Convert { json, .. }
         | Commands::Bench { json, .. } => *json,
         Commands::Archive { action } => match action {
             ArchiveAction::Create { json, .. }
@@ -722,38 +795,12 @@ fn run() -> CliExitCode {
                 emit_text_stdout(&format_doctor_human(&report), false)
             }
         }
-        Commands::Inspect {
-            path,
-            strict,
-            signature_only,
-            json,
-        } => {
-            if signature_only {
-                match probe_file_signature(&path, strict) {
-                    Ok(probe) => {
-                        if json {
-                            emit_json_stdout(&probe)
-                        } else {
-                            emit_text_stdout(&format_signature_human(&probe), false)
-                        }
-                    }
-                    Err(err) => report_cli_error(&err, json || cli.log_json),
-                }
-            } else {
-                match inspect_file(&path, strict) {
-                    Ok(report) => {
-                        if json {
-                            emit_json_stdout(&report)
-                        } else {
-                            emit_text_stdout(&format_inspection_human(&report), false)
-                        }
-                    }
-                    Err(err) => report_cli_error(&err, json || cli.log_json),
-                }
-            }
-        }
+        cmd @ Commands::Inspect { .. } => handle_inspect_command(&cmd, cli.log_json),
         cmd @ Commands::Compress { .. } => {
             handle_compress_command(&cmd, &loaded.config, cli.log_json)
+        }
+        cmd @ Commands::Convert { .. } => {
+            handle_convert_command(&cmd, &loaded.config, cli.log_json)
         }
         Commands::Archive { action } => {
             handle_archive_command(&action, &loaded.config, cli.log_json)
@@ -773,6 +820,41 @@ fn run() -> CliExitCode {
             }
         }
         Commands::Config { .. } => CliExitCode::Success,
+    }
+}
+
+fn handle_inspect_command(command: &Commands, log_json: bool) -> CliExitCode {
+    let Commands::Inspect {
+        path,
+        strict,
+        signature_only,
+        json,
+    } = command
+    else {
+        return CliExitCode::InvalidUsage;
+    };
+    if *signature_only {
+        match probe_file_signature(path, *strict) {
+            Ok(probe) => {
+                if *json {
+                    emit_json_stdout(&probe)
+                } else {
+                    emit_text_stdout(&format_signature_human(&probe), false)
+                }
+            }
+            Err(err) => report_cli_error(&err, *json || log_json),
+        }
+    } else {
+        match inspect_file(path, *strict) {
+            Ok(report) => {
+                if *json {
+                    emit_json_stdout(&report)
+                } else {
+                    emit_text_stdout(&format_inspection_human(&report), false)
+                }
+            }
+            Err(err) => report_cli_error(&err, *json || log_json),
+        }
     }
 }
 
@@ -823,6 +905,121 @@ fn handle_compress_command(
                 emit_json_stdout(&report)
             } else {
                 emit_text_stdout(&format_compress_human(&report), false)
+            }
+        }
+        Err(err) => report_cli_error(&err, *json || log_json),
+    }
+}
+
+fn default_converted_output_path(input: &Path, target_format: FormatId) -> PathBuf {
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("converted");
+    let ext = target_format
+        .canonical_extensions()
+        .first()
+        .copied()
+        .unwrap_or("out");
+    let file_name = format!("{stem}.{ext}");
+    match input.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join(file_name),
+        _ => PathBuf::from(file_name),
+    }
+}
+
+fn format_preflight_human(assessment: &PreflightAssessment, target: FormatId) -> String {
+    let mut out = format!(
+        "Pre-flight Assessment (target={:?}): supported={}, estimated_memory={} MB\n",
+        target, assessment.supported, assessment.estimated_memory_mb
+    );
+    for w in &assessment.warnings {
+        let _ = writeln!(out, "  - [{:?} / {}] {}", w.severity, w.code, w.message);
+    }
+    out
+}
+
+fn format_convert_human(report: &ConvertFileReport) -> String {
+    let mut out = format!(
+        "Converted: {} -> {}\nFormats:   {:?} -> {:?}\nSize:      {} bytes -> {} bytes\nWarnings:  {}",
+        report.input_path,
+        report.output_path,
+        report.detected_format,
+        report.target_format,
+        report.bytes_in,
+        report.bytes_out,
+        report.fidelity.warnings.len(),
+    );
+    if let (Some(h), Some(t), Some(l), Some(i)) = (
+        report.fidelity.headings_preserved,
+        report.fidelity.tables_preserved,
+        report.fidelity.links_preserved,
+        report.fidelity.images_preserved,
+    ) {
+        let _ = write!(
+            out,
+            "\nFidelity:  headings={h}, tables={t}, links={l}, images={i}"
+        );
+    }
+    out
+}
+
+fn handle_convert_command(
+    command: &Commands,
+    config: &file_core::FileFusionConfig,
+    log_json: bool,
+) -> CliExitCode {
+    let Commands::Convert {
+        input,
+        target_format,
+        output,
+        preflight_only,
+        force_loss,
+        no_preserve_structure,
+        strip_metadata,
+        overwrite,
+        json,
+    } = command
+    else {
+        return CliExitCode::InvalidUsage;
+    };
+
+    let mgr = JobManager::from_config(config);
+    let target = FormatId::from(*target_format);
+    if *preflight_only {
+        return match mgr.preflight_conversion(input, target) {
+            Ok(assessment) => {
+                if *json {
+                    emit_json_stdout(&assessment)
+                } else {
+                    emit_text_stdout(&format_preflight_human(&assessment, target), false)
+                }
+            }
+            Err(err) => report_cli_error(&err, *json || log_json),
+        };
+    }
+
+    let ctx = mgr.create_context("cli-convert");
+    let dest = output
+        .clone()
+        .unwrap_or_else(|| default_converted_output_path(input, target));
+    let req = ConversionRequest {
+        target_format: target,
+        strip_metadata: *strip_metadata,
+        preserve_structure: !*no_preserve_structure,
+        fail_on_breaking_loss: !*force_loss,
+    };
+    let policy = if *overwrite {
+        CollisionPolicy::OverwriteWithBackup
+    } else {
+        CollisionPolicy::RenameWithSuffix
+    };
+    match mgr.convert_file(input, &dest, &req, policy, &ctx) {
+        Ok(report) => {
+            if *json {
+                emit_json_stdout(&report)
+            } else {
+                emit_text_stdout(&format_convert_human(&report), false)
             }
         }
         Err(err) => report_cli_error(&err, *json || log_json),

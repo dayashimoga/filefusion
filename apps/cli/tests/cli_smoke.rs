@@ -367,3 +367,131 @@ fn cli_compress_archive_and_bench_work_end_to_end() -> Result<(), Box<dyn Error>
     let _ = fs::remove_dir_all(&dir);
     Ok(())
 }
+
+#[test]
+fn cli_convert_stage3_markup_and_epub_fidelity_corpus() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("stage3_markup_epub")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let md_in = dir.join("guide.md");
+    let html_out = dir.join("guide.html");
+    let epub_out = dir.join("guide.epub");
+    fs::write(
+        &md_in,
+        "# Architecture\n\n| Layer | Crate |\n| --- | --- |\n| L4 | conversion-core |\n\n[Spec](https://example.org) ![Diagram](d.png)\n",
+    )?;
+
+    let html_res = Command::new(exe)
+        .args([
+            "convert",
+            &md_in.to_string_lossy(),
+            "--to",
+            "html",
+            "-o",
+            &html_out.to_string_lossy(),
+            "--strip-metadata",
+            "--json",
+        ])
+        .output()?;
+    assert!(
+        html_res.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&html_res.stderr)
+    );
+    let html_json: serde_json::Value = serde_json::from_slice(&html_res.stdout)?;
+    assert_eq!(html_json["fidelity"]["headings_preserved"], 1);
+    assert_eq!(html_json["fidelity"]["tables_preserved"], 1);
+    assert_eq!(html_json["fidelity"]["links_preserved"], 1);
+    assert_eq!(html_json["fidelity"]["images_preserved"], 1);
+
+    let epub_res = Command::new(exe)
+        .args([
+            "convert",
+            &md_in.to_string_lossy(),
+            "--to",
+            "epub",
+            "-o",
+            &epub_out.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(epub_res.status.success());
+    let epub_insp = Command::new(exe)
+        .args(["inspect", "--json", &epub_out.to_string_lossy()])
+        .output()?;
+    assert!(epub_insp.status.success());
+    let epub_json: serde_json::Value = serde_json::from_slice(&epub_insp.stdout)?;
+    assert_eq!(epub_json["detected_format"], "epub");
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+#[test]
+fn cli_convert_stage3_spreadsheet_preflight_and_force_loss_gate() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("stage3_sheet")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let csv_in = dir.join("budget.csv");
+    let xlsx_out = dir.join("budget.xlsx");
+    let csv_rt = dir.join("budget_rt.csv");
+    fs::write(&csv_in, "dept,amount\nCore,250\nWeb,120\n")?;
+
+    let xlsx_res = Command::new(exe)
+        .args([
+            "convert",
+            &csv_in.to_string_lossy(),
+            "--to",
+            "xlsx",
+            "-o",
+            &xlsx_out.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(xlsx_res.status.success());
+
+    let preflight = Command::new(exe)
+        .args([
+            "convert",
+            &xlsx_out.to_string_lossy(),
+            "--to",
+            "csv",
+            "--preflight-only",
+            "--json",
+        ])
+        .output()?;
+    assert!(preflight.status.success());
+    let pre_json: serde_json::Value = serde_json::from_slice(&preflight.stdout)?;
+    assert_eq!(pre_json["warnings"][0]["code"], "FID-XLSX-FORMULAS");
+
+    let blocked = Command::new(exe)
+        .args([
+            "convert",
+            &xlsx_out.to_string_lossy(),
+            "--to",
+            "csv",
+            "-o",
+            &csv_rt.to_string_lossy(),
+        ])
+        .output()?;
+    assert!(!blocked.status.success());
+
+    let forced = Command::new(exe)
+        .args([
+            "convert",
+            &xlsx_out.to_string_lossy(),
+            "--to",
+            "csv",
+            "-o",
+            &csv_rt.to_string_lossy(),
+            "--force-loss",
+            "--json",
+        ])
+        .output()?;
+    assert!(forced.status.success());
+    let rt_text = fs::read_to_string(&csv_rt)?;
+    assert!(rt_text.contains("amount,dept"));
+    assert!(rt_text.contains("250,Core"));
+    assert!(rt_text.contains("120,Web"));
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}

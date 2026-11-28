@@ -19,6 +19,9 @@ pub use codec_registry::{
     CapabilityEntry, CapabilityRegistry, DoctorReport, EngineTier, LicenseClass, ToolAvailability,
     collect_baseline_doctor_report, collect_doctor_report,
 };
+pub use conversion_core::{
+    ConversionGraph, ResolvedConversionPlan, StructuralInventory, UniversalConversionEngine,
+};
 pub use file_core::{
     BatchDefaults, CallbackProgressSink, CancelSubscription, CancellationToken, CliConfigOverrides,
     CliExitCode, CollisionPolicy, CompressibilityTier, CompressionEngine, CompressionOutcome,
@@ -413,6 +416,97 @@ impl JobManager {
         dispatcher.compress(source, staged, req, ctx)
     }
 
+    /// Evaluates conversion compatibility and pre-flight warnings (`FR-FID-002`) for `input_path`
+    /// targeting `target_format` without altering disk artifacts.
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] on missing/spoofed input or unsupported conversion route.
+    pub fn preflight_conversion(
+        &self,
+        input_path: &Path,
+        target_format: FormatId,
+    ) -> FileFusionResult<PreflightAssessment> {
+        let source = ValidatedSource::open(input_path, true, &self.limits)?;
+        let engine = UniversalConversionEngine::new_tier1();
+        engine.preflight(&source.inspection, target_format)
+    }
+
+    /// Converts `input_path` into `output_path` through L4 [`UniversalConversionEngine`] with atomic
+    /// staging (`StagedPath`), pre-flight feature-loss gating, output signature verification, and
+    /// quantitative [`ConversionFidelityReport`] telemetry (`FR-DOC-001`..`003`, `FR-FID-001`..`002`).
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] on validation/spoofing errors, breaking-loss preflight gate,
+    /// missing Tier 2 binaries, or cancellation.
+    pub fn convert_file(
+        &self,
+        input_path: &Path,
+        output_path: &Path,
+        req: &ConversionRequest,
+        collision_policy: CollisionPolicy,
+        ctx: &JobContext,
+    ) -> FileFusionResult<ConvertFileReport> {
+        ctx.check_cancelled()?;
+        let source = ValidatedSource::open(input_path, true, &self.limits)?;
+        let preflight = UniversalConversionEngine::new_tier1()
+            .preflight(&source.inspection, req.target_format)?;
+        let staged = StagedPath::create_sibling(output_path)?;
+        let fidelity = Self::dispatch_conversion(self.limits, &source, &staged, req, ctx)?;
+        let promoted = staged.promote(collision_policy)?;
+        let bytes_out = std::fs::metadata(&promoted)?.len();
+
+        Ok(ConvertFileReport {
+            schema_version: file_core::CORE_SCHEMA_VERSION,
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: promoted.to_string_lossy().into_owned(),
+            detected_format: source.inspection.detected_format,
+            target_format: req.target_format,
+            bytes_in: source.inspection.byte_size,
+            bytes_out,
+            preflight,
+            fidelity,
+        })
+    }
+
+    #[cfg(feature = "native-process")]
+    fn dispatch_conversion(
+        limits: ResourceLimits,
+        source: &ValidatedSource,
+        staged: &StagedPath,
+        req: &ConversionRequest,
+        ctx: &JobContext,
+    ) -> FileFusionResult<ConversionFidelityReport> {
+        let report = collect_doctor_report(limits);
+        let find_tool = |id: &str| {
+            report
+                .tool_availability
+                .iter()
+                .find(|t| t.tool_id == id && t.available)
+                .and_then(|t| t.binary_path.as_ref().map(std::path::PathBuf::from))
+        };
+        let engine = UniversalConversionEngine::with_tier2_binaries(
+            find_tool("tier2-ffmpeg"),
+            find_tool("tier2-ffprobe"),
+            find_tool("tier2-libreoffice"),
+            find_tool("tier2-pandoc"),
+            find_tool("tier2-calibre"),
+        );
+        let runner = NativeIsolatedProcessRunner::new();
+        engine.convert_with_optional_runner(source, staged, req, Some(&runner), ctx)
+    }
+
+    #[cfg(not(feature = "native-process"))]
+    fn dispatch_conversion(
+        _limits: ResourceLimits,
+        source: &ValidatedSource,
+        staged: &StagedPath,
+        req: &ConversionRequest,
+        ctx: &JobContext,
+    ) -> FileFusionResult<ConversionFidelityReport> {
+        let engine = UniversalConversionEngine::new_tier1();
+        engine.convert(source, staged, req, ctx)
+    }
+
     /// Creates an archive from local paths atomically via `StagedPath`, validating member paths
     /// and enforcing resource limits (`FR-ARC-001`, `FR-SEC-001`).
     ///
@@ -629,6 +723,29 @@ pub struct BenchSuiteReport {
     pub logical_cpus: usize,
     /// Individual workload probe entries.
     pub results: Vec<BenchProbeEntry>,
+}
+
+/// Structured output emitted by [`JobManager::convert_file`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct ConvertFileReport {
+    /// Contract schema version.
+    pub schema_version: u32,
+    /// Source file path.
+    pub input_path: String,
+    /// Promoted destination file path.
+    pub output_path: String,
+    /// Detected source format.
+    pub detected_format: FormatId,
+    /// Converted target format.
+    pub target_format: FormatId,
+    /// Source file size in bytes.
+    pub bytes_in: u64,
+    /// Promoted output file size in bytes.
+    pub bytes_out: u64,
+    /// Pre-flight assessment and warnings surfaced prior to execution (`FR-FID-002`).
+    pub preflight: PreflightAssessment,
+    /// Post-conversion quantitative fidelity report (`FR-FID-001`).
+    pub fidelity: ConversionFidelityReport,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1104,6 +1221,82 @@ mod tests {
         assert_eq!(manager.memory_stats().used_mb, 0);
         assert_eq!(manager.memory_stats().peak_used_mb, 180);
         assert_eq!(manager.memory_stats().rejected_requests, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn job_manager_converts_markup_and_enforces_preflight_breaking_loss_gate()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let dir = std::env::temp_dir().join(format!("ff_jm_cnv_{nanos}"));
+        std::fs::create_dir_all(&dir)?;
+
+        let md_path = dir.join("spec.md");
+        let html_path = dir.join("spec.html");
+        std::fs::write(
+            &md_path,
+            "# Overview\n\n| Item | Val |\n| --- | --- |\n| Core | Rust |\n",
+        )?;
+
+        let manager = JobManager::default();
+        let ctx = manager.create_context("jm_cnv_md");
+        let report = manager.convert_file(
+            &md_path,
+            &html_path,
+            &ConversionRequest {
+                target_format: FormatId::Html,
+                strip_metadata: true,
+                preserve_structure: true,
+                fail_on_breaking_loss: true,
+            },
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        assert_eq!(report.detected_format, FormatId::Markdown);
+        assert_eq!(report.target_format, FormatId::Html);
+        assert_eq!(report.fidelity.headings_preserved, Some(1));
+        assert_eq!(report.fidelity.tables_preserved, Some(1));
+        assert!(html_path.exists());
+
+        // CSV -> XLSX then preflight XLSX -> CSV verifies FID-XLSX-FORMULAS + fail_on_breaking_loss gate.
+        let csv_path = dir.join("metrics.csv");
+        let xlsx_path = dir.join("metrics.xlsx");
+        let csv_out = dir.join("metrics_out.csv");
+        std::fs::write(&csv_path, "name,score\nAlpha,100\n")?;
+        let _ = manager.convert_file(
+            &csv_path,
+            &xlsx_path,
+            &ConversionRequest {
+                target_format: FormatId::Xlsx,
+                strip_metadata: true,
+                preserve_structure: true,
+                fail_on_breaking_loss: true,
+            },
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        let pre = manager.preflight_conversion(&xlsx_path, FormatId::Csv)?;
+        assert!(pre.warnings.iter().any(|w| w.code == "FID-XLSX-FORMULAS"));
+        let blocked = manager.convert_file(
+            &xlsx_path,
+            &csv_out,
+            &ConversionRequest {
+                target_format: FormatId::Csv,
+                strip_metadata: true,
+                preserve_structure: true,
+                fail_on_breaking_loss: true,
+            },
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        );
+        assert_eq!(
+            blocked.err().map(|e| e.diagnostic.code),
+            Some(ErrorCode::IntInvariant)
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
         Ok(())
     }
 }

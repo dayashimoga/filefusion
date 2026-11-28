@@ -13,17 +13,23 @@ default = ["native-logging", "native-process", "native-scheduler", "rayon-parall
 native-logging = [
     "file-core/native-logging",
     "codec-registry/native-probe",
+    "conversion-core/native-logging",
     "hardware-acceleration/hw-accel",
     "hardware-acceleration/native-logging",
     "optimization-engine/native-logging",
     "quality-engine/native-logging",
 ]
-native-process = ["codec-registry/native-probe", "optimization-engine/native-process"]
+native-process = [
+    "codec-registry/native-probe",
+    "conversion-core/native-process",
+    "optimization-engine/native-process",
+]
 native-scheduler = ["dep:tokio"]
 rayon-parallel = ["dep:rayon"]
 wasm = [
     "file-core/wasm",
     "codec-registry/wasm",
+    "conversion-core/wasm",
     "hardware-acceleration/wasm",
     "optimization-engine/wasm",
     "quality-engine/wasm",
@@ -32,6 +38,7 @@ wasm = [
 
 [dependencies]
 codec-registry = { workspace = true, default-features = false }
+conversion-core = { workspace = true, default-features = false }
 file-core = { workspace = true, default-features = false }
 hardware-acceleration = { workspace = true, default-features = false }
 optimization-engine = { workspace = true, default-features = false }
