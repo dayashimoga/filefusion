@@ -411,3 +411,13 @@
 - [x] `[4.1.1]` Implement pure-Rust WASM-native PDF Studio operations in `crates/compression-pdf/src/studio.rs` (`#![forbid(unsafe_code)]`, `FR-PDF-001`, `FR-PDF-004`): `parse_page_range_spec`, `merge_pdfs`, `extract_or_reorder_pdf_pages`, `split_pdf_by_ranges`, `split_pdf_every_n_pages`, `rotate_pdf_pages`, `crop_pdf_pages`, and `apply_pdf_text_watermark` with encrypted PDF `FmtDrm` gating and zero external crate additions.
 - [x] `[4.1.1]` Implement `inspect_pdf_scan_status` (`PdfScanInspection`) detecting image-only scanned OCR candidates and `/Sig`/`/ByteRange` signature dictionaries (`FR-PDF-003`..`004`), and export PDF Studio APIs in `crates/compression-pdf/src/lib.rs`.
 - [x] `[4.1.1]` Backfill `186ecde` (`stage-3.2.2`) and initialize the Stage 4 subphase queue in `docs/PROGRESS.md`, and append Subphase `4.1.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 045 — Stage 4 Subphase 4.1.2 Local OCR, PDF Encryption & Signature Verification
+
+### Completed in Subphase 4.1.2
+- [x] `[4.1.2]` Implement `crates/compression-pdf/src/ocr.rs`: isolated Tier 2 `TesseractAdapter` (`ExternalToolAdapter`, `MOD-RULE-04`, `Apache-2.0`), TSV/`hOCR` parsers (`parse_tesseract_tsv`, `parse_tesseract_hocr`), raster `/Image` `XObject` extractor (`extract_pdf_page_images`), and invisible `3 Tr` searchable PDF text overlay builder (`embed_searchable_ocr_text_layer`, `build_searchable_pdf_from_image_and_ocr`) (`FR-PDF-003`).
+- [x] `[4.1.2]` Implement `crates/compression-pdf/src/security.rs`: pure-Rust `AES-256` (`V5`/`R6`) and `AES-128` (`V4`/`R4`) PDF password encryption/decryption (`encrypt_pdf_bytes`, `decrypt_pdf_bytes`, `inspect_pdf_security`), granular ISO-32000 `/P` permissions (`PdfPermissions`), sanitized `qpdf` crypto builders, and `/Sig` `/ByteRange` + DER `/Contents` audit (`verify_pdf_signatures`) (`FR-PDF-004`).
+- [x] `[4.1.2]` Re-export PDF OCR & security APIs cleanly from `crates/compression-pdf/src/lib.rs`, backfill `e5dbda3` onto `4.1.1` in `docs/PROGRESS.md`, add unit/integration tests across native (113 passing) and WASM (58 passing) configurations, and append `TODO.md` / `CHANGELOG.md` with untouched `Cargo.lock`.

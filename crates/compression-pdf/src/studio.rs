@@ -464,7 +464,13 @@ pub fn apply_pdf_text_watermark(
         ctx.check_cancelled()?;
         materialize_inherited_page_attrs(&mut doc, page_id);
         let page_box = resolve_page_box(&doc, page_id);
-        attach_watermark_resources(&mut doc, page_id, font_id, gs_id);
+        attach_page_resources(
+            &mut doc,
+            page_id,
+            "F_FF_WM",
+            font_id,
+            Some(("GS_FF_WM", gs_id)),
+        );
         let overlay = build_watermark_stream(page_box, opts);
         let overlay_id = doc.add_object(overlay);
         append_content_stream_to_page(&mut doc, page_id, overlay_id);
@@ -477,7 +483,7 @@ pub fn apply_pdf_text_watermark(
 // Internal PDF Graph & Box Helpers
 // =========================================================================
 
-fn load_unencrypted_pdf(raw_pdf: &[u8]) -> FileFusionResult<Document> {
+pub(crate) fn load_unencrypted_pdf(raw_pdf: &[u8]) -> FileFusionResult<Document> {
     if raw_pdf.is_empty() {
         return Err(FileFusionError::new(
             ErrorCode::FmtCorrupt,
@@ -542,7 +548,7 @@ fn resolve_inherited_integer(doc: &Document, mut obj_id: ObjectId, key: &[u8]) -
     None
 }
 
-fn resolve_page_box(doc: &Document, page_id: ObjectId) -> [f32; 4] {
+pub(crate) fn resolve_page_box(doc: &Document, page_id: ObjectId) -> [f32; 4] {
     for key in [b"CropBox".as_slice(), b"MediaBox".as_slice()] {
         if let Some(arr) = resolve_inherited_array(doc, page_id, key) {
             if let Some(rect) = parse_pdf_rect(&arr) {
@@ -589,7 +595,7 @@ fn parse_pdf_rect(arr: &[Object]) -> Option<[f32; 4]> {
     ])
 }
 
-fn materialize_inherited_page_attrs(doc: &mut Document, page_id: ObjectId) {
+pub(crate) fn materialize_inherited_page_attrs(doc: &mut Document, page_id: ObjectId) {
     let media_box = resolve_inherited_array(doc, page_id, b"MediaBox");
     let crop_box = resolve_inherited_array(doc, page_id, b"CropBox");
     let resources = doc.get_page_resources(page_id).ok().and_then(|(d, ids)| {
@@ -722,7 +728,7 @@ fn finalize_document_pages(
     serialize_pdf(doc)
 }
 
-fn serialize_pdf(doc: &mut Document) -> FileFusionResult<Vec<u8>> {
+pub(crate) fn serialize_pdf(doc: &mut Document) -> FileFusionResult<Vec<u8>> {
     doc.compress();
     let mut out = Vec::new();
     doc.save_to(&mut out).map_err(|err| {
@@ -772,11 +778,12 @@ fn page_references_image_xobject(doc: &Document, page_id: ObjectId) -> bool {
         .any(|id| doc.get_dictionary(id).is_ok_and(check_dict))
 }
 
-fn attach_watermark_resources(
+pub(crate) fn attach_page_resources(
     doc: &mut Document,
     page_id: ObjectId,
+    font_key: &str,
     font_id: ObjectId,
-    gs_id: ObjectId,
+    gs: Option<(&str, ObjectId)>,
 ) {
     let existing_res_ref = doc
         .get_dictionary(page_id)
@@ -800,20 +807,37 @@ fn attach_watermark_resources(
         Ok(Object::Reference(id)) => doc.get_dictionary(id).cloned().unwrap_or_default(),
         _ => Dictionary::new(),
     };
-    font_dict.set("F_FF_WM", Object::Reference(font_id));
+    font_dict.set(font_key, Object::Reference(font_id));
     res_dict.set("Font", Object::Dictionary(font_dict));
 
-    let mut gs_dict = match res_dict.get(b"ExtGState").cloned() {
-        Ok(Object::Dictionary(d)) => d,
-        Ok(Object::Reference(id)) => doc.get_dictionary(id).cloned().unwrap_or_default(),
-        _ => Dictionary::new(),
-    };
-    gs_dict.set("GS_FF_WM", Object::Reference(gs_id));
-    res_dict.set("ExtGState", Object::Dictionary(gs_dict));
+    if let Some((gs_key, gs_id)) = gs {
+        let mut gs_dict = match res_dict.get(b"ExtGState").cloned() {
+            Ok(Object::Dictionary(d)) => d,
+            Ok(Object::Reference(id)) => doc.get_dictionary(id).cloned().unwrap_or_default(),
+            _ => Dictionary::new(),
+        };
+        gs_dict.set(gs_key, Object::Reference(gs_id));
+        res_dict.set("ExtGState", Object::Dictionary(gs_dict));
+    }
 
     if let Ok(page_dict) = doc.get_dictionary_mut(page_id) {
         page_dict.set("Resources", Object::Dictionary(res_dict));
     }
+}
+
+pub(crate) fn escape_pdf_literal(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\\' | '(' | ')' => {
+                escaped.push('\\');
+                escaped.push(ch);
+            }
+            '\r' | '\n' => escaped.push(' '),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 fn build_watermark_stream(page_box: [f32; 4], opts: &PdfWatermarkOptions) -> Stream {
@@ -827,17 +851,7 @@ fn build_watermark_stream(page_box: [f32; 4], opts: &PdfWatermarkOptions) -> Str
     let est_half_w = (opts.text.len() as f64) * size * 0.28;
     let tx = cx - est_half_w * cos_a;
     let ty = cy - est_half_w * sin_a;
-
-    let mut escaped = String::with_capacity(opts.text.len());
-    for ch in opts.text.chars() {
-        match ch {
-            '\\' | '(' | ')' => {
-                escaped.push('\\');
-                escaped.push(ch);
-            }
-            _ => escaped.push(ch),
-        }
-    }
+    let escaped = escape_pdf_literal(&opts.text);
 
     let mut stream_ops = String::new();
     let _ = write!(
@@ -848,7 +862,11 @@ fn build_watermark_stream(page_box: [f32; 4], opts: &PdfWatermarkOptions) -> Str
     Stream::new(dictionary! {}, stream_ops.into_bytes())
 }
 
-fn append_content_stream_to_page(doc: &mut Document, page_id: ObjectId, overlay_id: ObjectId) {
+pub(crate) fn append_content_stream_to_page(
+    doc: &mut Document,
+    page_id: ObjectId,
+    overlay_id: ObjectId,
+) {
     let existing = doc
         .get_dictionary(page_id)
         .ok()

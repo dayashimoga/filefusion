@@ -366,3 +366,13 @@
 ### Subphase 4.1.1 — PDF Studio Structural Manipulation & Scan Detection (`compression-pdf`, `L3`)
 - **Added:** Pure-Rust WASM-compatible PDF Studio suite (`crates/compression-pdf/src/studio.rs`) delivering multi-PDF `merge_pdfs`, `split_pdf_by_ranges`, `split_pdf_every_n_pages`, `extract_or_reorder_pdf_pages`, `rotate_pdf_pages`, `crop_pdf_pages`, rotated transparent vector text watermarking (`apply_pdf_text_watermark`), and `inspect_pdf_scan_status` (`FR-PDF-001`, `FR-PDF-003`..`004`), re-exported from `crates/compression-pdf/src/lib.rs`.
 - **Changed:** Backfilled `186ecde` (`stage-3.2.2`) and queued Stage 4 subphases in `docs/PROGRESS.md`, and appended Entry 044 to `TODO.md` with zero changes to `Cargo.toml` / `Cargo.lock`.
+
+
+---
+
+## [0.4.1-stage4.1.2] — 2026-11-28
+
+### Subphase 4.1.2 — Local OCR (`TesseractAdapter`), PDF Encryption & `/Sig` Verification (`compression-pdf`, `L3`)
+- **Added:** Local OCR subsystem (`crates/compression-pdf/src/ocr.rs`) with `TesseractAdapter` (`ExternalToolAdapter` via `IsolatedProcessRunner`), `parse_tesseract_tsv`, `parse_tesseract_hocr`, `extract_pdf_page_images`, and invisible `3 Tr` searchable PDF overlay generation (`embed_searchable_ocr_text_layer`, `build_searchable_pdf_from_image_and_ocr`) (`FR-PDF-003`).
+- **Added:** PDF cryptography & signature verification subsystem (`crates/compression-pdf/src/security.rs`) delivering pure-Rust `AES-256` (`V5`/`R6`) and `AES-128` (`V4`/`R4`) PDF protection, ISO-32000 `/P` permissions (`PdfPermissions`), decryption, security inspection, sanitized `qpdf` encrypt/decrypt command builders, and offline `/Sig` `/ByteRange` + ASN.1 DER verification (`verify_pdf_signatures`) (`FR-PDF-004`).
+- **Changed:** Re-exported shared internal helpers cleanly in `crates/compression-pdf/src/studio.rs`, exported Subphase `4.1.2` APIs and tests in `crates/compression-pdf/src/lib.rs` with `Cargo.lock` untouched, backfilled `e5dbda3` onto `4.1.1` in `docs/PROGRESS.md`, and appended Entry 045 to `TODO.md`.

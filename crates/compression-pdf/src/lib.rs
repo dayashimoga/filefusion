@@ -1,11 +1,14 @@
 //! `compression-pdf`: L3 pure-Rust (`lopdf` + `flate2` + `compression-image`) and optional
-//! Tier 2 `qpdf` PDF stream/image compression, metadata privacy scrubbing, and structural
-//! repair diagnostics (`FR-PDF-001`..`002`, `FR-REP-001`..`002`, `FR-CMP-001`..`002`).
+//! Tier 2 `qpdf` / `tesseract` PDF stream/image compression, PDF Studio manipulation, OCR,
+//! `AES-256` encryption, `/Sig` verification, metadata scrubbing, and structural repair
+//! (`FR-PDF-001`..`004`, `FR-REP-001`..`002`, `FR-CMP-001`..`002`).
 
 #![forbid(unsafe_code)]
 
+pub mod ocr;
 pub mod optimizer;
 pub mod repair;
+pub mod security;
 pub mod studio;
 
 use std::collections::BTreeSet;
@@ -30,8 +33,18 @@ use std::path::PathBuf;
 #[cfg(feature = "native-process")]
 use file_core::IsolatedProcessRunner;
 
+pub use ocr::{
+    ExtractedPdfImage, OcrDocumentResult, OcrOptions, OcrPageResult, OcrWordBox,
+    TesseractOutputMode, build_searchable_pdf_from_image_and_ocr, embed_searchable_ocr_text_layer,
+    extract_pdf_page_images, parse_tesseract_hocr, parse_tesseract_tsv,
+};
 pub use optimizer::{PdfCompressionOptions, PdfCompressionReport, optimize_pdf_bytes};
 pub use repair::{PdfHealthReport, PdfRepairAssessment, QpdfMode, inspect_pdf_health};
+pub use security::{
+    PdfEncryptionAlgorithm, PdfPermissions, PdfProtectionOptions, PdfSecurityReport,
+    PdfSignatureInfo, PdfSignatureReport, PdfSignatureStatus, decrypt_pdf_bytes, encrypt_pdf_bytes,
+    inspect_pdf_security, verify_pdf_signatures,
+};
 pub use studio::{
     PdfCropMargins, PdfScanInspection, PdfWatermarkOptions, apply_pdf_text_watermark,
     build_simple_text_pdf_bytes, crop_pdf_pages, extract_or_reorder_pdf_pages,
@@ -40,7 +53,11 @@ pub use studio::{
 };
 
 #[cfg(feature = "native-process")]
+pub use ocr::TesseractAdapter;
+#[cfg(feature = "native-process")]
 pub use repair::build_qpdf_optimize_invocation;
+#[cfg(feature = "native-process")]
+pub use security::{build_qpdf_decrypt_invocation, build_qpdf_encrypt_invocation};
 
 /// Validates staged PDF output using [`MagicByteOutputValidator`].
 pub type PdfOutputValidator = MagicByteOutputValidator;
@@ -797,6 +814,301 @@ mod tests {
             &ctx,
         );
         assert!(nan_wm.is_err());
+
+        Ok(())
+    }
+
+    #[test]
+    fn encrypts_inspects_and_decrypts_aes256_and_aes128_pdfs() -> Result<(), Box<dyn Error>> {
+        let plain = build_simple_text_pdf_bytes(&["Confidential Balance Sheet"]);
+        let ctx = JobContext::new("pdf-crypto", ResourceLimits::default());
+
+        let aes256_opts = PdfProtectionOptions {
+            user_password: Some(String::from("open-secret")),
+            owner_password: String::from("owner-master"),
+            algorithm: PdfEncryptionAlgorithm::Aes256,
+            permissions: PdfPermissions::restricted_print_only(),
+            encrypt_metadata: true,
+        };
+        let locked = encrypt_pdf_bytes(&plain, &aes256_opts, &ctx)?;
+
+        let sec = inspect_pdf_security(&locked, Some("open-secret"))?;
+        assert!(sec.is_encrypted);
+        assert_eq!(sec.version, Some(5));
+        assert_eq!(sec.revision, Some(6));
+        assert_eq!(sec.key_bits, Some(256));
+        assert_eq!(sec.password_verified, Some(true));
+        let perms = sec.permissions.ok_or("missing permissions")?;
+        assert!(perms.allow_print);
+        assert!(!perms.allow_copy);
+        assert!(!perms.allow_modify);
+
+        let wrong = inspect_pdf_security(&locked, Some("wrong-pw"))?;
+        assert_eq!(wrong.password_verified, Some(false));
+
+        let wrong_decrypt = decrypt_pdf_bytes(&locked, "wrong-pw", &ctx);
+        assert!(wrong_decrypt.is_err());
+        if let Err(err) = wrong_decrypt {
+            assert_eq!(err.diagnostic.code, ErrorCode::FmtDrm);
+        }
+
+        let unlocked = decrypt_pdf_bytes(&locked, "open-secret", &ctx)?;
+        let unlocked_sec = inspect_pdf_security(&unlocked, None)?;
+        assert!(!unlocked_sec.is_encrypted);
+        let recovered_text = Document::load_mem(&unlocked)?.extract_text(&[1])?;
+        assert!(recovered_text.contains("Confidential Balance Sheet"));
+
+        let aes128_opts = PdfProtectionOptions {
+            user_password: None,
+            owner_password: String::from("owner-only-128"),
+            algorithm: PdfEncryptionAlgorithm::Aes128,
+            permissions: PdfPermissions::read_only(),
+            encrypt_metadata: true,
+        };
+        let owner_locked = encrypt_pdf_bytes(&plain, &aes128_opts, &ctx)?;
+        let owner_sec = inspect_pdf_security(&owner_locked, Some("owner-only-128"))?;
+        assert!(owner_sec.is_encrypted);
+        assert_eq!(owner_sec.version, Some(4));
+        assert_eq!(owner_sec.key_bits, Some(128));
+        assert_eq!(owner_sec.password_verified, Some(true));
+        let owner_unlocked = decrypt_pdf_bytes(&owner_locked, "owner-only-128", &ctx)?;
+        assert!(
+            Document::load_mem(&owner_unlocked)?
+                .extract_text(&[1])?
+                .contains("Confidential")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn verifies_pdf_digital_signatures_and_detects_post_sign_tampering()
+    -> Result<(), Box<dyn Error>> {
+        let ctx = JobContext::new("pdf-sig", ResourceLimits::default());
+        let unsigned = build_simple_text_pdf_bytes(&["Unsigned contract"]);
+        let unsigned_rep = verify_pdf_signatures(&unsigned, &ctx)?;
+        assert!(!unsigned_rep.has_signatures);
+        assert_eq!(unsigned_rep.signature_count, 0);
+
+        let mut signed_doc = Document::with_version("1.5");
+        let root_pages_id = signed_doc.new_object_id();
+        let leaf_page_id = signed_doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => root_pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+        });
+        let sig_id = signed_doc.add_object(dictionary! {
+            "Type" => "Sig",
+            "Filter" => "Adobe.PPKLite",
+            "SubFilter" => "adbe.pkcs7.detached",
+            "Name" => Object::string_literal("FileFusion Signer"),
+            "Reason" => Object::string_literal("Integrity Test"),
+            "ByteRange" => vec![
+                0.into(),
+                1_000_000_000.into(),
+                1_000_000_000.into(),
+                1_000_000_000.into(),
+            ],
+            "Contents" => Object::String(vec![0x30, 0x06, 0x06, 0x02, 0x2A, 0x03], lopdf::StringFormat::Hexadecimal),
+        });
+        let field_id = signed_doc.add_object(dictionary! {
+            "FT" => "Sig",
+            "T" => Object::string_literal("Signature1"),
+            "V" => sig_id,
+        });
+        signed_doc.objects.insert(
+            root_pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![leaf_page_id.into()],
+                "Count" => 1,
+            }),
+        );
+        let cat_id = signed_doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => root_pages_id,
+            "AcroForm" => dictionary! { "Fields" => vec![field_id.into()] },
+        });
+        signed_doc.trailer.set("Root", cat_id);
+        let mut raw_signed = Vec::new();
+        signed_doc.save_to(&mut raw_signed)?;
+
+        let hole_start = raw_signed
+            .windows(14)
+            .position(|w| w == b"<300606022A03>" || w == b"<300606022a03>")
+            .ok_or("missing hex Contents placeholder")?;
+        let hole_end = hole_start + 14;
+        let placeholder = b"[0 1000000000 1000000000 1000000000]";
+        let br_pos = raw_signed
+            .windows(placeholder.len())
+            .position(|w| w == placeholder)
+            .ok_or("missing ByteRange placeholder")?;
+        let len2 = raw_signed.len() - hole_end;
+        let replacement = format!("[0 {hole_start} {hole_end} {len2}]");
+        let padded = format!("{replacement:<width$}", width = placeholder.len());
+        raw_signed[br_pos..br_pos + placeholder.len()].copy_from_slice(padded.as_bytes());
+
+        let rep = verify_pdf_signatures(&raw_signed, &ctx)?;
+        assert!(rep.has_signatures);
+        assert_eq!(rep.signature_count, 1);
+        assert!(rep.all_byte_ranges_intact);
+        assert_eq!(
+            rep.signatures[0].status,
+            PdfSignatureStatus::SignedByteRangeIntact
+        );
+        assert_eq!(rep.signatures[0].field_name.as_deref(), Some("Signature1"));
+
+        let mut tampered = raw_signed.clone();
+        tampered.extend_from_slice(b"\n% post-sign tamper\n");
+        let tampered_rep = verify_pdf_signatures(&tampered, &ctx)?;
+        assert!(!tampered_rep.all_byte_ranges_intact);
+        assert_eq!(
+            tampered_rep.signatures[0].status,
+            PdfSignatureStatus::SignedTamperedAfterSigning
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parses_ocr_tsv_hocr_and_embeds_searchable_text_overlay() -> Result<(), Box<dyn Error>> {
+        let tsv = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n\
+                   5\t1\t1\t1\t1\t1\t40\t60\t120\t24\t96.5\tINVOICE\n\
+                   5\t1\t1\t1\t1\t2\t180\t60\t90\t24\t92.0\tTOTAL\n";
+        let page_ocr = parse_tesseract_tsv(1, 800, 1000, tsv)?;
+        assert_eq!(page_ocr.words.len(), 2);
+        assert_eq!(page_ocr.plain_text, "INVOICE TOTAL");
+        assert!(page_ocr.mean_confidence > 90.0);
+
+        let hocr = r"<html><body><span class='ocrx_word' title='bbox 10 20 110 50; x_wconf 88'>Sample</span></body></html>";
+        let hocr_res = parse_tesseract_hocr(1, 400, 400, hocr)?;
+        assert_eq!(hocr_res.words.len(), 1);
+        assert_eq!(hocr_res.words[0].width_px, 100);
+        assert_eq!(hocr_res.words[0].text, "Sample");
+
+        let img = image::RgbImage::from_pixel(32, 32, image::Rgb([220, 220, 220]));
+        let mut png_cur = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgb8(img).write_to(&mut png_cur, image::ImageFormat::Png)?;
+
+        let ctx = JobContext::new("pdf-ocr-overlay", ResourceLimits::default());
+        let searchable =
+            build_searchable_pdf_from_image_and_ocr(&png_cur.into_inner(), &page_ocr, &ctx)?;
+        let extracted_images = extract_pdf_page_images(&searchable, &ctx)?;
+        assert_eq!(extracted_images.len(), 1);
+        let text = Document::load_mem(&searchable)?.extract_text(&[1])?;
+        assert!(text.contains("INVOICE"));
+        assert!(text.contains("TOTAL"));
+
+        Ok(())
+    }
+
+    #[cfg(feature = "native-process")]
+    #[test]
+    fn tesseract_adapter_and_qpdf_crypto_builders_work_with_mock_runner()
+    -> Result<(), Box<dyn Error>> {
+        use file_core::{ProcessInvocation, ProcessOutput};
+
+        struct StubTesseractRunner;
+        impl IsolatedProcessRunner for StubTesseractRunner {
+            fn run_isolated(
+                &self,
+                invocation: &ProcessInvocation,
+                ctx: &JobContext,
+            ) -> FileFusionResult<ProcessOutput> {
+                ctx.check_cancelled()?;
+                assert!(invocation.args.iter().any(|a| a == "eng"));
+                assert!(invocation.args.iter().any(|a| a == "tsv"));
+                let tsv = "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext\n\
+                           5\t1\t1\t1\t1\t1\t4\t6\t16\t8\t97.0\tSCANNED_OK\n";
+                Ok(ProcessOutput {
+                    exit_code: 0,
+                    stdout: tsv.as_bytes().to_vec(),
+                    stderr: Vec::new(),
+                    duration_ms: 8,
+                    timed_out: false,
+                })
+            }
+        }
+
+        let mut scan_doc = Document::with_version("1.5");
+        let scan_pages_id = scan_doc.new_object_id();
+        let img_id = scan_doc.add_object(Stream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => 24,
+                "Height" => 24,
+                "ColorSpace" => "DeviceRGB",
+                "BitsPerComponent" => 8,
+            },
+            vec![180u8; 24 * 24 * 3],
+        ));
+        let res_id = scan_doc.add_object(dictionary! {
+            "XObject" => dictionary! { "Im0" => img_id },
+        });
+        let draw_ops = Content {
+            operations: vec![Operation::new("Do", vec!["Im0".into()])],
+        };
+        let stream_id = scan_doc.add_object(Stream::new(dictionary! {}, draw_ops.encode()?));
+        let leaf_page_id = scan_doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => scan_pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 200.into(), 200.into()],
+            "Resources" => res_id,
+            "Contents" => stream_id,
+        });
+        scan_doc.objects.insert(
+            scan_pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![leaf_page_id.into()],
+                "Count" => 1,
+            }),
+        );
+        let cat_id = scan_doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => scan_pages_id,
+        });
+        scan_doc.trailer.set("Root", cat_id);
+        let mut scanned_bytes = Vec::new();
+        scan_doc.save_to(&mut scanned_bytes)?;
+
+        let ctx = JobContext::new("ocr-runner", ResourceLimits::default());
+        let adapter = TesseractAdapter::new(PathBuf::from("tesseract"));
+        let runner = StubTesseractRunner;
+        let (searchable_pdf, ocr_doc) = adapter.make_pdf_searchable_with_runner(
+            &scanned_bytes,
+            &OcrOptions::default(),
+            &runner,
+            &ctx,
+        )?;
+        assert_eq!(ocr_doc.full_text, "SCANNED_OK");
+        let status = inspect_pdf_scan_status(&searchable_pdf)?;
+        assert!(!status.is_scanned_image_only);
+        assert!(
+            Document::load_mem(&searchable_pdf)?
+                .extract_text(&[1])?
+                .contains("SCANNED_OK")
+        );
+
+        let enc_inv = build_qpdf_encrypt_invocation(
+            Path::new("qpdf"),
+            Path::new("in.pdf"),
+            Path::new("out.pdf"),
+            "user",
+            "owner",
+            PdfPermissions::restricted_print_only(),
+            30,
+        );
+        assert!(enc_inv.args.iter().any(|a| a == "--encrypt"));
+        let dec_inv = build_qpdf_decrypt_invocation(
+            Path::new("qpdf"),
+            Path::new("locked.pdf"),
+            Path::new("plain.pdf"),
+            "user",
+            30,
+        );
+        assert!(dec_inv.args.iter().any(|a| a == "--decrypt"));
 
         Ok(())
     }
