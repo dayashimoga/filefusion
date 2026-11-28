@@ -442,3 +442,14 @@
 - [x] `[4.2.2]` Re-export PDF Studio & OCR APIs from L4 `crates/optimization-engine/src/lib.rs` and add L5 coordinator methods (`JobManager::{pdf_merge, pdf_split, pdf_reorder, pdf_rotate, pdf_crop, pdf_watermark, pdf_scan_check, pdf_verify_signatures, pdf_inspect_security, pdf_ocr}`) in `crates/job-manager/src/stage4.rs` (`MOD-RULE-03`, `tier2-tesseract` `EngMissing` gating).
 - [x] `[4.2.2]` Implement Stage 4 CLI commands in `apps/cli/src/{stage4_cmds.rs,main.rs}`: `filefusion pdf <merge|split|reorder|rotate|crop|watermark|scan-check|verify-sig|security|ocr|protect|unlock>`, `filefusion repair`, `filefusion metadata <inspect|scrub|edit>`, `filefusion encrypt`, and `filefusion decrypt` with `--passphrase` / `--passphrase-env`, JSON/human output, boxed heavy CLI subcommand enums, and an `8 MiB` `std::thread::Builder` runner stack.
 - [x] `[4.2.2]` Add 4 Stage 4 CLI & security/recovery corpus E2E tests in `apps/cli/tests/cli_smoke.rs` (`cli_pdf_studio_merge_split_rotate_crop_and_watermark_e2e`, `cli_pdf_security_scan_verify_protect_and_unlock_e2e`, `cli_repair_corpus_recovers_corrupt_pdf_and_zip_and_rejects_noise`, `cli_metadata_encrypt_decrypt_and_ffenc_tamper_security_corpus`), backfill `4f3f737` (`stage-4.2.1`) in `docs/PROGRESS.md`, verify `120` native / `61` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 047 to `TODO.md` / `CHANGELOG.md`.
+
+
+
+---
+
+## [2026-11-28] Entry 048 — Stage 5 Subphase 5.1.1 Exact Duplicate Scanner, Streaming FastCDC, Perceptual Clustering & Storage Treemap (`optimization-engine`)
+
+### Completed in Subphase 5.1.1
+- [x] `[5.1.1]` Upgrade `crates/optimization-engine/src/dedup.rs` with bounded-memory streaming `FastCDC` (`chunk_stream_fastcdc` preserving identical cuts to `chunk_bytes_fastcdc` without whole-file buffering, `NFR-PERF-001`), `compute_image_ahash`, and `compute_perceptual_hash_set` (`aHash`, `dHash`, `pHash`, `FR-DET-004`).
+- [x] `[5.1.1]` Implement `crates/optimization-engine/src/storage.rs` delivering 3-stage exact duplicate scanning (`scan_exact_duplicates`: size bucketing -> `4 KB` head/tail partial hash -> full `64 KB` streaming `BLAKE3`, `FR-DUP-001`), perceptual near-duplicate image clustering (`scan_near_duplicate_images`, `FR-DUP-002`), and bounded hierarchical directory treemap + domain/format analytics (`analyze_storage_treemap`).
+- [x] `[5.1.1]` Re-export Stage 5 storage intelligence APIs in `crates/optimization-engine/src/lib.rs`, initialize the Stage 5 subphase queue and backfill `a4f9b9f` (`stage-4.2.2`) in `docs/PROGRESS.md`, verify `122` native / `63` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 048 to `TODO.md` / `CHANGELOG.md`.

@@ -1,5 +1,5 @@
-//! `FastCDC` content-defined chunking and perceptual image similarity hashing (`pHash` / `dHash`)
-//! for storage deduplication analytics (`FR-DUP-002`, `FR-DET-004`).
+//! `FastCDC` content-defined chunking and perceptual image similarity hashing
+//! (`aHash` / `dHash` / `pHash`) for storage deduplication analytics (`FR-DUP-002`, `FR-DET-004`).
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -10,6 +10,8 @@ use file_core::{FileFusionResult, JobContext};
 use image::DynamicImage;
 use image::imageops::FilterType;
 use serde::{Deserialize, Serialize};
+
+const STREAM_READ_WINDOW_BYTES: usize = 65_536;
 
 /// `FastCDC` chunk-size bounds (defaults: `min=4 KB`, `avg=16 KB`, `max=64 KB`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,6 +60,17 @@ pub struct CdcDeduplicationReport {
     pub unique_chunk_count: usize,
 }
 
+/// Combined 64-bit perceptual image fingerprint bundle (`aHash`, `dHash`, `pHash`) (`FR-DET-004`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PerceptualHashSet {
+    /// 64-bit average luminance hash.
+    pub ahash: u64,
+    /// 64-bit horizontal gradient difference hash.
+    pub dhash: u64,
+    /// 64-bit 2D DCT-II perceptual hash.
+    pub phash: u64,
+}
+
 /// Deterministic 256-entry 64-bit Gear hash lookup table generated cleanly at compile time.
 const GEAR_TABLE: [u64; 256] = {
     let mut table = [0u64; 256];
@@ -75,6 +88,29 @@ const GEAR_TABLE: [u64; 256] = {
     table
 };
 
+fn normalize_cdc_params(cfg: FastCdcConfig) -> (usize, usize, u64) {
+    let min_sz = cfg.min_size.max(64);
+    let avg_sz = cfg.avg_size.max(min_sz);
+    let max_sz = cfg.max_size.max(avg_sz);
+    let mask = avg_sz.next_power_of_two().saturating_sub(1) as u64;
+    (min_sz, max_sz, mask)
+}
+
+fn find_cdc_cut(slice: &[u8], min_sz: usize, max_sz: usize, mask: u64) -> usize {
+    if slice.len() <= min_sz {
+        return slice.len();
+    }
+    let cap = slice.len().min(max_sz);
+    let mut hash = 0u64;
+    for (rel, &byte) in slice[..cap].iter().enumerate() {
+        hash = (hash << 1).wrapping_add(GEAR_TABLE[usize::from(byte)]);
+        if rel + 1 >= min_sz && (hash & mask) == 0 {
+            return rel + 1;
+        }
+    }
+    cap
+}
+
 /// Slices `data` into content-defined [`CdcChunk`] records using normalized `FastCDC` Gear hashing.
 ///
 /// Resets rolling hash on chunk boundaries so identical regions shifted by prefix insertions/deletions
@@ -84,46 +120,79 @@ pub fn chunk_bytes_fastcdc(data: &[u8], cfg: FastCdcConfig) -> Vec<CdcChunk> {
     if data.is_empty() {
         return Vec::new();
     }
-    let min_sz = cfg.min_size.max(64);
-    let avg_sz = cfg.avg_size.max(min_sz);
-    let max_sz = cfg.max_size.max(avg_sz);
-    let mask = avg_sz.next_power_of_two().saturating_sub(1) as u64;
-
+    let (min_sz, max_sz, mask) = normalize_cdc_params(cfg);
     let mut chunks = Vec::new();
     let mut start = 0usize;
-    while start < data.len() {
-        let remaining = data.len() - start;
-        let end = if remaining <= min_sz {
-            data.len()
-        } else {
-            let cap = remaining.min(max_sz);
-            let mut hash = 0u64;
-            let mut cut = cap;
-            for (rel, &byte) in data[start..start + cap].iter().enumerate() {
-                hash = (hash << 1).wrapping_add(GEAR_TABLE[usize::from(byte)]);
-                if rel + 1 >= min_sz && (hash & mask) == 0 {
-                    cut = rel + 1;
-                    break;
-                }
-            }
-            start + cut
-        };
 
-        let slice = &data[start..end];
+    while start < data.len() {
+        let cut = find_cdc_cut(&data[start..], min_sz, max_sz, mask);
+        let slice = &data[start..start + cut];
         let digest = blake3::hash(slice);
         chunks.push(CdcChunk {
             offset: u64::try_from(start).unwrap_or(u64::MAX),
             length: slice.len(),
             blake3_hex: digest.to_hex().to_string(),
         });
-        start = end;
+        start += cut;
     }
 
     chunks
 }
 
+/// Streams any `Read` source through a bounded sliding window emitting exact `FastCDC` chunks
+/// equivalent to [`chunk_bytes_fastcdc`] without loading the whole stream into memory (`NFR-PERF-001`).
+///
+/// # Errors
+/// Returns [`file_core::FileFusionError`] on I/O failure, callback error, or cancellation.
+pub fn chunk_stream_fastcdc<R, F>(
+    reader: &mut R,
+    cfg: FastCdcConfig,
+    ctx: &JobContext,
+    mut on_chunk: F,
+) -> FileFusionResult<()>
+where
+    R: Read,
+    F: FnMut(CdcChunk) -> FileFusionResult<()>,
+{
+    let (min_sz, max_sz, mask) = normalize_cdc_params(cfg);
+    let target_buf_len = max_sz.saturating_mul(2).max(STREAM_READ_WINDOW_BYTES);
+    let mut buf = Vec::with_capacity(target_buf_len);
+    let mut scratch = vec![0u8; STREAM_READ_WINDOW_BYTES];
+    let mut eof = false;
+    let mut offset = 0u64;
+
+    loop {
+        while !eof && buf.len() < max_sz {
+            ctx.check_cancelled()?;
+            let to_read = (target_buf_len - buf.len()).min(scratch.len()).max(1);
+            let n = reader.read(&mut scratch[..to_read])?;
+            if n == 0 {
+                eof = true;
+            } else {
+                buf.extend_from_slice(&scratch[..n]);
+            }
+        }
+        if buf.is_empty() {
+            break;
+        }
+        ctx.check_cancelled()?;
+
+        let cut = find_cdc_cut(&buf, min_sz, max_sz, mask);
+        let digest = blake3::hash(&buf[..cut]);
+        on_chunk(CdcChunk {
+            offset,
+            length: cut,
+            blake3_hex: digest.to_hex().to_string(),
+        })?;
+        buf.drain(..cut);
+        offset = offset.saturating_add(u64::try_from(cut).unwrap_or(0));
+    }
+
+    Ok(())
+}
+
 /// Scans one or more file paths with bounded streaming reads and aggregates sub-file
-/// `FastCDC` deduplication statistics (`FR-DUP-002`).
+/// `FastCDC` deduplication statistics (`FR-DUP-002`, `NFR-PERF-001`).
 ///
 /// # Errors
 /// Returns [`file_core::FileFusionError`] on I/O failures or job cancellation.
@@ -138,11 +207,7 @@ pub fn analyze_files_fastcdc(
     for path in paths {
         ctx.check_cancelled()?;
         let mut file = File::open(path)?;
-        let mut buf = Vec::new();
-        file.read_to_end(&mut buf)?;
-        let chunks = chunk_bytes_fastcdc(&buf, cfg);
-        for chunk in chunks {
-            ctx.check_cancelled()?;
+        chunk_stream_fastcdc(&mut file, cfg, ctx, |chunk| {
             report.total_bytes = report
                 .total_bytes
                 .saturating_add(u64::try_from(chunk.length).unwrap_or(0));
@@ -154,11 +219,31 @@ pub fn analyze_files_fastcdc(
                 report.unique_chunk_count = report.unique_chunk_count.saturating_add(1);
                 entry.insert(chunk.length);
             }
-        }
+            Ok(())
+        })?;
     }
 
     report.duplicate_bytes = report.total_bytes.saturating_sub(report.unique_bytes);
     Ok(report)
+}
+
+/// Computes a 64-bit average luminance hash (`aHash`) over an `8x8` grayscale thumbnail
+/// (`FR-DET-004`, `FR-DUP-002`).
+#[must_use]
+pub fn compute_image_ahash(img: &DynamicImage) -> u64 {
+    let small = img
+        .grayscale()
+        .resize_exact(8, 8, FilterType::Triangle)
+        .to_luma8();
+    let sum: u64 = small.pixels().map(|p| u64::from(p[0])).sum();
+    let mean = sum / 64;
+    let mut hash = 0u64;
+    for (bit, pixel) in small.pixels().enumerate() {
+        if bit < 64 && u64::from(pixel[0]) >= mean {
+            hash |= 1u64 << bit;
+        }
+    }
+    hash
 }
 
 /// Computes a 64-bit horizontal difference hash (`dHash`) resilient to resizing and mild
@@ -234,6 +319,16 @@ pub fn compute_image_phash(img: &DynamicImage) -> u64 {
         }
     }
     hash
+}
+
+/// Computes `aHash`, `dHash`, and `pHash` together for a decoded raster image (`FR-DET-004`).
+#[must_use]
+pub fn compute_perceptual_hash_set(img: &DynamicImage) -> PerceptualHashSet {
+    PerceptualHashSet {
+        ahash: compute_image_ahash(img),
+        dhash: compute_image_dhash(img),
+        phash: compute_image_phash(img),
+    }
 }
 
 /// Returns the Hamming bit distance (`0..=64`) between two perceptual hashes.

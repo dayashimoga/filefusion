@@ -397,3 +397,13 @@
 - **Added:** Stage 4 CLI surface (`apps/cli/src/stage4_cmds.rs` wired via `apps/cli/src/main.rs`) delivering `filefusion pdf <merge|split|reorder|rotate|crop|watermark|scan-check|verify-sig|security|ocr|protect|unlock>`, `filefusion repair`, `filefusion metadata <inspect|scrub|edit>`, `filefusion encrypt`, and `filefusion decrypt` (`--passphrase` / `--passphrase-env`, `--json`, `--overwrite`).
 - **Added:** L5 `JobManager` PDF Studio & OCR coordinator methods (`crates/job-manager/src/stage4.rs`), clean L4 PDF Studio/OCR re-exports (`crates/optimization-engine/src/lib.rs`), and 4 end-to-end Stage 4 CLI security & recovery corpus integration tests in `apps/cli/tests/cli_smoke.rs` (13 total `cli_smoke` tests, `120` total native workspace tests, `61` WASM-featured tests).
 - **Changed:** Boxed heavy `Commands::{Repair, Encrypt, Decrypt}` variants and wrapped `apps/cli/src/main.rs` execution in an `8 MiB` `std::thread::Builder` stack to prevent Windows debug main-thread stack overflows; backfilled `4f3f737` (`stage-4.2.1`) in `docs/PROGRESS.md`, and appended Entry 047 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.
+
+
+
+---
+
+## [0.5.1-stage5.1.1] — 2026-11-28
+
+### Subphase 5.1.1 — Multi-Stage Exact Duplicate Scanner, Streaming `FastCDC`, Perceptual Clustering & Storage Treemap (`optimization-engine`, `L4`)
+- **Added:** Stage 5 storage intelligence module (`crates/optimization-engine/src/storage.rs`) delivering 3-stage exact duplicate detection (`scan_exact_duplicates`: size -> `4 KB` head/tail partial hash -> full streaming `BLAKE3` with I/O savings metrics, `FR-DUP-001`), perceptual near-duplicate image clustering (`scan_near_duplicate_images` across `aHash`/`dHash`/`pHash` with keeper selection, `FR-DUP-002`), and directory treemap / domain / format disk analytics (`analyze_storage_treemap`), re-exported from `crates/optimization-engine/src/lib.rs`.
+- **Changed:** Upgraded `analyze_files_fastcdc` in `crates/optimization-engine/src/dedup.rs` to bounded sliding-window streaming via `chunk_stream_fastcdc` (`NFR-PERF-001`) alongside `compute_image_ahash` and `compute_perceptual_hash_set` (`FR-DET-004`); initialized Stage 5 queue (`5.1.1`..`5.2.2`) and backfilled `a4f9b9f` (`stage-4.2.2`) in `docs/PROGRESS.md`, expanded `optimization-engine` to 8 tests (`122` native / `63` WASM passing), and appended Entry 048 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.

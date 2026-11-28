@@ -11,6 +11,7 @@ pub mod recommender;
 pub mod repair;
 pub mod security;
 pub mod solver;
+pub mod storage;
 
 pub use compression_archive::{
     FFENC_MAGIC, FfencCipherSuite, FfencHeaderInfo, FfencKdfParams, ZipHealthReport,
@@ -30,9 +31,9 @@ pub use compression_pdf::{
     split_pdf_every_n_pages, verify_pdf_signatures,
 };
 pub use dedup::{
-    CdcChunk, CdcDeduplicationReport, FastCdcConfig, analyze_files_fastcdc,
-    are_perceptually_similar, chunk_bytes_fastcdc, compute_image_dhash, compute_image_phash,
-    hamming_distance_u64,
+    CdcChunk, CdcDeduplicationReport, FastCdcConfig, PerceptualHashSet, analyze_files_fastcdc,
+    are_perceptually_similar, chunk_bytes_fastcdc, chunk_stream_fastcdc, compute_image_ahash,
+    compute_image_dhash, compute_image_phash, compute_perceptual_hash_set, hamming_distance_u64,
 };
 pub use dispatcher::{
     ArchiveContainerKind, ArchiveExtractionReport, ArchiveInputEntry, ArchiveMemberMetadata,
@@ -58,6 +59,12 @@ pub use security::{
 pub use solver::{
     QualityTargetConstraint, QuantizerProbeSample, SolverResult, SolverTrial, solve_and_stage_jpeg,
     solve_jpeg_quality_target, solve_quantizer_binary_search,
+};
+pub use storage::{
+    DirectoryUsageNode, DomainStorageBreakdown, DuplicateScanOptions, ExactDuplicateGroup,
+    ExactDuplicateScanReport, FormatStorageBreakdown, LargestFileItem, NearDuplicateCluster,
+    NearDuplicateOptions, NearDuplicateScanReport, SimilarityMember, StorageTreemapReport,
+    analyze_storage_treemap, scan_exact_duplicates, scan_near_duplicate_images,
 };
 
 #[cfg(test)]
@@ -473,6 +480,132 @@ mod tests {
             fs::read(staged_dec.staged_path())?,
             fs::read(staged_meta.staged_path())?
         );
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn streaming_fastcdc_matches_slice_cuts_and_scans_multistage_exact_dups()
+    -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("stage5_exact_dup");
+        let sub = dir.join("nested");
+        let quarantine = dir.join(".filefusion-quarantine");
+        fs::create_dir_all(&sub)?;
+        fs::create_dir_all(&quarantine)?;
+        let ctx = JobContext::new("opt-s5-exact", ResourceLimits::default());
+
+        // Pseudo-random deterministic 140 KB payload to test multi-chunk streaming FastCDC parity.
+        let mut payload = vec![0u8; 140 * 1024];
+        let mut rng = 0x9E37_79B9_7F4A_7C15u64;
+        for b in &mut payload {
+            rng = rng.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            *b = u8::try_from((rng >> 56) & 0xff).unwrap_or(0);
+        }
+        let slice_chunks = chunk_bytes_fastcdc(&payload, FastCdcConfig::default());
+        let mut cursor = std::io::Cursor::new(&payload);
+        let mut stream_chunks = Vec::new();
+        chunk_stream_fastcdc(&mut cursor, FastCdcConfig::default(), &ctx, |c| {
+            stream_chunks.push(c);
+            Ok(())
+        })?;
+        assert_eq!(slice_chunks, stream_chunks);
+
+        // 1. Exact duplicate triplet (24 KB each).
+        let dup_payload = payload[..24 * 1024].to_vec();
+        fs::write(dir.join("dup_a.bin"), &dup_payload)?;
+        fs::write(sub.join("dup_b.bin"), &dup_payload)?;
+        fs::write(sub.join("dup_c.bin"), &dup_payload)?;
+        // Quarantined copy must be ignored by default.
+        fs::write(quarantine.join("dup_quarantined.bin"), &dup_payload)?;
+
+        // 2. Same 24 KB size & identical 4 KB head+tail, differing only in middle byte -> Stage 3 prune.
+        let mut mid_diff = dup_payload.clone();
+        mid_diff[12 * 1024] ^= 0xff;
+        fs::write(dir.join("same_ends_diff_mid.bin"), &mid_diff)?;
+
+        // 3. Two 24 KB files differing only in final byte -> Stage 2 partial hash prune.
+        let mut tail_diff = dup_payload.clone();
+        tail_diff[24 * 1024 - 1] ^= 0x55;
+        fs::write(dir.join("diff_tail.bin"), &tail_diff)?;
+
+        // 4. Unique-size 30 KB file -> Stage 1 size prune (0 reads).
+        fs::write(dir.join("unique_30k.bin"), &payload[..30 * 1024])?;
+        // 5. Zero-byte stub skipped by default min_file_bytes=1.
+        fs::write(dir.join("empty.bin"), b"")?;
+
+        let report =
+            scan_exact_duplicates(&[dir.as_path()], &DuplicateScanOptions::default(), &ctx)?;
+        assert_eq!(report.files_scanned, 6);
+        assert_eq!(report.stage1_size_candidates, 5);
+        assert_eq!(report.stage2_partial_candidates, 4);
+        assert_eq!(report.files_full_hashed, 4);
+        assert!(report.bytes_actually_read < report.total_bytes_scanned);
+        assert_eq!(report.duplicate_groups.len(), 1);
+        assert_eq!(report.total_duplicate_files, 2);
+        assert_eq!(report.total_wasted_bytes, 48 * 1024);
+        assert_eq!(report.duplicate_groups[0].member_paths.len(), 3);
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn clusters_perceptual_near_duplicates_and_computes_storage_treemap()
+    -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("stage5_near_treemap");
+        let media = dir.join("media");
+        let docs = dir.join("docs");
+        fs::create_dir_all(&media)?;
+        fs::create_dir_all(&docs)?;
+        let ctx = JobContext::new("opt-s5-near", ResourceLimits::default());
+
+        // Smooth landscape gradient PNG + resized JPEG variant should cluster together.
+        let base_img = gradient_rgba_image(128, 96);
+        let base_png = media.join("hero_full.png");
+        let small_jpg = media.join("hero_thumb.jpg");
+        base_img.save(&base_png)?;
+        base_img
+            .resize_exact(64, 48, image::imageops::FilterType::Lanczos3)
+            .to_rgb8()
+            .save(&small_jpg)?;
+
+        // Visually orthogonal radial bullseye pattern must stay distinct.
+        let mut distinct = RgbaImage::new(128, 96);
+        for y in 0..96 {
+            for x in 0..128 {
+                let cx = i32::try_from(x).unwrap_or(0) - 64;
+                let cy = i32::try_from(y).unwrap_or(0) - 48;
+                let ring = ((cx * cx + cy * cy) / 48) % 2 == 0;
+                let v = if ring { 250 } else { 15 };
+                distinct.put_pixel(x, y, Rgba([v, 255 - v, v, 255]));
+            }
+        }
+        DynamicImage::ImageRgba8(distinct).save(media.join("bullseye.png"))?;
+
+        // Docs + zero-byte entry for treemap analytics.
+        fs::write(docs.join("notes.json"), br#"{"stage":5,"ok":true}"#)?;
+        fs::write(docs.join("empty.txt"), b"")?;
+
+        let near =
+            scan_near_duplicate_images(&[dir.as_path()], &NearDuplicateOptions::default(), &ctx)?;
+        assert_eq!(near.images_analyzed, 3);
+        assert_eq!(near.clusters.len(), 1);
+        assert_eq!(
+            near.clusters[0].keeper_path,
+            base_png.to_string_lossy().as_ref()
+        );
+        assert_eq!(near.clusters[0].members.len(), 2);
+
+        let tree =
+            analyze_storage_treemap(&[dir.as_path()], &DuplicateScanOptions::default(), 3, &ctx)?;
+        assert_eq!(tree.total_files, 5);
+        assert_eq!(tree.zero_byte_files, 1);
+        assert_eq!(tree.largest_files.len(), 3);
+        assert_eq!(tree.treemap_roots.len(), 1);
+        assert_eq!(tree.treemap_roots[0].file_count, 5);
+        assert!(tree.treemap_roots[0].children.len() >= 2);
+        assert_ne!(tree.domain_breakdown.len(), 0);
 
         let _ = fs::remove_dir_all(&dir);
         Ok(())
