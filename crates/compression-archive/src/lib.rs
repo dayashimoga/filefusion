@@ -36,10 +36,10 @@ pub use container::{
     read_archive_entries_checked,
 };
 pub use ffenc::{
-    FFENC_MAGIC, FfencCipherSuite, FfencKdfParams, decrypt_ffenc_bytes, decrypt_from_ffenc_file,
-    encrypt_ffenc_bytes, encrypt_to_ffenc_file,
+    FFENC_MAGIC, FfencCipherSuite, FfencHeaderInfo, FfencKdfParams, decrypt_ffenc_bytes,
+    decrypt_from_ffenc_file, encrypt_ffenc_bytes, encrypt_to_ffenc_file, inspect_ffenc_header,
 };
-pub use repair::{ZipRepairReport, repair_truncated_zip};
+pub use repair::{ZipHealthReport, ZipRepairReport, inspect_zip_health, repair_truncated_zip};
 pub use streams::{
     StreamCodec, compress_stream_bytes, decompress_stream_bounded, read_stream_bounded,
 };

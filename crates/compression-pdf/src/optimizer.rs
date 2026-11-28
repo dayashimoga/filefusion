@@ -162,6 +162,65 @@ pub fn optimize_pdf_bytes(
     Ok((out_buf, report))
 }
 
+/// Applies privacy scrubbing and/or explicit `/Info` metadata edits to an unencrypted PDF payload
+/// cleanly (`FR-MET-001`..`002`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] on empty, corrupt, or encrypted PDFs, or job cancellation.
+#[allow(clippy::too_many_arguments)]
+pub fn update_pdf_metadata_bytes(
+    raw_pdf: &[u8],
+    scrub_privacy: bool,
+    title: Option<Option<&str>>,
+    author: Option<Option<&str>>,
+    subject: Option<Option<&str>>,
+    keywords: Option<Option<&str>>,
+    creator_tool: Option<Option<&str>>,
+    ctx: &JobContext,
+) -> FileFusionResult<(Vec<u8>, bool)> {
+    ctx.check_cancelled()?;
+    let mut doc = crate::studio::load_unencrypted_pdf(raw_pdf)?;
+    let mut changed = false;
+    if scrub_privacy {
+        changed |= scrub_pdf_privacy_metadata(&mut doc);
+    }
+
+    let updates = [
+        ("Title", title),
+        ("Author", author),
+        ("Subject", subject),
+        ("Keywords", keywords),
+        ("Creator", creator_tool),
+    ];
+    let has_updates = updates.iter().any(|(_, v)| v.is_some());
+    if has_updates {
+        let info_id = if let Ok(id) = doc.trailer.get(b"Info").and_then(Object::as_reference) {
+            id
+        } else {
+            let id = doc.add_object(Dictionary::new());
+            doc.trailer.set("Info", Object::Reference(id));
+            id
+        };
+        if let Ok(info_dict) = doc.get_dictionary_mut(info_id) {
+            for (key, val_opt) in updates {
+                match val_opt {
+                    Some(Some(val)) => {
+                        info_dict.set(key, Object::string_literal(val));
+                        changed = true;
+                    }
+                    Some(None) if info_dict.remove(key.as_bytes()).is_some() => {
+                        changed = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    let out = crate::studio::serialize_pdf(&mut doc)?;
+    Ok((out, changed))
+}
+
 fn scrub_pdf_privacy_metadata(doc: &mut Document) -> bool {
     let mut scrubbed = false;
     if let Ok(Object::Reference(info_id)) = doc.trailer.get(b"Info").cloned() {

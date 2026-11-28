@@ -25,9 +25,10 @@ use zip::{CompressionMethod, ZipArchive};
 pub use container::{
     OfficeCompressionOptions, OfficeOptimizationStats, optimize_office_container,
     read_validated_zip_entries, requires_uncompressed_mimetype_first,
-    write_office_container_entries,
+    sanitize_and_edit_office_metadata, write_office_container_entries,
 };
 pub use xml::{
+    OfficeContainerMetadata, edit_metadata_xml, extract_office_metadata_from_entries,
     extract_visible_xml_text, is_optimizable_xml_entry, minify_xml_bytes, scrub_metadata_xml,
 };
 

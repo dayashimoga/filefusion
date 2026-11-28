@@ -9,6 +9,7 @@
 pub mod backends;
 pub mod progress;
 pub mod scheduler;
+pub mod stage4;
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -50,16 +51,23 @@ pub use hardware_acceleration::{
 };
 pub use optimization_engine::{
     ArchiveContainerKind, ArchiveExtractionReport, ArchiveInputEntry, ArchiveMemberMetadata,
-    ArchiveWriteSummary, CodecRecommendation, FastCdcConfig, OptimizationDispatcher,
-    QualityTargetConstraint, RecommendationHints, StreamCodec, archive_kind_from_output_path,
-    chunk_bytes_fastcdc, collect_archive_input_entries, compress_stream_bytes,
-    create_archive_from_entries, extract_archive_safely, list_archive_members, recommend_codec,
-    solve_and_stage_jpeg,
+    ArchiveWriteSummary, CodecRecommendation, EditableMetadataFields, FFENC_MAGIC, FastCdcConfig,
+    FfencCipherSuite, FfencHeaderInfo, FfencKdfParams, MetadataOperationReport,
+    OptimizationDispatcher, PdfEncryptionAlgorithm, PdfHealthReport, PdfPermissions,
+    PdfProtectionOptions, PdfRepairAssessment, PdfSecurityReport, PdfSignatureInfo,
+    PdfSignatureReport, PdfSignatureStatus, QualityTargetConstraint, RecommendationHints,
+    RecoverabilityClass, StreamCodec, UnifiedRepairDiagnosis, UnifiedRepairOutcome,
+    ZipHealthReport, ZipRepairReport, archive_kind_from_output_path, chunk_bytes_fastcdc,
+    collect_archive_input_entries, compress_stream_bytes, create_archive_from_entries,
+    decrypt_ffenc_bytes, encrypt_ffenc_bytes, extract_archive_safely, inspect_ffenc_header,
+    inspect_pdf_health, inspect_pdf_security, inspect_zip_health, list_archive_members,
+    recommend_codec, solve_and_stage_jpeg, verify_pdf_signatures,
 };
 pub use progress::{ProgressBus, ProgressBusStats, ProgressSubscription};
 pub use scheduler::{
     JobPriority, JobScheduler, ScheduledItemSpec, SchedulerController, SchedulerStats,
 };
+pub use stage4::{JobEncryptResult, JobMetadataResult, JobRepairResult};
 pub use validation_engine::{
     BombGuardError, MagicByteOutputValidator, PathSafetyError, validate_archive_member_path,
     validate_expansion_budget,
@@ -1295,6 +1303,109 @@ mod tests {
             blocked.err().map(|e| e.diagnostic.code),
             Some(ErrorCode::IntInvariant)
         );
+
+        let _ = std::fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn job_manager_orchestrates_repair_metadata_and_ffenc_crypto()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos());
+        let dir = std::env::temp_dir().join(format!("ff_jm_s4_{nanos}"));
+        std::fs::create_dir_all(&dir)?;
+
+        let manager = JobManager::default();
+        let ctx = manager.create_context("jm_stage4");
+
+        // 1. Corrupt ZIP missing trailing EOCD -> diagnose + atomic repair via JobManager.
+        let src_doc = dir.join("note.txt");
+        let good_zip = dir.join("good.zip");
+        let broken_zip = dir.join("broken.zip");
+        let fixed_zip = dir.join("fixed.zip");
+        std::fs::write(&src_doc, b"recoverable zip member content")?;
+        let _ = manager.create_archive(
+            &[src_doc],
+            &good_zip,
+            Some(FormatId::Zip),
+            CompressionProfile::BalancedOptimal,
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        let zip_raw = std::fs::read(&good_zip)?;
+        std::fs::write(&broken_zip, &zip_raw[..zip_raw.len() - 22])?;
+
+        let diag = manager.diagnose_repair(&broken_zip, &ctx)?;
+        assert_eq!(diag.recoverability, RecoverabilityClass::FullyRepairable);
+        let repair_res = manager.repair_file(
+            &broken_zip,
+            &fixed_zip,
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        assert_eq!(repair_res.outcome.items_recovered, 1);
+        let members = manager.list_archive(&fixed_zip, &ctx)?;
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].path, "note.txt");
+
+        // 2. .ffenc encrypt + inspect + decrypt via JobManager.
+        let enc_path = dir.join("fixed.ffenc");
+        let dec_path = dir.join("fixed_restored.zip");
+        let enc_res = manager.encrypt_ffenc(
+            &fixed_zip,
+            &enc_path,
+            b"stage4-pass",
+            FfencCipherSuite::Aes256Gcm,
+            FfencKdfParams::fast_test(),
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        assert_eq!(enc_res.algorithm_label, "ffenc-aes-256-gcm");
+        let hdr = manager.inspect_ffenc(&enc_path, &ctx)?;
+        assert_eq!(hdr.cipher_suite, FfencCipherSuite::Aes256Gcm);
+        let dec_res = manager.decrypt_ffenc(
+            &enc_path,
+            &dec_path,
+            b"stage4-pass",
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        assert_eq!(dec_res.output_bytes, std::fs::metadata(&fixed_zip)?.len());
+
+        // 3. Unified metadata inspect + edit via JobManager (DOCX via convert_file).
+        let md_path = dir.join("source.md");
+        let docx_path = dir.join("source.docx");
+        let clean_docx = dir.join("clean.docx");
+        std::fs::write(&md_path, "# Stage 4 Title\n\nBody paragraph.\n")?;
+        let _ = manager.convert_file(
+            &md_path,
+            &docx_path,
+            &ConversionRequest {
+                target_format: FormatId::Docx,
+                strip_metadata: false,
+                preserve_structure: true,
+                fail_on_breaking_loss: false,
+            },
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        let edits = EditableMetadataFields {
+            title: Some(Some(String::from("Audited Doc"))),
+            author: Some(Some(String::from("QA Team"))),
+            ..EditableMetadataFields::default()
+        };
+        let meta_res = manager.sanitize_and_edit_metadata(
+            &docx_path,
+            &clean_docx,
+            true,
+            Some(&edits),
+            CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        assert_eq!(meta_res.report.format, FormatId::Docx);
+        assert_eq!(meta_res.report.after.title.as_deref(), Some("Audited Doc"));
 
         let _ = std::fs::remove_dir_all(&dir);
         Ok(())

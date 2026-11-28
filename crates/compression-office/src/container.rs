@@ -16,7 +16,9 @@ use validation_engine::{validate_archive_member_path, validate_expansion_budget}
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
-use crate::xml::{is_optimizable_xml_entry, minify_xml_bytes, scrub_metadata_xml};
+use crate::xml::{
+    edit_metadata_xml, is_optimizable_xml_entry, minify_xml_bytes, scrub_metadata_xml,
+};
 
 /// Extended options governing `compression-office` structural and media optimization.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -64,6 +66,52 @@ pub struct OfficeOptimizationStats {
     pub xml_entries_minified: u32,
     /// Metadata documents scrubbed for privacy.
     pub metadata_entries_scrubbed: u32,
+}
+
+/// Scrubs identifying metadata XML and/or applies explicit metadata field edits inside an `OOXML`,
+/// `ODF`, or `EPUB` container while enforcing traversal/bomb limits and preserving `mimetype` order
+/// (`FR-MET-002`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] on invalid ZIP syntax, traversal/bomb violation, or cancellation.
+#[allow(clippy::too_many_arguments)]
+pub fn sanitize_and_edit_office_metadata(
+    raw_zip: &[u8],
+    format: FormatId,
+    scrub_privacy: bool,
+    title: Option<Option<&str>>,
+    author: Option<Option<&str>>,
+    subject: Option<Option<&str>>,
+    keywords: Option<Option<&str>>,
+    limits: &ResourceLimits,
+    ctx: &JobContext,
+) -> FileFusionResult<(Vec<u8>, bool)> {
+    ctx.check_cancelled()?;
+    let entries = read_validated_zip_entries(raw_zip, limits, ctx)?;
+    let mut changed = false;
+    let mut out_entries = Vec::with_capacity(entries.len());
+
+    for (name, mut payload) in entries {
+        ctx.check_cancelled()?;
+        if scrub_privacy {
+            if let Some(scrubbed) = scrub_metadata_xml(&name, &payload) {
+                if scrubbed != payload {
+                    payload = scrubbed;
+                    changed = true;
+                }
+            }
+        }
+        if let Some(edited) = edit_metadata_xml(&name, &payload, title, author, subject, keywords) {
+            if edited != payload {
+                payload = edited;
+                changed = true;
+            }
+        }
+        out_entries.push((name, payload));
+    }
+
+    let repackaged = write_office_container_entries(&out_entries, format, ctx)?;
+    Ok((repackaged, changed))
 }
 
 /// Checks whether a container format requires an uncompressed `mimetype` entry written first.

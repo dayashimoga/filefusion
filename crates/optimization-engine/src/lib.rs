@@ -6,9 +6,22 @@
 
 pub mod dedup;
 pub mod dispatcher;
+pub mod metadata;
 pub mod recommender;
+pub mod repair;
+pub mod security;
 pub mod solver;
 
+pub use compression_archive::{
+    FFENC_MAGIC, FfencCipherSuite, FfencHeaderInfo, FfencKdfParams, ZipHealthReport,
+    ZipRepairReport, decrypt_ffenc_bytes, encrypt_ffenc_bytes, inspect_ffenc_header,
+    inspect_zip_health,
+};
+pub use compression_pdf::{
+    PdfEncryptionAlgorithm, PdfHealthReport, PdfPermissions, PdfProtectionOptions,
+    PdfRepairAssessment, PdfSecurityReport, PdfSignatureInfo, PdfSignatureReport,
+    PdfSignatureStatus, inspect_pdf_health, inspect_pdf_security, verify_pdf_signatures,
+};
 pub use dedup::{
     CdcChunk, CdcDeduplicationReport, FastCdcConfig, analyze_files_fastcdc,
     are_perceptually_similar, chunk_bytes_fastcdc, compute_image_dhash, compute_image_phash,
@@ -20,7 +33,21 @@ pub use dispatcher::{
     collect_archive_input_entries, compress_stream_bytes, create_archive_from_entries,
     extract_archive_safely, list_archive_members,
 };
+pub use metadata::{
+    EditableMetadataFields, MetadataOperationReport, inspect_unified_metadata,
+    sanitize_and_edit_metadata_to_staged,
+};
 pub use recommender::{CodecRecommendation, RecommendationHints, recommend_codec};
+#[cfg(feature = "native-process")]
+pub use repair::repair_file_to_staged;
+pub use repair::{
+    RecoverabilityClass, UnifiedRepairDiagnosis, UnifiedRepairOutcome,
+    diagnose_file_recoverability, repair_file_to_staged_tier1,
+};
+pub use security::{
+    decrypt_ffenc_file_to_staged, decrypt_pdf_file_to_staged, encrypt_file_to_ffenc_staged,
+    encrypt_pdf_file_to_staged, inspect_ffenc_file,
+};
 pub use solver::{
     QualityTargetConstraint, QuantizerProbeSample, SolverResult, SolverTrial, solve_and_stage_jpeg,
     solve_jpeg_quality_target, solve_quantizer_binary_search,
@@ -290,6 +317,155 @@ mod tests {
         let out = dispatcher.compress(&source, &staged, &req, &ctx)?;
         assert_eq!(out.status, CompressionStatus::Optimized);
         assert!(out.bytes_out < out.bytes_in);
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn diagnoses_and_repairs_truncated_pdf_zip_and_unfinalized_mp4() -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("repair_orch");
+        let ctx = JobContext::new("opt-repair", ResourceLimits::default());
+
+        // 1. Truncated PDF missing trailing startxref / %%EOF -> diagnosed FullyRepairable & repaired natively.
+        let healthy_pdf = compression_pdf::build_simple_text_pdf_bytes(&["Stage 4 Recovery"]);
+        let cut_pos = healthy_pdf
+            .windows(4)
+            .position(|w| w == b"xref")
+            .ok_or("missing xref in generated PDF")?;
+        let broken_pdf_path = dir.join("broken.pdf");
+        let fixed_pdf_path = dir.join("fixed.pdf");
+        fs::write(&broken_pdf_path, &healthy_pdf[..cut_pos])?;
+
+        let diag_pdf = diagnose_file_recoverability(&broken_pdf_path, &ctx)?;
+        assert_eq!(diag_pdf.detected_format, FormatId::Pdf);
+        assert_eq!(
+            diag_pdf.recoverability,
+            RecoverabilityClass::FullyRepairable
+        );
+
+        let staged_pdf = StagedPath::create_sibling(&fixed_pdf_path)?;
+        let pdf_out = repair_file_to_staged_tier1(
+            &broken_pdf_path,
+            &staged_pdf,
+            &ResourceLimits::default(),
+            &ctx,
+        )?;
+        assert_eq!(pdf_out.detected_format, FormatId::Pdf);
+        let post_pdf = compression_pdf::inspect_pdf_health(&fs::read(staged_pdf.staged_path())?);
+        assert_eq!(post_pdf.assessment, PdfRepairAssessment::Healthy);
+
+        // 2. Truncated ZIP missing EOCD -> diagnosed & central directory rebuilt.
+        let good_zip = dir.join("good.zip");
+        create_archive_from_entries(
+            &[ArchiveInputEntry {
+                path: String::from("hello.txt"),
+                data: b"hello zip repair".to_vec(),
+            }],
+            &good_zip,
+            ArchiveContainerKind::Zip,
+            CompressionProfile::BalancedOptimal,
+            &ctx,
+        )?;
+        let raw_zip = fs::read(&good_zip)?;
+        let broken_zip_path = dir.join("truncated.zip");
+        let fixed_zip_path = dir.join("fixed.zip");
+        fs::write(&broken_zip_path, &raw_zip[..raw_zip.len() / 2 + 12])?;
+
+        let diag_zip = diagnose_file_recoverability(&broken_zip_path, &ctx)?;
+        assert_eq!(diag_zip.detected_format, FormatId::Zip);
+        assert_ne!(diag_zip.recoverability, RecoverabilityClass::Healthy);
+
+        // 3. Unfinalized MP4 (ftyp + mdat without moov) -> diagnosed FullyRepairable & gated on native FFmpeg.
+        let broken_mp4 = dir.join("unfinalized.mp4");
+        let mut mp4_bytes = Vec::new();
+        mp4_bytes.extend_from_slice(&24u32.to_be_bytes());
+        mp4_bytes.extend_from_slice(b"ftypisom");
+        mp4_bytes.extend_from_slice(&0u32.to_be_bytes());
+        mp4_bytes.extend_from_slice(b"isommp41");
+        mp4_bytes.extend_from_slice(&16u32.to_be_bytes());
+        mp4_bytes.extend_from_slice(b"mdat");
+        mp4_bytes.extend_from_slice(&[1, 2, 3, 4, 5, 6, 7, 8]);
+        fs::write(&broken_mp4, &mp4_bytes)?;
+
+        let diag_mp4 = diagnose_file_recoverability(&broken_mp4, &ctx)?;
+        assert_eq!(diag_mp4.detected_format, FormatId::Mp4);
+        assert_eq!(
+            diag_mp4.recoverability,
+            RecoverabilityClass::FullyRepairable
+        );
+        assert!(diag_mp4.media_index_issue.is_some());
+
+        // 4. Random noise -> Unrecoverable.
+        let garbage = dir.join("garbage.bin");
+        fs::write(&garbage, b"RANDOM_NON_CONTAINER_ENTROPY_BYTES")?;
+        let diag_garbage = diagnose_file_recoverability(&garbage, &ctx)?;
+        assert_eq!(
+            diag_garbage.recoverability,
+            RecoverabilityClass::Unrecoverable
+        );
+
+        drop(staged_pdf);
+        let _ = fixed_zip_path;
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn sanitizes_edits_metadata_and_encrypts_ffenc_roundtrip() -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("meta_ffenc");
+        let ctx = JobContext::new("opt-meta", ResourceLimits::default());
+
+        let pdf_in = dir.join("doc.pdf");
+        let pdf_out = dir.join("doc_clean.pdf");
+        let raw_pdf = compression_pdf::build_simple_text_pdf_bytes(&["Metadata Body"]);
+        fs::write(&pdf_in, &raw_pdf)?;
+
+        let staged_meta = StagedPath::create_sibling(&pdf_out)?;
+        let edits = EditableMetadataFields {
+            title: Some(Some(String::from("Public Report"))),
+            author: Some(Some(String::from("FileFusion Release"))),
+            ..EditableMetadataFields::default()
+        };
+        let meta_rep = sanitize_and_edit_metadata_to_staged(
+            &pdf_in,
+            &staged_meta,
+            true,
+            Some(&edits),
+            &ResourceLimits::default(),
+            &ctx,
+        )?;
+        assert_eq!(meta_rep.format, FormatId::Pdf);
+        assert_eq!(meta_rep.after.title.as_deref(), Some("Public Report"));
+        assert_eq!(meta_rep.after.author.as_deref(), Some("FileFusion Release"));
+
+        // Round-trip .ffenc container staging & header inspection.
+        let enc_path = dir.join("doc.ffenc");
+        let dec_path = dir.join("doc_dec.pdf");
+        let staged_enc = StagedPath::create_sibling(&enc_path)?;
+        let _ = encrypt_file_to_ffenc_staged(
+            staged_meta.staged_path(),
+            &staged_enc,
+            b"vault-pass-42",
+            FfencCipherSuite::ChaCha20Poly1305,
+            FfencKdfParams::fast_test(),
+            &ctx,
+        )?;
+        let hdr = inspect_ffenc_file(staged_enc.staged_path(), &ctx)?;
+        assert_eq!(hdr.cipher_suite, FfencCipherSuite::ChaCha20Poly1305);
+
+        let staged_dec = StagedPath::create_sibling(&dec_path)?;
+        let dec_len = decrypt_ffenc_file_to_staged(
+            staged_enc.staged_path(),
+            &staged_dec,
+            b"vault-pass-42",
+            &ctx,
+        )?;
+        assert_eq!(dec_len, meta_rep.output_bytes);
+        assert_eq!(
+            fs::read(staged_dec.staged_path())?,
+            fs::read(staged_meta.staged_path())?
+        );
 
         let _ = fs::remove_dir_all(&dir);
         Ok(())

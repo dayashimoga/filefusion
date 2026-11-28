@@ -31,6 +31,49 @@ pub struct ZipRepairReport {
     pub recovered_paths: Vec<String>,
 }
 
+/// Diagnostic summary returned by [`inspect_zip_health`] (`FR-REP-002`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ZipHealthReport {
+    /// True if at least one Local File Header (`PK\x03\x04`) signature exists.
+    pub has_lfh_signature: bool,
+    /// True if a trailing End-of-Central-Directory (`PK\x05\x06`) marker exists.
+    pub has_eocd: bool,
+    /// Number of valid CRC-32 / traversal-checked entries recoverable.
+    pub recoverable_entries: usize,
+    /// Number of damaged local headers that would be skipped.
+    pub corrupt_entries: usize,
+    /// Total uncompressed bytes recoverable.
+    pub recoverable_bytes: u64,
+}
+
+/// Inspects raw ZIP bytes without modifying disk to quantify central-directory damage and
+/// salvageable entry counts (`FR-REP-001`..`002`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] on unsafe path traversal (`SecTraversal`), bomb limits (`SecBomb`),
+/// or cooperative cancellation.
+pub fn inspect_zip_health(
+    raw: &[u8],
+    limits: &ResourceLimits,
+    ctx: &JobContext,
+) -> FileFusionResult<ZipHealthReport> {
+    ctx.check_cancelled()?;
+    let has_lfh_signature = find_signature(raw, ZIP_LFH_SIG).is_some();
+    let tail_start = raw.len().saturating_sub(65_557);
+    let has_eocd = find_signature(&raw[tail_start..], ZIP_EOCD_SIG).is_some();
+    let archive_len = (raw.len() as u64).max(1);
+    let (recovered, corrupt_entries, recoverable_bytes) =
+        scan_recovered_zip_entries(raw, archive_len, limits, ctx)?;
+
+    Ok(ZipHealthReport {
+        has_lfh_signature,
+        has_eocd,
+        recoverable_entries: recovered.len(),
+        corrupt_entries,
+        recoverable_bytes,
+    })
+}
+
 /// Scans sequential Local File Headers (`PK\x03\x04`) in a damaged or truncated ZIP archive,
 /// verifies CRC-32 checksums & Zip-Slip safety, enforces [`ResourceLimits`] bomb ceilings,
 /// and rebuilds a clean ZIP with a valid Central Directory and EOCD (`FR-REP-001`).

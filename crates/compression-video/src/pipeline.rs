@@ -292,6 +292,50 @@ pub fn build_ffmpeg_video_transcode_invocation(
     })
 }
 
+/// Builds a sanitized `FFmpeg` stream-copy container repair invocation (`-err_detect ignore_err`
+/// `-fflags +genpts -c copy`) for unfinalized `MP4`/`MOV`/`MKV`/`WebM` captures (`FR-REP-001`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] (`FmtUnsupported`) if `target_format` is not a video container.
+pub fn build_ffmpeg_container_repair_invocation(
+    ffmpeg_binary: &Path,
+    input_path: &Path,
+    staged_output_path: &Path,
+    target_format: FormatId,
+    timeout_secs: u64,
+) -> FileFusionResult<ProcessInvocation> {
+    let muxer = ffmpeg_muxer_for_video_container(target_format)?;
+    let mut args = vec![
+        OsString::from("-hide_banner"),
+        OsString::from("-loglevel"),
+        OsString::from("error"),
+        OsString::from("-y"),
+        OsString::from("-err_detect"),
+        OsString::from("ignore_err"),
+        OsString::from("-fflags"),
+        OsString::from("+genpts"),
+        OsString::from("-i"),
+        input_path.as_os_str().to_os_string(),
+        OsString::from("-c"),
+        OsString::from("copy"),
+    ];
+    if matches!(target_format, FormatId::Mp4 | FormatId::Mov) {
+        args.push(OsString::from("-movflags"));
+        args.push(OsString::from("+faststart"));
+    }
+    args.push(OsString::from("-f"));
+    args.push(OsString::from(muxer));
+    args.push(staged_output_path.as_os_str().to_os_string());
+
+    Ok(ProcessInvocation {
+        executable: ffmpeg_binary.to_path_buf(),
+        args,
+        working_dir: None,
+        timeout_secs,
+        allow_env_keys: Vec::new(),
+    })
+}
+
 /// Builds a sanitized `FFmpeg` `libvmaf` evaluation command (`0.0..=100.0`).
 #[must_use]
 pub fn build_ffmpeg_vmaf_invocation(

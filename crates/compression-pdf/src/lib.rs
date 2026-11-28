@@ -38,8 +38,12 @@ pub use ocr::{
     TesseractOutputMode, build_searchable_pdf_from_image_and_ocr, embed_searchable_ocr_text_layer,
     extract_pdf_page_images, parse_tesseract_hocr, parse_tesseract_tsv,
 };
-pub use optimizer::{PdfCompressionOptions, PdfCompressionReport, optimize_pdf_bytes};
-pub use repair::{PdfHealthReport, PdfRepairAssessment, QpdfMode, inspect_pdf_health};
+pub use optimizer::{
+    PdfCompressionOptions, PdfCompressionReport, optimize_pdf_bytes, update_pdf_metadata_bytes,
+};
+pub use repair::{
+    PdfHealthReport, PdfRepairAssessment, QpdfMode, inspect_pdf_health, repair_pdf_bytes,
+};
 pub use security::{
     PdfEncryptionAlgorithm, PdfPermissions, PdfProtectionOptions, PdfSecurityReport,
     PdfSignatureInfo, PdfSignatureReport, PdfSignatureStatus, decrypt_pdf_bytes, encrypt_pdf_bytes,
@@ -55,7 +59,7 @@ pub use studio::{
 #[cfg(feature = "native-process")]
 pub use ocr::TesseractAdapter;
 #[cfg(feature = "native-process")]
-pub use repair::build_qpdf_optimize_invocation;
+pub use repair::{build_qpdf_optimize_invocation, repair_pdf_to_staged_with_runner};
 #[cfg(feature = "native-process")]
 pub use security::{build_qpdf_decrypt_invocation, build_qpdf_encrypt_invocation};
 

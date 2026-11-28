@@ -30,8 +30,9 @@ use file_core::IsolatedProcessRunner;
 
 pub use pipeline::{
     ResolvedVideoRoute, VideoCodec, VideoCompressionOptions,
-    build_ffmpeg_video_transcode_invocation, build_ffmpeg_vmaf_invocation,
-    ffmpeg_muxer_for_video_container, parse_ffmpeg_vmaf_score, resolve_video_route,
+    build_ffmpeg_container_repair_invocation, build_ffmpeg_video_transcode_invocation,
+    build_ffmpeg_vmaf_invocation, ffmpeg_muxer_for_video_container, parse_ffmpeg_vmaf_score,
+    resolve_video_route,
 };
 pub use probe::{
     MediaAudioStreamDescriptor, SubtitleStreamDescriptor, VideoContainerInventory,

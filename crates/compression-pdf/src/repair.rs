@@ -1,17 +1,22 @@
-//! Structural PDF integrity assessment (`FR-REP-001`..`002`) and Tier 2 `qpdf`
-//! linearization / recovery command construction (`MOD-RULE-04`, `MOD-RULE-05`).
+//! Structural PDF integrity assessment (`FR-REP-001`..`002`), pure-Rust cross-reference
+//! recovery, and Tier 2 `qpdf` linearization / repair orchestration (`MOD-RULE-04`, `MOD-RULE-05`).
 
-use file_core::{ErrorCode, FileFusionError, FileFusionResult};
-use lopdf::Document;
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
+
+use file_core::{ErrorCode, FileFusionError, FileFusionResult, JobContext};
+use lopdf::{Document, Object};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "native-process")]
 use std::ffi::OsString;
 #[cfg(feature = "native-process")]
+use std::fs;
+#[cfg(feature = "native-process")]
 use std::path::Path;
 
 #[cfg(feature = "native-process")]
-use file_core::ProcessInvocation;
+use file_core::{IsolatedProcessRunner, ProcessInvocation, StagedPath};
 
 /// Honest recoverability classification aligned with `FR-REP-002`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -196,5 +201,201 @@ pub fn build_qpdf_optimize_invocation(
         working_dir: None,
         timeout_secs,
         allow_env_keys: Vec::new(),
+    }
+}
+
+/// Repairs a damaged or trailer-truncated PDF purely in memory (`FR-REP-001`), rebuilding missing
+/// `xref`/`startxref`/`%%EOF` tables from intact indirect object definitions when possible.
+///
+/// # Errors
+/// Returns [`FileFusionError`] (`FmtDrm` for encrypted PDFs, `FmtCorrupt` when unrecoverable, or
+/// cancellation).
+pub fn repair_pdf_bytes(
+    raw_pdf: &[u8],
+    ctx: &JobContext,
+) -> FileFusionResult<(Vec<u8>, PdfHealthReport)> {
+    ctx.check_cancelled()?;
+    ensure_pdf_magic(raw_pdf)?;
+    if raw_pdf.windows(8).any(|w| w == b"/Encrypt") {
+        return Err(FileFusionError::new(
+            ErrorCode::FmtDrm,
+            "encrypted PDFs must be unlocked before structural repair",
+        ));
+    }
+
+    let doc_res = Document::load_mem(raw_pdf);
+    let mut doc = if let Ok(d) = doc_res {
+        if d.is_encrypted() {
+            return Err(FileFusionError::new(
+                ErrorCode::FmtDrm,
+                "encrypted PDFs must be unlocked before structural repair",
+            ));
+        }
+        d
+    } else {
+        let reconstructed = synthesize_xref_trailer_for_truncated_pdf(raw_pdf).ok_or_else(|| {
+            FileFusionError::new(
+                ErrorCode::FmtCorrupt,
+                "PDF cross-reference table and indirect object headers are unrecoverable natively",
+            )
+        })?;
+        Document::load_mem(&reconstructed).map_err(|err| {
+            FileFusionError::new(
+                ErrorCode::FmtCorrupt,
+                format!("PDF structure remained unparseable after native xref synthesis: {err}"),
+            )
+        })?
+    };
+
+    ctx.check_cancelled()?;
+    doc.compress();
+    doc.prune_objects();
+    doc.renumber_objects();
+    let mut out = Vec::new();
+    doc.save_to(&mut out).map_err(|err| {
+        FileFusionError::new(
+            ErrorCode::IntInvariant,
+            format!("failed to serialize repaired PDF: {err}"),
+        )
+    })?;
+    let post_health = inspect_pdf_health(&out);
+    Ok((out, post_health))
+}
+
+/// Repairs a damaged PDF into `staged_output`, preferring isolated Tier 2 `qpdf` structural
+/// recovery when available and falling back cleanly to pure-Rust [`repair_pdf_bytes`]
+/// (`FR-REP-001`, `MOD-RULE-04`).
+///
+/// Returns the post-repair [`PdfHealthReport`] paired with the engine identifier actually used
+/// (`"tier2-qpdf-repair"` or `"tier1-pdf-repair"`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] on unrecoverable corruption, subprocess failure, or cancellation.
+#[cfg(feature = "native-process")]
+pub fn repair_pdf_to_staged_with_runner(
+    input_path: &Path,
+    staged_output: &StagedPath,
+    qpdf_binary: Option<&Path>,
+    runner: Option<&dyn IsolatedProcessRunner>,
+    ctx: &JobContext,
+) -> FileFusionResult<(PdfHealthReport, &'static str)> {
+    ctx.check_cancelled()?;
+    if let (Some(qpdf_bin), Some(exec)) = (qpdf_binary, runner) {
+        let inv = build_qpdf_optimize_invocation(
+            qpdf_bin,
+            input_path,
+            staged_output.staged_path(),
+            QpdfMode::StructuralRepair,
+            false,
+            ctx.limits.subprocess_timeout_secs,
+        );
+        let out = exec.run_isolated(&inv, ctx)?;
+        if !out.timed_out && (out.exit_code == 0 || out.exit_code == 3) {
+            let repaired_raw = fs::read(staged_output.staged_path())?;
+            return Ok((inspect_pdf_health(&repaired_raw), "tier2-qpdf-repair"));
+        }
+    }
+
+    let raw = fs::read(input_path)?;
+    let (repaired, report) = repair_pdf_bytes(&raw, ctx)?;
+    fs::write(staged_output.staged_path(), &repaired)?;
+    Ok((report, "tier1-pdf-repair"))
+}
+
+fn synthesize_xref_trailer_for_truncated_pdf(raw: &[u8]) -> Option<Vec<u8>> {
+    let mut offsets: BTreeMap<u32, (u16, usize)> = BTreeMap::new();
+    let mut root_ref: Option<(u32, u16)> = parse_root_ref_hint(raw);
+
+    let mut idx = 0usize;
+    while idx < raw.len() {
+        let line_start = idx;
+        let line_end = raw[idx..]
+            .iter()
+            .position(|&b| b == b'\n' || b == b'\r')
+            .map_or(raw.len(), |rel| idx + rel);
+        let line = &raw[line_start..line_end];
+        if let Some((obj_num, gen_num)) = parse_obj_header_line(line) {
+            offsets.entry(obj_num).or_insert((gen_num, line_start));
+            if root_ref.is_none() {
+                let lookahead_end = (line_end + 512).min(raw.len());
+                let slice = &raw[line_start..lookahead_end];
+                if slice.windows(8).any(|w| w == b"/Catalog") {
+                    root_ref = Some((obj_num, gen_num));
+                }
+            }
+        }
+        idx = line_end + 1;
+        while idx < raw.len() && (raw[idx] == b'\n' || raw[idx] == b'\r') {
+            idx += 1;
+        }
+    }
+
+    let (root_id, root_gen) = root_ref?;
+    if offsets.is_empty() {
+        return None;
+    }
+
+    let body_end = raw
+        .windows(4)
+        .position(|w| w == b"xref")
+        .or_else(|| raw.windows(9).position(|w| w == b"startxref"))
+        .unwrap_or(raw.len());
+
+    let mut out = raw[..body_end].to_vec();
+    if !out.ends_with(b"\n") {
+        out.push(b'\n');
+    }
+    let xref_offset = out.len();
+    let max_id = offsets.keys().next_back().copied().unwrap_or(0);
+    let size = max_id.saturating_add(1);
+
+    let mut trailer_buf = String::new();
+    let _ = writeln!(trailer_buf, "xref");
+    let _ = writeln!(trailer_buf, "0 {size}");
+    let _ = writeln!(trailer_buf, "0000000000 65535 f ");
+    for id in 1..size {
+        if let Some((gen_num, off)) = offsets.get(&id) {
+            let _ = writeln!(trailer_buf, "{off:010} {gen_num:05} n ");
+        } else {
+            let _ = writeln!(trailer_buf, "0000000000 65535 f ");
+        }
+    }
+    let _ = writeln!(trailer_buf, "trailer");
+    let _ = writeln!(
+        trailer_buf,
+        "<< /Size {size} /Root {root_id} {root_gen} R >>"
+    );
+    let _ = writeln!(trailer_buf, "startxref");
+    let _ = writeln!(trailer_buf, "{xref_offset}");
+    let _ = writeln!(trailer_buf, "%%EOF");
+    out.extend_from_slice(trailer_buf.as_bytes());
+    let _ = Object::Null;
+    Some(out)
+}
+
+fn parse_obj_header_line(line: &[u8]) -> Option<(u32, u16)> {
+    let s = std::str::from_utf8(line).ok()?.trim();
+    let mut parts = s.split_whitespace();
+    let num = parts.next()?.parse::<u32>().ok()?;
+    let gen_num = parts.next()?.parse::<u16>().ok()?;
+    let kw = parts.next()?;
+    if kw == "obj" && num > 0 {
+        Some((num, gen_num))
+    } else {
+        None
+    }
+}
+
+fn parse_root_ref_hint(raw: &[u8]) -> Option<(u32, u16)> {
+    let pos = raw.windows(5).position(|w| w == b"/Root")?;
+    let tail = std::str::from_utf8(&raw[pos + 5..(pos + 40).min(raw.len())]).ok()?;
+    let mut parts = tail.split_whitespace();
+    let num = parts.next()?.parse::<u32>().ok()?;
+    let gen_num = parts.next()?.parse::<u16>().ok()?;
+    let r = parts.next()?;
+    if r.starts_with('R') {
+        Some((num, gen_num))
+    } else {
+        None
     }
 }

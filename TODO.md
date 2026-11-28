@@ -421,3 +421,13 @@
 - [x] `[4.1.2]` Implement `crates/compression-pdf/src/ocr.rs`: isolated Tier 2 `TesseractAdapter` (`ExternalToolAdapter`, `MOD-RULE-04`, `Apache-2.0`), TSV/`hOCR` parsers (`parse_tesseract_tsv`, `parse_tesseract_hocr`), raster `/Image` `XObject` extractor (`extract_pdf_page_images`), and invisible `3 Tr` searchable PDF text overlay builder (`embed_searchable_ocr_text_layer`, `build_searchable_pdf_from_image_and_ocr`) (`FR-PDF-003`).
 - [x] `[4.1.2]` Implement `crates/compression-pdf/src/security.rs`: pure-Rust `AES-256` (`V5`/`R6`) and `AES-128` (`V4`/`R4`) PDF password encryption/decryption (`encrypt_pdf_bytes`, `decrypt_pdf_bytes`, `inspect_pdf_security`), granular ISO-32000 `/P` permissions (`PdfPermissions`), sanitized `qpdf` crypto builders, and `/Sig` `/ByteRange` + DER `/Contents` audit (`verify_pdf_signatures`) (`FR-PDF-004`).
 - [x] `[4.1.2]` Re-export PDF OCR & security APIs cleanly from `crates/compression-pdf/src/lib.rs`, backfill `e5dbda3` onto `4.1.1` in `docs/PROGRESS.md`, add unit/integration tests across native (113 passing) and WASM (58 passing) configurations, and append `TODO.md` / `CHANGELOG.md` with untouched `Cargo.lock`.
+
+
+---
+
+## [2026-11-28] Entry 046 — Stage 4 Subphase 4.2.1 Unified File Repair, Metadata Sanitizer & `.ffenc` Orchestration
+
+### Completed in Subphase 4.2.1
+- [x] `[4.2.1]` Add L3 Stage 4 recovery & metadata primitives: `compression-archive` (`inspect_zip_health`, `inspect_ffenc_header`), `compression-pdf` (`repair_pdf_bytes` with pure-Rust `xref` synthesis, `repair_pdf_to_staged_with_runner`, `update_pdf_metadata_bytes`), `compression-office` (`OfficeContainerMetadata`, `extract_office_metadata_from_entries`, `edit_metadata_xml`, `sanitize_and_edit_office_metadata`), and `compression-video` (`build_ffmpeg_container_repair_invocation`).
+- [x] `[4.2.1]` Implement L4 Stage 4 orchestrators in `optimization-engine/src/{repair.rs,metadata.rs,security.rs}` (`FR-REP-001`..`002`, `FR-MET-001`..`002`, `FR-SEC-002`) covering honest recoverability classification, `PDF`/`ZIP`/`MP4`/`MOV`/`MKV`/`WebM` staged recovery, cross-domain privacy scrubbing/editing, and `.ffenc` / PDF AES staged encryption.
+- [x] `[4.2.1]` Wire L5 `JobManager` orchestration methods in `crates/job-manager/src/stage4.rs`, backfill `84a9eeb` onto `4.1.2` in `docs/PROGRESS.md`, verify `116` native / `61` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 046 to `TODO.md` / `CHANGELOG.md`.

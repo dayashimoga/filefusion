@@ -376,3 +376,13 @@
 - **Added:** Local OCR subsystem (`crates/compression-pdf/src/ocr.rs`) with `TesseractAdapter` (`ExternalToolAdapter` via `IsolatedProcessRunner`), `parse_tesseract_tsv`, `parse_tesseract_hocr`, `extract_pdf_page_images`, and invisible `3 Tr` searchable PDF overlay generation (`embed_searchable_ocr_text_layer`, `build_searchable_pdf_from_image_and_ocr`) (`FR-PDF-003`).
 - **Added:** PDF cryptography & signature verification subsystem (`crates/compression-pdf/src/security.rs`) delivering pure-Rust `AES-256` (`V5`/`R6`) and `AES-128` (`V4`/`R4`) PDF protection, ISO-32000 `/P` permissions (`PdfPermissions`), decryption, security inspection, sanitized `qpdf` encrypt/decrypt command builders, and offline `/Sig` `/ByteRange` + ASN.1 DER verification (`verify_pdf_signatures`) (`FR-PDF-004`).
 - **Changed:** Re-exported shared internal helpers cleanly in `crates/compression-pdf/src/studio.rs`, exported Subphase `4.1.2` APIs and tests in `crates/compression-pdf/src/lib.rs` with `Cargo.lock` untouched, backfilled `e5dbda3` onto `4.1.1` in `docs/PROGRESS.md`, and appended Entry 045 to `TODO.md`.
+
+
+---
+
+## [0.4.1-stage4.2.1] — 2026-11-28
+
+### Subphase 4.2.1 — Unified File Repair, Metadata Sanitizer & `.ffenc` Orchestration (`L3`–`L5`)
+- **Added:** L4 unified repair, metadata inspection/sanitization/editing, and `.ffenc`/PDF security orchestrators (`optimization-engine/src/{repair.rs,metadata.rs,security.rs}`) plus L5 `JobManager` Stage 4 orchestration (`job-manager/src/stage4.rs`: `diagnose_repair`, `repair_file`, `inspect_metadata`, `sanitize_and_edit_metadata`, `inspect_ffenc`, `encrypt_ffenc`, `decrypt_ffenc`, `encrypt_pdf`, `decrypt_pdf`) (`FR-REP-001`..`002`, `FR-MET-001`..`002`, `FR-SEC-002`, `FR-PDF-004`).
+- **Added:** L3 primitives for pure-Rust `xref` PDF recovery & `/Info` updates (`compression-pdf`), ZIP & `.ffenc` header diagnostics (`compression-archive`), Office/ODF/EPUB metadata extraction & XML editing (`compression-office`), and `FFmpeg` container repair invocations (`compression-video`).
+- **Changed:** Backfilled `84a9eeb` (`stage-4.1.2`) in `docs/PROGRESS.md`, expanded `optimization-engine` (6 tests) and `job-manager` (18 tests) suites (`116` native / `61` WASM passing), and appended Entry 046 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.

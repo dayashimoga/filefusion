@@ -82,6 +82,51 @@ impl FfencKdfParams {
     }
 }
 
+/// Read-only `.ffenc` container header metadata returned by [`inspect_ffenc_header`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FfencHeaderInfo {
+    /// Wire format major version (`1`).
+    pub version_major: u8,
+    /// Wire format minor version (`0`).
+    pub version_minor: u8,
+    /// Authenticated AEAD cipher suite (`Aes256Gcm` or `ChaCha20Poly1305`).
+    pub cipher_suite: FfencCipherSuite,
+    /// Argon2id key-derivation parameters stored in the authenticated header.
+    pub kdf: FfencKdfParams,
+    /// Ciphertext + AEAD tag payload byte length.
+    pub ciphertext_bytes: u64,
+}
+
+/// Parses and validates `.ffenc` container framing without decrypting plaintext (`FR-SEC-002`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] (`FmtCorrupt`/`FmtUnsupported`) when header framing is invalid.
+pub fn inspect_ffenc_header(container: &[u8]) -> FileFusionResult<FfencHeaderInfo> {
+    if container.len() < FFENC_HEADER_LEN + 16 || !container.starts_with(FFENC_MAGIC) {
+        return Err(FileFusionError::new(
+            ErrorCode::FmtCorrupt,
+            "input is not a valid FFENC v1 container",
+        ));
+    }
+    let header = &container[..FFENC_HEADER_LEN];
+    let cipher_suite = FfencCipherSuite::from_byte(header[7])?;
+    let m_cost_kib = u32::from_le_bytes(read_arr4(header, 8)?);
+    let t_cost = u32::from_le_bytes(read_arr4(header, 12)?);
+    let p_cost = u32::from_le_bytes(read_arr4(header, 16)?);
+    Ok(FfencHeaderInfo {
+        version_major: header[5],
+        version_minor: header[6],
+        cipher_suite,
+        kdf: FfencKdfParams {
+            m_cost_kib,
+            t_cost,
+            p_cost,
+        },
+        ciphertext_bytes: u64::try_from(container.len().saturating_sub(FFENC_HEADER_LEN))
+            .unwrap_or(u64::MAX),
+    })
+}
+
 /// Encrypts `plaintext` into a self-contained `.ffenc` container bound to `passphrase`.
 ///
 /// # Errors

@@ -144,6 +144,187 @@ pub fn scrub_metadata_xml(entry_path: &str, raw: &[u8]) -> Option<Vec<u8>> {
     None
 }
 
+/// Extracted `OOXML` / `ODF` / `EPUB` document metadata summary (`FR-MET-001`).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OfficeContainerMetadata {
+    /// Document title (`dc:title`).
+    pub title: Option<String>,
+    /// Primary author or initial creator (`dc:creator` / `meta:initial-creator`).
+    pub author: Option<String>,
+    /// Document subject (`dc:subject`).
+    pub subject: Option<String>,
+    /// Keywords (`cp:keywords` / `meta:keyword`).
+    pub keywords: Option<String>,
+    /// Last modifier (`cp:lastModifiedBy`).
+    pub last_modified_by: Option<String>,
+}
+
+/// Extracts `OOXML` (`docProps/core.xml`), `ODF` (`meta.xml`), and `EPUB` (`.opf`) metadata fields
+/// from validated container ZIP entries (`FR-MET-001`).
+#[must_use]
+pub fn extract_office_metadata_from_entries(
+    entries: &[(String, Vec<u8>)],
+) -> OfficeContainerMetadata {
+    let mut meta = OfficeContainerMetadata::default();
+    for (name, bytes) in entries {
+        let lower = name.to_ascii_lowercase();
+        let is_target = lower == "docprops/core.xml"
+            || lower == "meta.xml"
+            || Path::new(name)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("opf"));
+        if !is_target {
+            continue;
+        }
+        let Ok(xml) = std::str::from_utf8(bytes) else {
+            continue;
+        };
+        if meta.title.is_none() {
+            meta.title = extract_xml_element_text(xml, "dc:title");
+        }
+        if meta.author.is_none() {
+            meta.author = extract_xml_element_text(xml, "dc:creator")
+                .or_else(|| extract_xml_element_text(xml, "meta:initial-creator"));
+        }
+        if meta.subject.is_none() {
+            meta.subject = extract_xml_element_text(xml, "dc:subject");
+        }
+        if meta.keywords.is_none() {
+            meta.keywords = extract_xml_element_text(xml, "cp:keywords")
+                .or_else(|| extract_xml_element_text(xml, "meta:keyword"));
+        }
+        if meta.last_modified_by.is_none() {
+            meta.last_modified_by = extract_xml_element_text(xml, "cp:lastModifiedBy");
+        }
+    }
+    meta
+}
+
+/// Applies optional explicit metadata updates (`dc:title`, `dc:creator`, `dc:subject`,
+/// `cp:keywords`/`meta:keyword`) to `OOXML` `docProps/core.xml`, `ODF` `meta.xml`, or `EPUB` `.opf`
+/// entries after privacy scrubbing (`FR-MET-002`).
+#[must_use]
+pub fn edit_metadata_xml(
+    entry_path: &str,
+    raw: &[u8],
+    title: Option<Option<&str>>,
+    author: Option<Option<&str>>,
+    subject: Option<Option<&str>>,
+    keywords: Option<Option<&str>>,
+) -> Option<Vec<u8>> {
+    let lower = entry_path.to_ascii_lowercase();
+    let is_core = lower == "docprops/core.xml";
+    let is_odf_meta = lower == "meta.xml";
+    let is_epub_opf = Path::new(entry_path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("opf"));
+    if !is_core && !is_odf_meta && !is_epub_opf {
+        return None;
+    }
+    let Ok(text) = std::str::from_utf8(raw) else {
+        return None;
+    };
+
+    let mut updated = text.to_owned();
+    let (kw_tag, root_tag) = if is_odf_meta {
+        ("meta:keyword", "office:meta")
+    } else if is_core {
+        ("cp:keywords", "cp:coreProperties")
+    } else {
+        ("dc:subject", "metadata")
+    };
+    let pairs = [
+        ("dc:title", title),
+        ("dc:creator", author),
+        ("dc:subject", subject),
+        (kw_tag, keywords),
+    ];
+
+    let mut modified = false;
+    for (tag, val_opt) in pairs {
+        if let Some(val) = val_opt {
+            let escaped = escape_xml_text(val.unwrap_or(""));
+            let next = if val.is_some() {
+                upsert_simple_xml_element(&updated, root_tag, tag, &escaped)
+            } else {
+                replace_simple_xml_element(&updated, tag, "")
+            };
+            if next != updated {
+                updated = next;
+                modified = true;
+            }
+        }
+    }
+    if is_odf_meta && author.is_some() {
+        let escaped = escape_xml_text(author.flatten().unwrap_or(""));
+        let next = upsert_simple_xml_element(&updated, root_tag, "meta:initial-creator", &escaped);
+        if next != updated {
+            updated = next;
+            modified = true;
+        }
+    }
+
+    modified.then(|| updated.into_bytes())
+}
+
+fn extract_xml_element_text(xml: &str, tag: &str) -> Option<String> {
+    let open_prefix = format!("<{tag}");
+    let close_tag = format!("</{tag}>");
+    let start_idx = xml.find(&open_prefix)?;
+    let after_prefix = &xml[start_idx..];
+    let open_end_rel = after_prefix.find('>')?;
+    let open_slice = &after_prefix[..=open_end_rel];
+    if open_slice.ends_with("/>") {
+        return None;
+    }
+    let inner_start = &after_prefix[open_end_rel + 1..];
+    let close_rel = inner_start.find(&close_tag)?;
+    let raw_text = inner_start[..close_rel].trim();
+    if raw_text.is_empty() {
+        return None;
+    }
+    Some(
+        raw_text
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&apos;", "'"),
+    )
+}
+
+fn upsert_simple_xml_element(xml: &str, root_tag: &str, tag: &str, new_inner: &str) -> String {
+    let replaced = replace_simple_xml_element(xml, tag, new_inner);
+    if replaced.contains(&format!("<{tag}")) && !replaced.contains(&format!("<{tag}/>")) {
+        return replaced;
+    }
+    let child_xml = format!("<{tag}>{new_inner}</{tag}>");
+    let close_root = format!("</{root_tag}>");
+    if let Some(pos) = replaced.rfind(&close_root) {
+        let (head, tail) = replaced.split_at(pos);
+        return format!("{head}{child_xml}{tail}");
+    }
+    let open_root = format!("<{root_tag}");
+    if let Some(root_start) = replaced.find(&open_root) {
+        let after = &replaced[root_start..];
+        if let Some(self_end) = after.find("/>") {
+            let split_at = root_start + self_end;
+            let (before, rest) = replaced.split_at(split_at);
+            return format!("{before}>{child_xml}</{root_tag}>{}", &rest[2..]);
+        }
+    }
+    replaced
+}
+
+fn escape_xml_text(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&apos;")
+}
+
 /// Extracts visible plain text across `OOXML`/`ODF`/`EPUB` XML/XHTML entries for fidelity audits.
 #[must_use]
 pub fn extract_visible_xml_text(raw: &[u8]) -> String {
