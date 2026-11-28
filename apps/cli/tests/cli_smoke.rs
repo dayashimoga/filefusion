@@ -217,3 +217,153 @@ fn cli_inspect_computes_digests_and_normalized_metadata() -> Result<(), Box<dyn 
     let _ = fs::remove_dir_all(&dir);
     Ok(())
 }
+
+fn png_crc32_test(data: &[u8]) -> u32 {
+    let mut crc = 0xFFFF_FFFFu32;
+    for &byte in data {
+        crc ^= u32::from(byte);
+        for _ in 0..8 {
+            let mask = (crc & 1).wrapping_neg();
+            crc = (crc >> 1) ^ (0xEDB8_8320 & mask);
+        }
+    }
+    !crc
+}
+
+fn build_stored_png_bytes() -> Result<Vec<u8>, Box<dyn Error>> {
+    use std::io::Write as _;
+
+    let mut scanlines = Vec::with_capacity(48 * (1 + 48 * 4));
+    for y in 0..48u8 {
+        scanlines.push(0);
+        for x in 0..48u8 {
+            scanlines.extend_from_slice(&[x.wrapping_mul(5), y.wrapping_mul(5), 140, 255]);
+        }
+    }
+    let mut png_bytes = Vec::from(b"\x89PNG\r\n\x1a\n".as_slice());
+    let mut push_chunk = |tag: [u8; 4], body: &[u8]| {
+        png_bytes.extend_from_slice(&(u32::try_from(body.len()).unwrap_or(0)).to_be_bytes());
+        png_bytes.extend_from_slice(&tag);
+        png_bytes.extend_from_slice(body);
+        let mut crc_in = Vec::with_capacity(4 + body.len());
+        crc_in.extend_from_slice(&tag);
+        crc_in.extend_from_slice(body);
+        png_bytes.extend_from_slice(&png_crc32_test(&crc_in).to_be_bytes());
+    };
+    let mut ihdr = Vec::with_capacity(13);
+    ihdr.extend_from_slice(&48u32.to_be_bytes());
+    ihdr.extend_from_slice(&48u32.to_be_bytes());
+    ihdr.extend_from_slice(&[8, 6, 0, 0, 0]);
+    push_chunk(*b"IHDR", &ihdr);
+
+    let mut zlib_stored = Vec::new();
+    let mut block_stream = std::io::Cursor::new(&mut zlib_stored);
+    let chunk_len = u16::try_from(scanlines.len()).unwrap_or(0);
+    block_stream.write_all(&[0x78, 0x01, 0x01])?;
+    block_stream.write_all(&chunk_len.to_le_bytes())?;
+    block_stream.write_all(&(!chunk_len).to_le_bytes())?;
+    block_stream.write_all(&scanlines)?;
+    let (mut s1, mut s2) = (1u32, 0u32);
+    for &b in &scanlines {
+        s1 = (s1 + u32::from(b)) % 65521;
+        s2 = (s2 + s1) % 65521;
+    }
+    let adler = (s2 << 16) | s1;
+    block_stream.write_all(&adler.to_be_bytes())?;
+    push_chunk(*b"IDAT", &zlib_stored);
+    push_chunk(*b"IEND", &[]);
+    Ok(png_bytes)
+}
+
+#[test]
+fn cli_compress_archive_and_bench_work_end_to_end() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("stage2_cli")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+
+    // 1. Compress an uncompressed PNG via `filefusion compress --json`.
+    let raw_png = dir.join("bloated.png");
+    let opt_png = dir.join("shrunk.png");
+    fs::write(&raw_png, build_stored_png_bytes()?)?;
+
+    let cmp_out = Command::new(exe)
+        .args([
+            "compress",
+            &raw_png.to_string_lossy(),
+            "-o",
+            &opt_png.to_string_lossy(),
+            "--profile",
+            "lossless",
+            "--json",
+        ])
+        .output()?;
+    assert!(
+        cmp_out.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&cmp_out.stderr)
+    );
+    let cmp_json: serde_json::Value = serde_json::from_slice(&cmp_out.stdout)?;
+    assert_eq!(cmp_json["status"], "optimized");
+    assert!(
+        cmp_json["bytes_out"].as_u64().unwrap_or(u64::MAX)
+            < cmp_json["bytes_in"].as_u64().unwrap_or(0)
+    );
+    assert!(opt_png.exists());
+
+    // 2. Archive create -> list -> extract roundtrip (`tar.zst`).
+    let doc_a = dir.join("note.txt");
+    fs::write(&doc_a, "FileFusion archive CLI test payload\n")?;
+    let arc_path = dir.join("bundle.tar.zst");
+    let extract_dir = dir.join("unpacked");
+
+    let arc_create = Command::new(exe)
+        .args([
+            "archive",
+            "create",
+            &arc_path.to_string_lossy(),
+            &doc_a.to_string_lossy(),
+            &opt_png.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(
+        arc_create.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&arc_create.stderr)
+    );
+    let arc_create_json: serde_json::Value = serde_json::from_slice(&arc_create.stdout)?;
+    assert_eq!(arc_create_json["entry_count"], 2);
+
+    let arc_list = Command::new(exe)
+        .args(["archive", "list", &arc_path.to_string_lossy(), "--json"])
+        .output()?;
+    assert!(arc_list.status.success());
+    let listed: serde_json::Value = serde_json::from_slice(&arc_list.stdout)?;
+    assert_eq!(listed.as_array().map(Vec::len), Some(2));
+
+    let arc_extract = Command::new(exe)
+        .args([
+            "archive",
+            "extract",
+            &arc_path.to_string_lossy(),
+            "-o",
+            &extract_dir.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(arc_extract.status.success());
+    assert_eq!(
+        fs::read_to_string(extract_dir.join("note.txt"))?,
+        "FileFusion archive CLI test payload\n"
+    );
+
+    // 3. `filefusion bench --iterations 2 --json`.
+    let bench_out = Command::new(exe)
+        .args(["bench", "--iterations", "2", "--json"])
+        .output()?;
+    assert!(bench_out.status.success());
+    let bench_json: serde_json::Value = serde_json::from_slice(&bench_out.stdout)?;
+    assert_eq!(bench_json["results"].as_array().map(Vec::len), Some(2));
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}

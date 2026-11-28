@@ -8,18 +8,19 @@
 
 use std::fmt::Write as _;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use file_core::{
-    CORE_SCHEMA_VERSION, CliConfigOverrides, CliExitCode, ErrorCode, FileFusionError,
-    FileInspectionReport, LogFormat, LogLevel, SignatureMatch, init_logging,
-    resolve_default_config_path, save_config_atomic, workspace_identity,
+    CORE_SCHEMA_VERSION, CliConfigOverrides, CliExitCode, CollisionPolicy, CompressionProfile,
+    CompressionRequest, CompressionStatus, ErrorCode, FileFusionError, FileInspectionReport,
+    FormatId, LogFormat, LogLevel, SignatureMatch, init_logging, resolve_default_config_path,
+    save_config_atomic, workspace_identity,
 };
 use job_manager::{
-    DoctorReport, inspect_file, load_runtime_config, probe_file_signature,
-    run_doctor_probe_with_config,
+    ArchiveCreateReport, BenchSuiteReport, CompressFileReport, DoctorReport, JobManager,
+    inspect_file, load_runtime_config, probe_file_signature, run_doctor_probe_with_config,
 };
 use serde::Serialize;
 
@@ -83,6 +84,91 @@ struct Cli {
     command: Commands,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum CliProfile {
+    Lossless,
+    Balanced,
+    Web,
+    Extreme,
+    Archival,
+}
+
+impl From<CliProfile> for CompressionProfile {
+    fn from(value: CliProfile) -> Self {
+        match value {
+            CliProfile::Lossless => Self::LosslessMaximum,
+            CliProfile::Balanced => Self::BalancedOptimal,
+            CliProfile::Web => Self::WebSharingReady,
+            CliProfile::Extreme => Self::ExtremeSizeTarget,
+            CliProfile::Archival => Self::ArchivalColdStorage,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum CliTargetFormat {
+    Jpeg,
+    Png,
+    Webp,
+    Avif,
+    Gif,
+    Bmp,
+    Tiff,
+    Ico,
+    Pdf,
+    Docx,
+    Xlsx,
+    Pptx,
+    Odt,
+    Ods,
+    Odp,
+    Epub,
+    Wav,
+    Flac,
+    Zip,
+    Tar,
+    Gzip,
+    Zstd,
+    Xz,
+    Bzip2,
+    Lz4,
+    #[value(name = "7z")]
+    SevenZ,
+}
+
+impl From<CliTargetFormat> for FormatId {
+    fn from(value: CliTargetFormat) -> Self {
+        match value {
+            CliTargetFormat::Jpeg => Self::Jpeg,
+            CliTargetFormat::Png => Self::Png,
+            CliTargetFormat::Webp => Self::Webp,
+            CliTargetFormat::Avif => Self::Avif,
+            CliTargetFormat::Gif => Self::Gif,
+            CliTargetFormat::Bmp => Self::Bmp,
+            CliTargetFormat::Tiff => Self::Tiff,
+            CliTargetFormat::Ico => Self::Ico,
+            CliTargetFormat::Pdf => Self::Pdf,
+            CliTargetFormat::Docx => Self::Docx,
+            CliTargetFormat::Xlsx => Self::Xlsx,
+            CliTargetFormat::Pptx => Self::Pptx,
+            CliTargetFormat::Odt => Self::Odt,
+            CliTargetFormat::Ods => Self::Ods,
+            CliTargetFormat::Odp => Self::Odp,
+            CliTargetFormat::Epub => Self::Epub,
+            CliTargetFormat::Wav => Self::Wav,
+            CliTargetFormat::Flac => Self::Flac,
+            CliTargetFormat::Zip => Self::Zip,
+            CliTargetFormat::Tar => Self::Tar,
+            CliTargetFormat::Gzip => Self::Gzip,
+            CliTargetFormat::Zstd => Self::Zstd,
+            CliTargetFormat::Xz => Self::Xz,
+            CliTargetFormat::Bzip2 => Self::Bzip2,
+            CliTargetFormat::Lz4 => Self::Lz4,
+            CliTargetFormat::SevenZ => Self::SevenZ,
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 enum Commands {
     /// Inspect host environment, resource ceilings, and Tier 1/Tier 2 engine readiness.
@@ -106,10 +192,103 @@ enum Commands {
         #[arg(long)]
         json: bool,
     },
+    /// Compress and optimize media, document, or archive files with adaptive codec selection (`FR-CMP-001..003`).
+    Compress {
+        /// Input file path to compress.
+        #[arg(value_name = "INPUT")]
+        input: PathBuf,
+        /// Destination output path (defaults to sibling `<stem>.opt.<ext>`).
+        #[arg(short, long, value_name = "OUTPUT")]
+        output: Option<PathBuf>,
+        /// Preset optimization profile (`FR-CMP-001`).
+        #[arg(long, value_enum, default_value = "balanced")]
+        profile: CliProfile,
+        /// Explicit target format override.
+        #[arg(long, value_enum)]
+        format: Option<CliTargetFormat>,
+        /// Optional maximum target output size in bytes (`FR-CMP-003`).
+        #[arg(long, value_name = "BYTES")]
+        target_max_bytes: Option<u64>,
+        /// Optional minimum perceptual SSIM floor (`0.0..=1.0`, `FR-CMP-003`).
+        #[arg(long, value_name = "SSIM")]
+        min_ssim: Option<f64>,
+        /// Run quality-constrained binary solver when targeting `JPEG` (`FR-CMP-003`).
+        #[arg(long)]
+        solve_quality: bool,
+        /// Strip non-essential identifying metadata (`FR-MET-002`).
+        #[arg(long)]
+        strip_metadata: bool,
+        /// Allow writing a same-format output even if it is not smaller than the input.
+        #[arg(long)]
+        no_noop_guard: bool,
+        /// Overwrite existing destination file (saving a `.bak` backup per safety policy).
+        #[arg(long)]
+        overwrite: bool,
+        /// Emit machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Create, list, or safely extract multi-format archives (`FR-ARC-001..003`, `FR-SEC-001`).
+    Archive {
+        #[command(subcommand)]
+        action: ArchiveAction,
+    },
+    /// Run deterministic host throughput micro-benchmarks across `FastCDC` and `Zstd`.
+    Bench {
+        /// Iterations per micro-benchmark workload (`1..=200`).
+        #[arg(long, default_value_t = 8)]
+        iterations: u32,
+        /// Emit machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
     /// Manage `FileFusion` TOML configuration, defaults, and precedence resolution.
     Config {
         #[command(subcommand)]
         action: ConfigAction,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ArchiveAction {
+    /// Create a `.zip`, `.tar`, `.tar.gz`, `.tar.zst`, `.tar.xz`, `.tar.bz2`, `.tar.lz4`, `.tar.br`, or `.7z` archive.
+    Create {
+        /// Output archive file path.
+        #[arg(value_name = "ARCHIVE")]
+        output: PathBuf,
+        /// Input files or directories to archive.
+        #[arg(value_name = "INPUTS", required = true)]
+        inputs: Vec<PathBuf>,
+        /// Compression profile preset.
+        #[arg(long, value_enum, default_value = "balanced")]
+        profile: CliProfile,
+        /// Overwrite existing archive (keeping a `.bak` safety backup).
+        #[arg(long)]
+        overwrite: bool,
+        /// Emit machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// List entries inside an archive without extracting to disk.
+    List {
+        /// Archive file path.
+        #[arg(value_name = "ARCHIVE")]
+        archive: PathBuf,
+        /// Emit machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Safely extract an archive into a target directory with traversal and bomb protection.
+    Extract {
+        /// Archive file path.
+        #[arg(value_name = "ARCHIVE")]
+        archive: PathBuf,
+        /// Destination extraction directory.
+        #[arg(short, long, value_name = "DIR", default_value = ".")]
+        output: PathBuf,
+        /// Emit machine-readable JSON output.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -315,7 +494,15 @@ fn format_inspection_human(report: &FileInspectionReport) -> String {
 
 const fn command_requests_json(command: &Commands) -> bool {
     match command {
-        Commands::Doctor { json } | Commands::Inspect { json, .. } => *json,
+        Commands::Doctor { json }
+        | Commands::Inspect { json, .. }
+        | Commands::Compress { json, .. }
+        | Commands::Bench { json, .. } => *json,
+        Commands::Archive { action } => match action {
+            ArchiveAction::Create { json, .. }
+            | ArchiveAction::List { json, .. }
+            | ArchiveAction::Extract { json, .. } => *json,
+        },
         Commands::Config { action } => match action {
             ConfigAction::Show { json }
             | ConfigAction::Path { json }
@@ -323,6 +510,72 @@ const fn command_requests_json(command: &Commands) -> bool {
             | ConfigAction::Validate { json } => *json,
         },
     }
+}
+
+fn default_compressed_output_path(input: &Path, target_format: Option<FormatId>) -> PathBuf {
+    let stem = input
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("output");
+    let ext = target_format
+        .and_then(|f| f.canonical_extensions().first().copied())
+        .or_else(|| input.extension().and_then(|e| e.to_str()))
+        .unwrap_or("bin");
+    let file_name = format!("{stem}.opt.{ext}");
+    match input.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join(file_name),
+        _ => PathBuf::from(file_name),
+    }
+}
+
+fn format_compress_human(report: &CompressFileReport) -> String {
+    let status_label = match report.status {
+        CompressionStatus::Optimized => "OPTIMIZED",
+        CompressionStatus::NoOpRetainedOriginal => "NO-OP (retained original)",
+    };
+    let dest = report.output_path.as_deref().unwrap_or(&report.input_path);
+    format!(
+        "Compression: {}\nInput:  {} ({} bytes, {:?})\nOutput: {} ({} bytes, {:?})\nSaved:  {} bytes ({:.1}%)\nCodec:  {}",
+        status_label,
+        report.input_path,
+        report.bytes_in,
+        report.detected_format,
+        dest,
+        report.bytes_out,
+        report.target_format,
+        report.savings_bytes,
+        report.savings_pct,
+        report.codec_used,
+    )
+}
+
+fn format_archive_create_human(report: &ArchiveCreateReport) -> String {
+    format!(
+        "Archive Created: {}\nContainer: {:?}\nEntries: {}\nInput Size: {} bytes\nOutput Size: {} bytes",
+        report.output_path,
+        report.kind,
+        report.entry_count,
+        report.total_input_bytes,
+        report.total_output_bytes,
+    )
+}
+
+fn format_bench_human(report: &BenchSuiteReport) -> String {
+    let mut out = format!(
+        "FileFusion Bench ({}) — {} / {} ({} logical CPUs)\n",
+        report.workspace_version, report.host_os, report.host_arch, report.logical_cpus
+    );
+    for item in &report.results {
+        let ratio_str = item
+            .compression_ratio
+            .map_or_else(String::new, |r| format!(", ratio={r:.3}"));
+        let _ = writeln!(
+            out,
+            "  - {}: {} iters, {:.2} ms, {:.2} MiB/s{}",
+            item.workload, item.iterations, item.elapsed_ms, item.throughput_mb_s, ratio_str
+        );
+    }
+    out
 }
 
 fn handle_config_command(action: &ConfigAction, overrides: &CliConfigOverrides) -> CliExitCode {
@@ -499,7 +752,161 @@ fn run() -> CliExitCode {
                 }
             }
         }
+        cmd @ Commands::Compress { .. } => {
+            handle_compress_command(&cmd, &loaded.config, cli.log_json)
+        }
+        Commands::Archive { action } => {
+            handle_archive_command(&action, &loaded.config, cli.log_json)
+        }
+        Commands::Bench { iterations, json } => {
+            let mgr = JobManager::from_config(&loaded.config);
+            let ctx = mgr.create_context("cli-bench");
+            match mgr.run_quick_benchmark(iterations, &ctx) {
+                Ok(report) => {
+                    if json {
+                        emit_json_stdout(&report)
+                    } else {
+                        emit_text_stdout(&format_bench_human(&report), false)
+                    }
+                }
+                Err(err) => report_cli_error(&err, json || cli.log_json),
+            }
+        }
         Commands::Config { .. } => CliExitCode::Success,
+    }
+}
+
+fn handle_compress_command(
+    command: &Commands,
+    config: &file_core::FileFusionConfig,
+    log_json: bool,
+) -> CliExitCode {
+    let Commands::Compress {
+        input,
+        output,
+        profile,
+        format,
+        target_max_bytes,
+        min_ssim,
+        solve_quality,
+        strip_metadata,
+        no_noop_guard,
+        overwrite,
+        json,
+    } = command
+    else {
+        return CliExitCode::InvalidUsage;
+    };
+
+    let mgr = JobManager::from_config(config);
+    let ctx = mgr.create_context("cli-compress");
+    let target_fmt = (*format).map(FormatId::from);
+    let dest = output
+        .clone()
+        .unwrap_or_else(|| default_compressed_output_path(input, target_fmt));
+    let req = CompressionRequest {
+        profile: CompressionProfile::from(*profile),
+        target_format: target_fmt,
+        target_max_bytes: *target_max_bytes,
+        min_ssim: *min_ssim,
+        strip_metadata: *strip_metadata,
+        no_op_if_larger: !*no_noop_guard,
+    };
+    let policy = if *overwrite {
+        CollisionPolicy::OverwriteWithBackup
+    } else {
+        CollisionPolicy::RenameWithSuffix
+    };
+    match mgr.compress_file(input, &dest, &req, *solve_quality, policy, &ctx) {
+        Ok(report) => {
+            if *json {
+                emit_json_stdout(&report)
+            } else {
+                emit_text_stdout(&format_compress_human(&report), false)
+            }
+        }
+        Err(err) => report_cli_error(&err, *json || log_json),
+    }
+}
+
+fn handle_archive_command(
+    action: &ArchiveAction,
+    config: &file_core::FileFusionConfig,
+    log_json: bool,
+) -> CliExitCode {
+    let mgr = JobManager::from_config(config);
+    let ctx = mgr.create_context("cli-archive");
+    match action {
+        ArchiveAction::Create {
+            output,
+            inputs,
+            profile,
+            overwrite,
+            json,
+        } => {
+            let policy = if *overwrite {
+                CollisionPolicy::OverwriteWithBackup
+            } else {
+                CollisionPolicy::RenameWithSuffix
+            };
+            match mgr.create_archive(
+                inputs,
+                output,
+                None,
+                CompressionProfile::from(*profile),
+                policy,
+                &ctx,
+            ) {
+                Ok(report) => {
+                    if *json {
+                        emit_json_stdout(&report)
+                    } else {
+                        emit_text_stdout(&format_archive_create_human(&report), false)
+                    }
+                }
+                Err(err) => report_cli_error(&err, *json || log_json),
+            }
+        }
+        ArchiveAction::List { archive, json } => match mgr.list_archive(archive, &ctx) {
+            Ok(entries) => {
+                if *json {
+                    emit_json_stdout(&entries)
+                } else {
+                    let mut text = format!("Archive Entries ({}):\n", entries.len());
+                    for member in &entries {
+                        let _ = writeln!(
+                            text,
+                            "  {} ({} bytes)",
+                            member.path, member.uncompressed_bytes
+                        );
+                    }
+                    emit_text_stdout(&text, false)
+                }
+            }
+            Err(err) => report_cli_error(&err, *json || log_json),
+        },
+        ArchiveAction::Extract {
+            archive,
+            output,
+            json,
+        } => match mgr.extract_archive(archive, output, &ctx) {
+            Ok(report) => {
+                if *json {
+                    emit_json_stdout(&report)
+                } else {
+                    emit_text_stdout(
+                        &format!(
+                            "Extracted {} file(s) ({} bytes) to {}",
+                            report.extracted_files.len(),
+                            report.total_bytes_written,
+                            output.display()
+                        ),
+                        false,
+                    )
+                }
+            }
+            Err(err) => report_cli_error(&err, *json || log_json),
+        },
     }
 }
 

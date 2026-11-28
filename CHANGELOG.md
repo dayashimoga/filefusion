@@ -312,3 +312,12 @@
 ### Subphase 2.3.1 — Adaptive Optimization Engine & Quality Solver (`optimization-engine`, `L4`)
 - **Added:** L4 `optimization-engine` crate (`crates/optimization-engine/{Cargo.toml,src/{lib.rs,recommender.rs,solver.rs,dedup.rs,dispatcher.rs}}`) delivering `recommend_codec` (`FR-ADP-001`..`002`), bounded binary quality solver (`solve_quantizer_binary_search`, `solve_jpeg_quality_target`, `solve_and_stage_jpeg`, `FR-CMP-003`), FastCDC sub-file chunk deduplication & `dHash`/2D-DCT `pHash` perceptual hashing (`FR-DUP-002`, `FR-DET-004`), and unified L3 engine `OptimizationDispatcher`.
 - **Changed:** Added `optimization-engine` to workspace `Cargo.toml` / `Cargo.lock` with zero new external dependencies, backfilled `19c5a04` (`stage-2.2.5`) in `docs/PROGRESS.md`, and appended Entry 038 to `TODO.md`.
+
+
+---
+
+## [0.2.8-stage2.3.2] — 2026-11-28
+
+### Subphase 2.3.2 — Stage 2 CLI (`compress`/`archive`) & Criterion Benchmarks (Stage 2 Completion)
+- **Added:** Real `filefusion compress`, `filefusion archive {create,list,extract}`, and `filefusion bench` CLI subcommands (`apps/cli/src/main.rs`, E2E tests in `apps/cli/tests/cli_smoke.rs`), L5 `JobManager` compression/archive/benchmark orchestration (`crates/job-manager/src/lib.rs`), L4 archive path collection helpers (`crates/optimization-engine/src/dispatcher.rs`), and permanent Criterion benchmark suite (`tests/benchmarks/stage2_compression.rs`, `Criterion 0.6.0`).
+- **Changed:** Recorded host CPU-only Stage 2 Criterion baselines in `PERFORMANCE.md`, wired `job-manager -> optimization-engine`, backfilled `c0bfe41` (`stage-2.3.1`) in `docs/PROGRESS.md`, and appended Entry 039 to `TODO.md`.

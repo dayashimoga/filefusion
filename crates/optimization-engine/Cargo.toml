@@ -67,5 +67,13 @@ serde.workspace = true
 serde_json.workspace = true
 validation-engine = { workspace = true, default-features = false }
 
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "stage2_compression"
+path = "../../tests/benchmarks/stage2_compression.rs"
+harness = false
+
 [lints]
 workspace = true

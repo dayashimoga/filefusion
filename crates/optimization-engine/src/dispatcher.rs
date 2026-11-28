@@ -1,6 +1,13 @@
 //! Unified Stage 2 L3 compression engine orchestration & routing (`FF-MOD-001` §4).
 
-use compression_archive::ArchiveCompressionEngine;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+pub use compression_archive::{
+    ArchiveCompressionEngine, ArchiveContainerKind, ArchiveExtractionReport, ArchiveInputEntry,
+    ArchiveMemberMetadata, ArchiveWriteSummary, StreamCodec, compress_stream_bytes,
+    create_archive_from_entries, extract_archive_safely, list_archive_members,
+};
 use compression_audio::AudioCompressionEngine;
 use compression_core::effective_target_format;
 use compression_image::RasterCompressionEngine;
@@ -13,12 +20,179 @@ use file_core::{
 };
 
 #[cfg(feature = "native-process")]
-use std::path::PathBuf;
-
-#[cfg(feature = "native-process")]
 use compression_video::VideoCompressionOptions;
 #[cfg(feature = "native-process")]
 use file_core::IsolatedProcessRunner;
+
+/// Infers target [`ArchiveContainerKind`] from explicit [`FormatId`] override or destination
+/// compound extension (`.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.zst`/`.tzst`, `.tar.xz`/`.txz`,
+/// `.tar.bz2`/`.tbz2`, `.tar.lz4`, `.tar.br`, `.7z`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] (`FmtUnsupported`) if the target extension/format is unrecognized.
+pub fn archive_kind_from_output_path(
+    output: &Path,
+    explicit_format: Option<FormatId>,
+) -> FileFusionResult<ArchiveContainerKind> {
+    if let Some(fmt) = explicit_format {
+        return match fmt {
+            FormatId::Zip => Ok(ArchiveContainerKind::Zip),
+            FormatId::Tar => Ok(ArchiveContainerKind::Tar),
+            FormatId::Gzip => Ok(ArchiveContainerKind::TarGz),
+            FormatId::Zstd => Ok(ArchiveContainerKind::TarZst),
+            FormatId::Xz => Ok(ArchiveContainerKind::TarXz),
+            FormatId::Bzip2 => Ok(ArchiveContainerKind::TarBz2),
+            FormatId::Lz4 => Ok(ArchiveContainerKind::TarLz4),
+            FormatId::SevenZ => Ok(ArchiveContainerKind::SevenZ),
+            other => Err(FileFusionError::new(
+                ErrorCode::FmtUnsupported,
+                format!("unsupported archive container format {other:?}"),
+            )),
+        };
+    }
+
+    let name = output
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    for (suffix, kind) in [
+        (".tar.zst", ArchiveContainerKind::TarZst),
+        (".tzst", ArchiveContainerKind::TarZst),
+        (".tar.gz", ArchiveContainerKind::TarGz),
+        (".tgz", ArchiveContainerKind::TarGz),
+        (".tar.xz", ArchiveContainerKind::TarXz),
+        (".txz", ArchiveContainerKind::TarXz),
+        (".tar.bz2", ArchiveContainerKind::TarBz2),
+        (".tbz2", ArchiveContainerKind::TarBz2),
+        (".tar.lz4", ArchiveContainerKind::TarLz4),
+        (".tar.br", ArchiveContainerKind::TarBrotli),
+        (".zip", ArchiveContainerKind::Zip),
+        (".tar", ArchiveContainerKind::Tar),
+        (".7z", ArchiveContainerKind::SevenZ),
+    ] {
+        if name.ends_with(suffix) {
+            return Ok(kind);
+        }
+    }
+
+    Err(FileFusionError::new(
+        ErrorCode::FmtUnsupported,
+        format!(
+            "cannot infer archive container kind from destination `{}`",
+            output.display()
+        ),
+    ))
+}
+
+/// Safely collects files (and non-symlinked directory trees) into normalized [`ArchiveInputEntry`]
+/// items while checking `ctx.check_cancelled()?` and `ctx.limits.max_uncompressed_bytes`.
+///
+/// # Errors
+/// Returns [`FileFusionError`] if `inputs` is empty, a path is missing, symlinks/traversal fail,
+/// or aggregate bytes exceed `max_uncompressed_bytes`.
+pub fn collect_archive_input_entries(
+    inputs: &[PathBuf],
+    ctx: &JobContext,
+) -> FileFusionResult<Vec<ArchiveInputEntry>> {
+    if inputs.is_empty() {
+        return Err(FileFusionError::new(
+            ErrorCode::IoNotFound,
+            "archive create requires at least one input path",
+        ));
+    }
+
+    let mut collected = Vec::new();
+    let mut total_bytes = 0u64;
+    for root in inputs {
+        ctx.check_cancelled()?;
+        let meta = fs::symlink_metadata(root)?;
+        if meta.file_type().is_symlink() {
+            return Err(FileFusionError::new(
+                ErrorCode::SecTraversal,
+                format!("symlink inputs are rejected for safety: {}", root.display()),
+            ));
+        }
+        let base_name = root
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| {
+                FileFusionError::new(ErrorCode::SecTraversal, "invalid archive input filename")
+            })?
+            .to_owned();
+        if meta.is_file() {
+            push_archive_file_entry(root, &base_name, &mut total_bytes, &mut collected, ctx)?;
+        } else if meta.is_dir() {
+            walk_archive_dir(root, &base_name, &mut total_bytes, &mut collected, ctx)?;
+        }
+    }
+
+    if collected.is_empty() {
+        return Err(FileFusionError::new(
+            ErrorCode::IoNotFound,
+            "no regular files found in archive inputs",
+        ));
+    }
+    Ok(collected)
+}
+
+fn push_archive_file_entry(
+    disk_path: &Path,
+    archive_rel: &str,
+    total_bytes: &mut u64,
+    out: &mut Vec<ArchiveInputEntry>,
+    ctx: &JobContext,
+) -> FileFusionResult<()> {
+    ctx.check_cancelled()?;
+    let safe_rel = validation_engine::validate_archive_member_path(archive_rel)?;
+    let bytes = fs::read(disk_path)?;
+    *total_bytes = total_bytes.saturating_add(u64::try_from(bytes.len()).unwrap_or(u64::MAX));
+    if *total_bytes > ctx.limits.max_uncompressed_bytes {
+        return Err(FileFusionError::new(
+            ErrorCode::SecBomb,
+            format!(
+                "archive input size ({} bytes) exceeds limit ({} bytes)",
+                *total_bytes, ctx.limits.max_uncompressed_bytes
+            ),
+        ));
+    }
+    out.push(ArchiveInputEntry {
+        path: safe_rel,
+        data: bytes,
+    });
+    Ok(())
+}
+
+fn walk_archive_dir(
+    dir_path: &Path,
+    rel_prefix: &str,
+    total_bytes: &mut u64,
+    out: &mut Vec<ArchiveInputEntry>,
+    ctx: &JobContext,
+) -> FileFusionResult<()> {
+    ctx.check_cancelled()?;
+    let mut children: Vec<PathBuf> = fs::read_dir(dir_path)?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .collect();
+    children.sort();
+    for child in children {
+        let meta = fs::symlink_metadata(&child)?;
+        if meta.file_type().is_symlink() {
+            continue;
+        }
+        let Some(name) = child.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let rel = format!("{rel_prefix}/{name}");
+        if meta.is_file() {
+            push_archive_file_entry(&child, &rel, total_bytes, out, ctx)?;
+        } else if meta.is_dir() {
+            walk_archive_dir(&child, &rel, total_bytes, out, ctx)?;
+        }
+    }
+    Ok(())
+}
 
 /// Unified L4 compression dispatcher coordinating all six L3 format engines cleanly.
 #[derive(Debug, Clone, Default)]

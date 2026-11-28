@@ -351,3 +351,13 @@
 - [x] `[2.3.1]` Materialize L4 `crates/optimization-engine` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L4_OPT -> L1_HW & L3_IMG & L3_VID & L3_AUD & L3_PDF & L3_OFF & L3_ARC`, `FR-ADP-001`..`002`, `FR-CMP-003`, `FR-DUP-002`, `FR-DET-004`) with zero new external dependencies in `Cargo.lock`.
 - [x] `[2.3.1]` Implement content-aware `recommend_codec` (`recommender.rs`), quality-constrained quantizer binary-search solver (`solver.rs`), FastCDC Gear-hash chunking & `dHash`/2D-DCT `pHash` similarity hashing (`dedup.rs`), and unified `OptimizationDispatcher` (`dispatcher.rs`) across all six L3 engines.
 - [x] `[2.3.1]` Backfill `19c5a04` (`stage-2.2.5`) in `docs/PROGRESS.md` and append Subphase `2.3.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 039 — Stage 2 Subphase 2.3.2 Stage 2 CLI & Criterion Benchmarks
+
+### Completed in Subphase 2.3.2
+- [x] `[2.3.2]` Wire L5 `crates/job-manager` to L4 `crates/optimization-engine` cleanly (`FF-MOD-001` §4 DAG `L5_JOB -> L0 & L1_REG & L4_OPT`), exposing `JobManager::compress_file`, `create_archive`, `list_archive`, `extract_archive`, and `run_quick_benchmark`.
+- [x] `[2.3.2]` Implement `filefusion compress`, `filefusion archive {create,list,extract}`, and `filefusion bench` CLI subcommands (`apps/cli/src/main.rs`) with `--json` output and full E2E CLI integration coverage (`apps/cli/tests/cli_smoke.rs`).
+- [x] `[2.3.2]` Add permanent Criterion benchmark suite (`Criterion 0.6.0`, `tests/benchmarks/stage2_compression.rs`), execute host CPU benchmarks, record baselines in `PERFORMANCE.md`, backfill `c0bfe41` (`stage-2.3.1`) in `docs/PROGRESS.md`, and append Subphase `2.3.2` entries to `TODO.md` and `CHANGELOG.md`.

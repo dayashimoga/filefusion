@@ -14,7 +14,12 @@ pub use dedup::{
     are_perceptually_similar, chunk_bytes_fastcdc, compute_image_dhash, compute_image_phash,
     hamming_distance_u64,
 };
-pub use dispatcher::OptimizationDispatcher;
+pub use dispatcher::{
+    ArchiveContainerKind, ArchiveExtractionReport, ArchiveInputEntry, ArchiveMemberMetadata,
+    ArchiveWriteSummary, OptimizationDispatcher, StreamCodec, archive_kind_from_output_path,
+    collect_archive_input_entries, compress_stream_bytes, create_archive_from_entries,
+    extract_archive_safely, list_archive_members,
+};
 pub use recommender::{CodecRecommendation, RecommendationHints, recommend_codec};
 pub use solver::{
     QualityTargetConstraint, QuantizerProbeSample, SolverResult, SolverTrial, solve_and_stage_jpeg,

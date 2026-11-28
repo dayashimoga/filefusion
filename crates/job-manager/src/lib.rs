@@ -45,6 +45,14 @@ pub use hardware_acceleration::{
     HardwareEncoderCapability, HardwareProfile, HardwareRoutingDecision, HardwareVendorBackend,
     SimdFeatures, probe_hardware as probe_hardware_acceleration, select_video_backend,
 };
+pub use optimization_engine::{
+    ArchiveContainerKind, ArchiveExtractionReport, ArchiveInputEntry, ArchiveMemberMetadata,
+    ArchiveWriteSummary, CodecRecommendation, FastCdcConfig, OptimizationDispatcher,
+    QualityTargetConstraint, RecommendationHints, StreamCodec, archive_kind_from_output_path,
+    chunk_bytes_fastcdc, collect_archive_input_entries, compress_stream_bytes,
+    create_archive_from_entries, extract_archive_safely, list_archive_members, recommend_codec,
+    solve_and_stage_jpeg,
+};
 pub use progress::{ProgressBus, ProgressBusStats, ProgressSubscription};
 pub use scheduler::{
     JobPriority, JobScheduler, ScheduledItemSpec, SchedulerController, SchedulerStats,
@@ -271,6 +279,356 @@ impl JobManager {
         self.scheduler()
             .execute_scheduled_items(req, &specs, handler, Some(&ctrl), ctx)
     }
+
+    /// Compresses a single file through L4 [`OptimizationDispatcher`] (or L4 quality-constrained
+    /// JPEG binary solver when `use_quality_solver` is requested) using safe atomic staging
+    /// (`StagedPath`), memory permits, and `FR-CMP-002` No-Op Guard.
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] on validation/spoofing errors, codec errors, or cancellation.
+    pub fn compress_file(
+        &self,
+        input_path: &Path,
+        output_path: &Path,
+        req: &CompressionRequest,
+        use_quality_solver: bool,
+        collision_policy: CollisionPolicy,
+        ctx: &JobContext,
+    ) -> FileFusionResult<CompressFileReport> {
+        ctx.check_cancelled()?;
+        let source = ValidatedSource::open(input_path, true, &self.limits)?;
+        let hw_profile = self.probe_hardware();
+        let recommendation = recommend_codec(
+            &source.inspection,
+            &RecommendationHints {
+                profile: req.profile,
+                web_compatible: false,
+                lossless_required: matches!(req.profile, CompressionProfile::LosslessMaximum),
+                prefer_deterministic_cpu: false,
+                strip_metadata: req.strip_metadata,
+            },
+            &hw_profile,
+        );
+
+        let target_format = req
+            .target_format
+            .unwrap_or(source.inspection.detected_format);
+        let staged = StagedPath::create_sibling(output_path)?;
+        let can_solve_jpeg = use_quality_solver
+            && (req.min_ssim.is_some() || req.target_max_bytes.is_some())
+            && target_format == FormatId::Jpeg
+            && matches!(
+                source.inspection.detected_format,
+                FormatId::Jpeg | FormatId::Png | FormatId::Bmp | FormatId::Tiff | FormatId::Webp
+            );
+
+        let outcome = if can_solve_jpeg {
+            let constraint = QualityTargetConstraint {
+                min_ssim: req.min_ssim,
+                min_psnr_db: None,
+                target_max_bytes: req.target_max_bytes,
+                ..QualityTargetConstraint::default()
+            };
+            let (out, _solved) =
+                solve_and_stage_jpeg(&source, &staged, &constraint, req.no_op_if_larger, ctx)?;
+            out
+        } else {
+            Self::dispatch_compression(self.limits, &source, &staged, req, ctx)?
+        };
+
+        let bytes_in = outcome.bytes_in;
+        let bytes_out = outcome.bytes_out;
+        let final_out_path = match outcome.status {
+            CompressionStatus::Optimized => Some(
+                staged
+                    .promote(collision_policy)?
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            CompressionStatus::NoOpRetainedOriginal => {
+                drop(staged);
+                None
+            }
+        };
+
+        let savings_bytes = bytes_in.saturating_sub(bytes_out);
+        #[allow(clippy::cast_precision_loss)]
+        let savings_pct = if bytes_in > 0 {
+            ((savings_bytes as f64) * 100.0) / (bytes_in as f64)
+        } else {
+            0.0
+        };
+
+        Ok(CompressFileReport {
+            schema_version: file_core::CORE_SCHEMA_VERSION,
+            status: outcome.status,
+            input_path: input_path.to_string_lossy().into_owned(),
+            output_path: final_out_path,
+            detected_format: source.inspection.detected_format,
+            target_format,
+            bytes_in,
+            bytes_out,
+            savings_bytes,
+            savings_pct,
+            codec_used: outcome.codec_used,
+            quality: outcome.quality,
+            recommendation,
+        })
+    }
+
+    #[cfg(feature = "native-process")]
+    fn dispatch_compression(
+        limits: ResourceLimits,
+        source: &ValidatedSource,
+        staged: &StagedPath,
+        req: &CompressionRequest,
+        ctx: &JobContext,
+    ) -> FileFusionResult<CompressionOutcome> {
+        let report = collect_doctor_report(limits);
+        let find_tool = |id: &str| {
+            report
+                .tool_availability
+                .iter()
+                .find(|t| t.tool_id == id && t.available)
+                .and_then(|t| t.binary_path.as_ref().map(std::path::PathBuf::from))
+        };
+        let dispatcher = OptimizationDispatcher::with_tier2_binaries(
+            find_tool("tier2-ffmpeg"),
+            find_tool("tier2-ffprobe"),
+            find_tool("tier2-qpdf"),
+        );
+        let runner = NativeIsolatedProcessRunner::new();
+        dispatcher.compress_with_optional_runner(source, staged, req, Some(&runner), ctx)
+    }
+
+    #[cfg(not(feature = "native-process"))]
+    fn dispatch_compression(
+        _limits: ResourceLimits,
+        source: &ValidatedSource,
+        staged: &StagedPath,
+        req: &CompressionRequest,
+        ctx: &JobContext,
+    ) -> FileFusionResult<CompressionOutcome> {
+        let dispatcher = OptimizationDispatcher::new_tier1();
+        dispatcher.compress(source, staged, req, ctx)
+    }
+
+    /// Creates an archive from local paths atomically via `StagedPath`, validating member paths
+    /// and enforcing resource limits (`FR-ARC-001`, `FR-SEC-001`).
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] on missing inputs, traversal/symlink rejection, or I/O errors.
+    pub fn create_archive(
+        &self,
+        inputs: &[std::path::PathBuf],
+        output_path: &Path,
+        explicit_format: Option<FormatId>,
+        profile: CompressionProfile,
+        collision_policy: CollisionPolicy,
+        ctx: &JobContext,
+    ) -> FileFusionResult<ArchiveCreateReport> {
+        ctx.check_cancelled()?;
+        let kind = archive_kind_from_output_path(output_path, explicit_format)?;
+        let entries = collect_archive_input_entries(inputs, ctx)?;
+        let staged = StagedPath::create_sibling(output_path)?;
+        let summary =
+            create_archive_from_entries(&entries, staged.staged_path(), kind, profile, ctx)?;
+        let final_path = staged.promote(collision_policy)?;
+
+        Ok(ArchiveCreateReport {
+            schema_version: file_core::CORE_SCHEMA_VERSION,
+            output_path: final_path.to_string_lossy().into_owned(),
+            kind: summary.kind,
+            entry_count: summary.entry_count,
+            total_input_bytes: summary.total_input_bytes,
+            total_output_bytes: summary.total_output_bytes,
+        })
+    }
+
+    /// Lists entries of a local archive safely with Zip-Slip / bomb checks (`FR-ARC-001`).
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] on corrupt containers, bomb violations, or cancellation.
+    pub fn list_archive(
+        &self,
+        archive_path: &Path,
+        ctx: &JobContext,
+    ) -> FileFusionResult<Vec<ArchiveMemberMetadata>> {
+        ctx.check_cancelled()?;
+        list_archive_members(archive_path, &self.limits)
+    }
+
+    /// Extracts an archive safely into `dest_dir` with Zip-Slip and decompression-bomb enforcement.
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] on traversal attempts (`SecTraversal`), bomb limits (`SecBomb`),
+    /// or I/O failures.
+    pub fn extract_archive(
+        &self,
+        archive_path: &Path,
+        dest_dir: &Path,
+        ctx: &JobContext,
+    ) -> FileFusionResult<ArchiveExtractionReport> {
+        ctx.check_cancelled()?;
+        extract_archive_safely(archive_path, dest_dir, &self.limits, ctx)
+    }
+
+    /// Runs lightweight deterministic Stage 2 host throughput probes (`Zstd` + `FastCDC`).
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] on cancelled execution or compression failure.
+    pub fn run_quick_benchmark(
+        &self,
+        iterations: u32,
+        ctx: &JobContext,
+    ) -> FileFusionResult<BenchSuiteReport> {
+        use std::time::Instant;
+
+        let iters = iterations.clamp(1, 200);
+        let mut payload = vec![0u8; 64 * 1024];
+        for (idx, b) in payload.iter_mut().enumerate() {
+            *b = u8::try_from((idx * 7 + (idx >> 4)) % 128).unwrap_or(0);
+        }
+
+        let start_cdc = Instant::now();
+        for _ in 0..iters {
+            ctx.check_cancelled()?;
+            let _chunks = chunk_bytes_fastcdc(&payload, FastCdcConfig::default());
+        }
+        let elapsed_cdc_ms = start_cdc.elapsed().as_secs_f64() * 1000.0;
+        let total_mb = (f64::from(iters) * 64.0) / 1024.0;
+
+        let start_zstd = Instant::now();
+        let mut zstd_out_len = payload.len();
+        for _ in 0..iters {
+            ctx.check_cancelled()?;
+            let out = compress_stream_bytes(
+                &payload,
+                StreamCodec::Zstd,
+                CompressionProfile::BalancedOptimal,
+            )?;
+            zstd_out_len = out.len();
+        }
+        let elapsed_zstd_ms = start_zstd.elapsed().as_secs_f64() * 1000.0;
+        #[allow(clippy::cast_precision_loss)]
+        let zstd_ratio = (zstd_out_len as f64) / (payload.len() as f64);
+
+        Ok(BenchSuiteReport {
+            schema_version: file_core::CORE_SCHEMA_VERSION,
+            workspace_version: file_core::WORKSPACE_VERSION.to_owned(),
+            host_os: std::env::consts::OS.to_owned(),
+            host_arch: std::env::consts::ARCH.to_owned(),
+            logical_cpus: std::thread::available_parallelism().map_or(1, usize::from),
+            results: vec![
+                BenchProbeEntry {
+                    workload: String::from("fastcdc_64kb_16kb_avg"),
+                    bytes_processed: u64::from(iters) * 64 * 1024,
+                    iterations: iters,
+                    elapsed_ms: elapsed_cdc_ms,
+                    throughput_mb_s: if elapsed_cdc_ms > 0.0 {
+                        total_mb / (elapsed_cdc_ms / 1000.0)
+                    } else {
+                        0.0
+                    },
+                    compression_ratio: None,
+                },
+                BenchProbeEntry {
+                    workload: String::from("zstd_stream_64kb_balanced"),
+                    bytes_processed: u64::from(iters) * 64 * 1024,
+                    iterations: iters,
+                    elapsed_ms: elapsed_zstd_ms,
+                    throughput_mb_s: if elapsed_zstd_ms > 0.0 {
+                        total_mb / (elapsed_zstd_ms / 1000.0)
+                    } else {
+                        0.0
+                    },
+                    compression_ratio: Some(zstd_ratio),
+                },
+            ],
+        })
+    }
+}
+
+/// Structured output emitted by [`JobManager::compress_file`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct CompressFileReport {
+    /// Contract schema version.
+    pub schema_version: u32,
+    /// Optimization outcome (`Optimized` or `NoOpRetainedOriginal`).
+    pub status: CompressionStatus,
+    /// Source file path.
+    pub input_path: String,
+    /// Promoted destination path (`None` when No-Op guard retained original).
+    pub output_path: Option<String>,
+    /// Detected input format.
+    pub detected_format: FormatId,
+    /// Target format.
+    pub target_format: FormatId,
+    /// Input byte count.
+    pub bytes_in: u64,
+    /// Final output byte count.
+    pub bytes_out: u64,
+    /// Bytes reduced (`bytes_in - bytes_out`).
+    pub savings_bytes: u64,
+    /// Percentage reduction (`0.0..=100.0`).
+    pub savings_pct: f64,
+    /// Selected engine/codec label.
+    pub codec_used: String,
+    /// Empirical quality evaluation (`SSIM`, `PSNR`, or lossless bit-exact).
+    pub quality: Option<QualityMetrics>,
+    /// Adaptive codec recommendation telemetry.
+    pub recommendation: CodecRecommendation,
+}
+
+/// Structured output emitted by [`JobManager::create_archive`].
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ArchiveCreateReport {
+    /// Contract schema version.
+    pub schema_version: u32,
+    /// Promoted destination archive path.
+    pub output_path: String,
+    /// Written container format.
+    pub kind: ArchiveContainerKind,
+    /// File entries archived.
+    pub entry_count: usize,
+    /// Uncompressed input bytes sum.
+    pub total_input_bytes: u64,
+    /// Compressed archive output byte size.
+    pub total_output_bytes: u64,
+}
+
+/// Single host throughput probe measurement returned inside [`BenchSuiteReport`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BenchProbeEntry {
+    /// Benchmark workload identifier.
+    pub workload: String,
+    /// Total bytes processed across iterations.
+    pub bytes_processed: u64,
+    /// Executed iteration count.
+    pub iterations: u32,
+    /// Elapsed wall-clock duration in milliseconds.
+    pub elapsed_ms: f64,
+    /// Measured throughput in MiB/s.
+    pub throughput_mb_s: f64,
+    /// Achieved output/input ratio when applicable.
+    pub compression_ratio: Option<f64>,
+}
+
+/// Structured summary returned by [`JobManager::run_quick_benchmark`].
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BenchSuiteReport {
+    /// Contract schema version.
+    pub schema_version: u32,
+    /// `FileFusion` workspace version.
+    pub workspace_version: String,
+    /// Host operating system.
+    pub host_os: String,
+    /// Host CPU architecture.
+    pub host_arch: String,
+    /// Logical CPU thread count.
+    pub logical_cpus: usize,
+    /// Individual workload probe entries.
+    pub results: Vec<BenchProbeEntry>,
 }
 
 #[allow(clippy::too_many_arguments)]

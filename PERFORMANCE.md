@@ -38,3 +38,15 @@
   - `cargo test --workspace`: `0.10s` test compile, `0.00s` execution (`1 passed; 0 failed`)
 
 *Stage 1–2 throughput, compression ratio, SSIM/PSNR/VMAF, and memory benchmarks will be appended chronologically below as crates are implemented.*
+
+
+### Stage 2 Host Benchmarks (`2026-11-28`, `stage-2.3.2`)
+- **Command:** `cargo bench -p optimization-engine --bench stage2_compression -- --warm-up-time 0.2 --measurement-time 0.5`
+- **Harness:** `tests/benchmarks/stage2_compression.rs` (`Criterion 0.6.0`, CPU-only host baseline)
+
+| Benchmark Workload | Input Payload | Median Iteration Time | Throughput / Notes |
+| :--- | :--- | :--- | :--- |
+| `fastcdc_64kb/gear_hash_16kb` | `64 KiB` deterministic | `133.99 µs` (`[131.41, 137.08] µs`) | `466.45 MiB/s` (`BLAKE3` + `FastCDC`) |
+| `zstd_stream_64kb/balanced_optimal` | `64 KiB` deterministic | `865.81 µs` (`[861.25, 870.52] µs`) | `72.187 MiB/s` |
+| `image_png_oxipng_96x96/balanced` | `96x96` uncompressed RGBA PNG | `4.7320 ms` (`[4.6962, 4.7701] ms`) | `7.4625 MiB/s` (`oxipng` lossless) |
+| `jpeg_quality_solver_96x96/ssim_0_96` | `96x96` RGBA PNG -> JPEG solver | `2.4090 ms` (`[2.3875, 2.4333] ms`) | Binary search (`q=40..=95`, empirical SSIM >= `0.96`) |
