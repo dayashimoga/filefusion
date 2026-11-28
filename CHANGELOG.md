@@ -303,3 +303,12 @@
 ### Subphase 2.2.5 — PDF & Office Compression Crates (`compression-pdf`, `compression-office`, `L3`)
 - **Added:** L3 `compression-pdf` crate (`crates/compression-pdf/{Cargo.toml,src/{lib.rs,optimizer.rs,repair.rs}}`) and L3 `compression-office` crate (`crates/compression-office/{Cargo.toml,src/{lib.rs,container.rs,xml.rs}}`), plus `compression_image::optimize_raster_in_memory` for zero-temp-file embedded raster recompression inside PDF, OOXML, ODF, and EPUB containers.
 - **Changed:** Added `compression-pdf`, `compression-office`, and MIT-licensed `lopdf` (`0.42`, `default-features = false`) to workspace `Cargo.toml` / `Cargo.lock`, backfilled `2660aed` (`stage-2.2.4`) in `docs/PROGRESS.md`, and appended Entry 037 to `TODO.md`.
+
+
+---
+
+## [0.2.7-stage2.3.1] — 2026-11-28
+
+### Subphase 2.3.1 — Adaptive Optimization Engine & Quality Solver (`optimization-engine`, `L4`)
+- **Added:** L4 `optimization-engine` crate (`crates/optimization-engine/{Cargo.toml,src/{lib.rs,recommender.rs,solver.rs,dedup.rs,dispatcher.rs}}`) delivering `recommend_codec` (`FR-ADP-001`..`002`), bounded binary quality solver (`solve_quantizer_binary_search`, `solve_jpeg_quality_target`, `solve_and_stage_jpeg`, `FR-CMP-003`), FastCDC sub-file chunk deduplication & `dHash`/2D-DCT `pHash` perceptual hashing (`FR-DUP-002`, `FR-DET-004`), and unified L3 engine `OptimizationDispatcher`.
+- **Changed:** Added `optimization-engine` to workspace `Cargo.toml` / `Cargo.lock` with zero new external dependencies, backfilled `19c5a04` (`stage-2.2.5`) in `docs/PROGRESS.md`, and appended Entry 038 to `TODO.md`.

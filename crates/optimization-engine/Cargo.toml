@@ -1,0 +1,71 @@
+[package]
+name = "optimization-engine"
+description = "FileFusion L4 adaptive codec recommender, quality-constrained CRF/quantizer binary solver, FastCDC/pHash storage analyzer, and L3 engine dispatcher."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-logging", "native-process", "hw-accel"]
+native-logging = [
+    "compression-archive/native-logging",
+    "compression-audio/native-logging",
+    "compression-core/native-logging",
+    "compression-image/native-logging",
+    "compression-office/native-logging",
+    "compression-pdf/native-logging",
+    "compression-video/native-logging",
+    "file-core/native-logging",
+    "hardware-acceleration/native-logging",
+    "quality-engine/native-logging",
+]
+native-process = [
+    "codec-registry/native-probe",
+    "compression-archive/native-process",
+    "compression-audio/native-process",
+    "compression-office/native-process",
+    "compression-pdf/native-process",
+    "compression-video/native-process",
+]
+hw-accel = [
+    "compression-video/hw-accel",
+    "hardware-acceleration/hw-accel",
+]
+wasm = [
+    "codec-registry/wasm",
+    "compression-archive/wasm",
+    "compression-audio/wasm",
+    "compression-core/wasm",
+    "compression-image/wasm",
+    "compression-office/wasm",
+    "compression-pdf/wasm",
+    "compression-video/wasm",
+    "file-core/wasm",
+    "hardware-acceleration/wasm",
+    "quality-engine/wasm",
+    "validation-engine/wasm",
+]
+
+[dependencies]
+blake3.workspace = true
+codec-registry = { workspace = true, default-features = false }
+compression-archive = { workspace = true, default-features = false }
+compression-audio = { workspace = true, default-features = false }
+compression-core = { workspace = true, default-features = false }
+compression-image = { workspace = true, default-features = false }
+compression-office = { workspace = true, default-features = false }
+compression-pdf = { workspace = true, default-features = false }
+compression-video = { workspace = true, default-features = false }
+file-core = { workspace = true, default-features = false }
+hardware-acceleration = { workspace = true, default-features = false }
+image.workspace = true
+quality-engine = { workspace = true, default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+validation-engine = { workspace = true, default-features = false }
+
+[lints]
+workspace = true

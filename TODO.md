@@ -341,3 +341,13 @@
 - [x] `[2.2.5]` Materialize L3 `crates/compression-pdf` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_PDF -> L2_CMP & L1_REG & L3_IMG`, `FR-PDF-001`..`002`, `FR-REP-001`..`002`, `FR-MET-002`) with MIT-licensed `lopdf` `0.42`, shared `compression-image::optimize_raster_in_memory`, Flate stream compaction, object pruning, `/Info`/`XMP` privacy scrubbing, honest `PdfRepairAssessment`, and `native-process` Tier 2 `qpdf` `IsolatedProcessRunner` helpers.
 - [x] `[2.2.5]` Materialize L3 `crates/compression-office` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_OFF -> L2_CMP & L1_REG & L3_IMG`, `FR-DOC-002`..`003`, `FR-SEC-001`, `FR-MET-002`) supporting `DOCX`, `XLSX`, `PPTX`, `ODT`, `ODS`, `ODP`, and `EPUB` with Zip-Slip & decompression-bomb guards, embedded raster compression via `compression-image`, lossless XML minification, privacy metadata scrubbing, `mimetype`-first `Stored` packaging, and `FR-CMP-002` No-Op Guard.
 - [x] `[2.2.5]` Backfill `2660aed` (`stage-2.2.4`) in `docs/PROGRESS.md` and append Subphase `2.2.5` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 038 — Stage 2 Subphase 2.3.1 Adaptive Optimization Engine (`optimization-engine`)
+
+### Completed in Subphase 2.3.1
+- [x] `[2.3.1]` Materialize L4 `crates/optimization-engine` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L4_OPT -> L1_HW & L3_IMG & L3_VID & L3_AUD & L3_PDF & L3_OFF & L3_ARC`, `FR-ADP-001`..`002`, `FR-CMP-003`, `FR-DUP-002`, `FR-DET-004`) with zero new external dependencies in `Cargo.lock`.
+- [x] `[2.3.1]` Implement content-aware `recommend_codec` (`recommender.rs`), quality-constrained quantizer binary-search solver (`solver.rs`), FastCDC Gear-hash chunking & `dHash`/2D-DCT `pHash` similarity hashing (`dedup.rs`), and unified `OptimizationDispatcher` (`dispatcher.rs`) across all six L3 engines.
+- [x] `[2.3.1]` Backfill `19c5a04` (`stage-2.2.5`) in `docs/PROGRESS.md` and append Subphase `2.3.1` entries to `TODO.md` and `CHANGELOG.md`.

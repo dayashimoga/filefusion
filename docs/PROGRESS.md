@@ -8,13 +8,30 @@
 ## Current Active Subphase
 
 - **Stage:** Stage 2 — Universal Compression Engine
-- **Phase:** Phase 2.2 — Format Compression Engines
-- **Subphase:** `2.2.5` — PDF & Office compression crates (`compression-pdf`, `compression-office`)
-- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.3.1` — Adaptive optimization engine & quality solver)
+- **Phase:** Phase 2.3 — Adaptive Optimization & Benchmarks
+- **Subphase:** `2.3.1` — Adaptive optimization engine & quality solver (`optimization-engine`)
+- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.3.2` — Stage 2 CLI (`compress`/`archive`) & Criterion benchmarks)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 2.3.1 — Adaptive optimization engine & quality solver (`optimization-engine`)
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 2 — Universal Compression Engine |
+| **Phase** | Phase 2.3 — Adaptive Optimization & Benchmarks |
+| **Subphase** | `2.3.1` — Adaptive optimization engine & quality solver (`optimization-engine`) |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 3 (Compression & Codec Engineer), Agent 2 (Rust Core Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 3 hours |
+| **Actual Duration** | ~20 minutes |
+| **Acceptance Criteria** | 1. Materialize L4 `crates/optimization-engine` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L4_OPT -> L1_HW & L3_IMG & L3_VID & L3_AUD & L3_PDF & L3_OFF & L3_ARC`, `FR-ADP-001`..`002`, `FR-CMP-003`, `FR-DUP-002`, `FR-DET-004`) with zero new external dependencies in `Cargo.lock`.<br>2. Implement `recommend_codec` (`recommender.rs`) analyzing inspected format, entropy, alpha/metadata privacy risk, and `HardwareProfile` (`select_video_backend` HW-vs-deterministic-CPU fallback); implement bounded quality-constrained binary solver `solve_quantizer_binary_search` / `solve_jpeg_quality_target` / `solve_and_stage_jpeg` (`solver.rs`) minimizing output bytes subject to `min_ssim`, `min_psnr_db`, and `target_max_bytes` with cancellation checks.<br>3. Implement FastCDC Gear-hash sub-file deduplication analyzer (`chunk_bytes_fastcdc`, `analyze_files_fastcdc`) and perceptual `dHash` / 2D-DCT `pHash` hashing (`dedup.rs`), plus unified `OptimizationDispatcher` (`dispatcher.rs`) coordinating all 6 L3 format engines cleanly across native (`native-process`) and `wasm` feature builds.<br>4. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (94 tests), WASM-featured unit tests (44 tests), backfill `19c5a04` (`stage-2.2.5`), append `TODO.md` / `CHANGELOG.md`, obtain Agent 12 `PASS` audit, commit, tag `stage-2.3.1`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (14 crates including `optimization-engine`): PASS (0 warnings); `cargo clippy -p optimization-engine --all-targets --no-default-features --features wasm --locked -- -D warnings`: PASS (0 warnings); `cargo test --workspace --locked`: 94 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 4, `compression-video`: 4, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 6, `hardware-acceleration`: 3, `job-manager`: 16, `optimization-engine`: 4, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 3, `compression-video`: 3, `hardware-acceleration`: 3, `job-manager`: 12, `optimization-engine`: 4, `quality-engine`: 2): 44 passed, 0 failed; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/optimization-engine/Cargo.toml`, `crates/optimization-engine/src/{lib.rs,recommender.rs,solver.rs,dedup.rs,dispatcher.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-2.3.1` on `main` (pushed to `origin`; exact SHA backfilled in `2.3.2`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 2.2.5 — PDF & Office compression crates (`compression-pdf`, `compression-office`)
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Materialize L3 `crates/compression-pdf` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_PDF -> L2_CMP & L1_REG & L3_IMG`, `FR-PDF-001`..`002`, `FR-REP-001`..`002`, `FR-MET-002`, `FR-CMP-001`..`002`) using MIT-licensed `lopdf` (`0.42`, `default-features = false`, MSRV `1.85`), `flate2`, and shared `compression-image::optimize_raster_in_memory` for embedded PDF image XObjects, Flate/zlib stream compaction, unused object pruning, `/Info`/`XMP` privacy scrubbing, honest `PdfRepairAssessment` (`Healthy`/`FullyRepairable`/`PartiallySalvageable`/`Unrecoverable`), and `native-process`-gated Tier 2 `qpdf` `IsolatedProcessRunner` support.<br>2. Materialize L3 `crates/compression-office` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_OFF -> L2_CMP & L1_REG & L3_IMG`, `FR-DOC-002`..`003`, `FR-SEC-001`, `FR-MET-002`) supporting `DOCX`, `XLSX`, `PPTX`, `ODT`, `ODS`, `ODP`, and `EPUB` with `validation-engine` Zip-Slip & decompression-bomb enforcement, embedded raster optimization via `compression-image`, lossless XML whitespace/comment minification preserving `<w:t xml:space="preserve">`, privacy scrubbing (`docProps/*`, `meta.xml`, `.opf`), spec-compliant `mimetype`-first `Stored` packaging, and `FR-CMP-002` No-Op Guard.<br>3. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (90 tests), WASM-featured unit tests (40 tests), verify permissive `Cargo.lock` SPDX licenses, backfill `2660aed` (`stage-2.2.4`), append `TODO.md` / `CHANGELOG.md`, obtain Agent 12 `PASS` audit, commit, tag `stage-2.2.5`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (13 crates including `compression-pdf`, `compression-office`): PASS (0 warnings); `cargo clippy -p compression-pdf -p compression-office --all-targets --no-default-features --features wasm --locked -- -D warnings`: PASS (0 warnings); `cargo test --workspace --locked`: 90 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 4, `compression-video`: 4, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 6, `hardware-acceleration`: 3, `job-manager`: 16, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 3, `compression-video`: 3, `hardware-acceleration`: 3, `job-manager`: 12, `quality-engine`: 2): 40 passed, 0 failed; `Cargo.lock` SPDX check: PASS (0 disallowed licenses); Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/compression-image/src/lib.rs`, `crates/compression-pdf/Cargo.toml`, `crates/compression-pdf/src/{lib.rs,optimizer.rs,repair.rs}`, `crates/compression-office/Cargo.toml`, `crates/compression-office/src/{lib.rs,container.rs,xml.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-2.2.5` on `main` (pushed to `origin`; exact SHA backfilled in `2.3.1`) |
+| **Commit Reference** | `19c5a04` (tag `stage-2.2.5`, pushed to `origin/main`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 2.2.4 — Video compression crate (`compression-video`)
@@ -701,5 +718,5 @@
 | `2.2.3` | Audio compression crate (`compression-audio`) | `COMPLETE` | Agent 3, Agent 8, Agent 12 | 3 hours |
 | `2.2.4` | Video compression crate (`compression-video`) | `COMPLETE` | Agent 3, Agent 9, Agent 8, Agent 12 | 3 hours |
 | `2.2.5` | PDF & Office compression crates (`compression-pdf`, `compression-office`) | `COMPLETE` | Agent 3, Agent 4, Agent 8, Agent 12 | 4 hours |
-| `2.3.1` | Adaptive optimization engine & quality solver (`optimization-engine`) | `NOT STARTED` | Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
+| `2.3.1` | Adaptive optimization engine & quality solver (`optimization-engine`) | `COMPLETE` | Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
 | `2.3.2` | Stage 2 CLI (`compress`/`archive`) & Criterion benchmarks | `NOT STARTED` | Agent 2, Agent 3, Agent 8, Agent 12 | 3 hours |

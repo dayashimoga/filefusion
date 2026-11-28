@@ -13,6 +13,7 @@ members = [
     "crates/compression-video",
     "crates/compression-pdf",
     "crates/compression-office",
+    "crates/optimization-engine",
     "crates/job-manager",
     "apps/cli",
 ]
@@ -76,6 +77,7 @@ compression-audio = { path = "crates/compression-audio" }
 compression-video = { path = "crates/compression-video" }
 compression-pdf = { path = "crates/compression-pdf" }
 compression-office = { path = "crates/compression-office" }
+optimization-engine = { path = "crates/optimization-engine" }
 job-manager = { path = "crates/job-manager" }
 
 [workspace.lints.rust]
