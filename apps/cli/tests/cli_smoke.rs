@@ -893,3 +893,397 @@ fn cli_metadata_encrypt_decrypt_and_ffenc_tamper_security_corpus() -> Result<(),
     let _ = fs::remove_dir_all(&dir);
     Ok(())
 }
+
+#[test]
+fn cli_dedup_exact_near_cdc_and_storage_treemap_corpus_e2e() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("stage5_scan")?;
+    let sub = dir.join("nested");
+    let quarantine = dir.join(".filefusion-quarantine");
+    fs::create_dir_all(&sub)?;
+    fs::create_dir_all(&quarantine)?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+
+    let mut payload = vec![0x3Cu8; 24 * 1024];
+    for (idx, byte) in payload.iter_mut().enumerate() {
+        *byte = u8::try_from((idx.wrapping_mul(31)) & 0xff).unwrap_or(0);
+    }
+    let keep = dir.join("alpha.bin");
+    let dup = sub.join("beta.bin");
+    let mut mid_diff = payload.clone();
+    mid_diff[12 * 1024] ^= 0xff;
+    let mut tail_diff = payload.clone();
+    tail_diff[24 * 1024 - 1] ^= 0x55;
+    let unique = dir.join("unique.bin");
+
+    fs::write(&keep, &payload)?;
+    fs::write(&dup, &payload)?;
+    fs::write(quarantine.join("ignored.bin"), &payload)?;
+    fs::write(dir.join("same_ends_diff_mid.bin"), &mid_diff)?;
+    fs::write(dir.join("diff_tail.bin"), &tail_diff)?;
+    fs::write(&unique, vec![0x11u8; 40 * 1024])?;
+    fs::write(dir.join("empty.txt"), b"")?;
+
+    let exact_out = Command::new(exe)
+        .args(["dedup", "exact", &dir.to_string_lossy(), "--json"])
+        .output()?;
+    assert!(exact_out.status.success());
+    let exact: serde_json::Value = serde_json::from_slice(&exact_out.stdout)?;
+    assert_eq!(exact["stage1_size_candidates"], 4);
+    assert_eq!(exact["stage2_partial_candidates"], 3);
+    assert_eq!(exact["files_full_hashed"], 3);
+    assert_eq!(exact["total_duplicate_files"], 1);
+    assert_eq!(exact["total_wasted_bytes"], 24 * 1024);
+    assert!(
+        exact["bytes_actually_read"].as_u64().unwrap_or(u64::MAX)
+            < exact["total_bytes_scanned"].as_u64().unwrap_or(0)
+    );
+
+    let cdc_out = Command::new(exe)
+        .args([
+            "dedup",
+            "cdc",
+            &keep.to_string_lossy(),
+            &dup.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(cdc_out.status.success());
+    let cdc: serde_json::Value = serde_json::from_slice(&cdc_out.stdout)?;
+    assert_eq!(cdc["duplicate_bytes"], 24 * 1024);
+
+    // Build two near-duplicate images cleanly via real CLI conversion (`BMP` + lossy `JPEG`).
+    let bmp_src = dir.join("photo_src.bmp");
+    let png_full = dir.join("photo_full.png");
+    let jpg_reenc = sub.join("photo_reenc.jpg");
+    write_test_bmp(&bmp_src, 64, 64, false)?;
+    assert!(
+        Command::new(exe)
+            .args([
+                "convert",
+                &bmp_src.to_string_lossy(),
+                "--to",
+                "png",
+                "-o",
+                &png_full.to_string_lossy(),
+            ])
+            .output()?
+            .status
+            .success()
+    );
+    assert!(
+        Command::new(exe)
+            .args([
+                "convert",
+                &bmp_src.to_string_lossy(),
+                "--to",
+                "jpeg",
+                "-o",
+                &jpg_reenc.to_string_lossy(),
+            ])
+            .output()?
+            .status
+            .success()
+    );
+    let _ = fs::remove_file(&bmp_src);
+
+    let near_out = Command::new(exe)
+        .args(["dedup", "near", &dir.to_string_lossy(), "--json"])
+        .output()?;
+    assert!(near_out.status.success());
+    let near: serde_json::Value = serde_json::from_slice(&near_out.stdout)?;
+    assert_eq!(near["images_analyzed"], 2);
+    assert_eq!(near["clusters"].as_array().map(Vec::len), Some(1));
+
+    let storage_out = Command::new(exe)
+        .args(["storage", &dir.to_string_lossy(), "--top", "3", "--json"])
+        .output()?;
+    assert!(storage_out.status.success());
+    let storage: serde_json::Value = serde_json::from_slice(&storage_out.stdout)?;
+    assert_eq!(storage["total_files"], 8);
+    assert_eq!(storage["zero_byte_files"], 1);
+    assert_eq!(storage["largest_files"].as_array().map(Vec::len), Some(3));
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+#[test]
+fn cli_dedup_cleanup_dry_run_quarantine_and_restore_e2e() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("stage5_quarantine")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let payload = vec![0x5Au8; 16 * 1024];
+    let keep = dir.join("a_keeper.bin");
+    let dup = dir.join("b_duplicate.bin");
+    fs::write(&keep, &payload)?;
+    fs::write(&dup, &payload)?;
+
+    // Dry-run is default: must not touch `dup`.
+    let dry_out = Command::new(exe)
+        .args(["dedup", "cleanup", &dir.to_string_lossy(), "--json"])
+        .output()?;
+    assert!(dry_out.status.success());
+    let dry: serde_json::Value = serde_json::from_slice(&dry_out.stdout)?;
+    assert!(dry["execution"].is_null());
+    assert_eq!(dry["plan"]["estimated_reclaimable_bytes"], 16 * 1024);
+    assert!(dup.exists());
+
+    // Permanent delete without consent flag fails cleanly.
+    let del_blocked = Command::new(exe)
+        .args([
+            "dedup",
+            "cleanup",
+            &dir.to_string_lossy(),
+            "--strategy",
+            "delete",
+            "--apply",
+            "--json",
+        ])
+        .output()?;
+    assert!(!del_blocked.status.success());
+    assert!(dup.exists());
+
+    // Apply quarantine -> restore with collision protection (`skip` & `rename`).
+    let q_out = Command::new(exe)
+        .args([
+            "dedup",
+            "cleanup",
+            &dir.to_string_lossy(),
+            "--strategy",
+            "quarantine",
+            "--apply",
+            "--json",
+        ])
+        .output()?;
+    assert!(q_out.status.success());
+    let q_json: serde_json::Value = serde_json::from_slice(&q_out.stdout)?;
+    assert_eq!(q_json["execution"]["applied_count"], 1);
+    assert!(!dup.exists());
+    let manifest_path = q_json["execution"]["manifest_path"]
+        .as_str()
+        .ok_or("missing manifest_path")?
+        .to_owned();
+
+    let sentinel = b"DO_NOT_OVERWRITE";
+    fs::write(&dup, sentinel)?;
+    let skip_out = Command::new(exe)
+        .args([
+            "dedup",
+            "restore",
+            &manifest_path,
+            "--collision",
+            "skip",
+            "--json",
+        ])
+        .output()?;
+    assert!(skip_out.status.success());
+    let skip_json: serde_json::Value = serde_json::from_slice(&skip_out.stdout)?;
+    assert_eq!(skip_json["restored_count"], 0);
+    assert_eq!(skip_json["skipped_count"], 1);
+    assert_eq!(fs::read(&dup)?, sentinel);
+
+    let rename_out = Command::new(exe)
+        .args([
+            "dedup",
+            "restore",
+            &manifest_path,
+            "--collision",
+            "rename",
+            "--json",
+        ])
+        .output()?;
+    assert!(rename_out.status.success());
+    let rename_json: serde_json::Value = serde_json::from_slice(&rename_out.stdout)?;
+    assert_eq!(rename_json["restored_count"], 1);
+    assert_eq!(fs::read(&dup)?, sentinel);
+    assert_eq!(fs::read(dir.join("b_duplicate_1.bin"))?, payload);
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+#[test]
+fn cli_dedup_purge_and_atomic_hardlink_e2e() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("stage5_purge_hl")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let payload = vec![0x6Bu8; 16 * 1024];
+    let keep = dir.join("a_keeper.bin");
+    let dup = dir.join("b_duplicate.bin");
+    fs::write(&keep, &payload)?;
+    fs::write(&dup, &payload)?;
+
+    // Quarantine `dup`, verify `--confirm` gate on purge, then purge.
+    let quarantine_out = Command::new(exe)
+        .args([
+            "dedup",
+            "cleanup",
+            &dir.to_string_lossy(),
+            "--strategy",
+            "quarantine",
+            "--apply",
+            "--json",
+        ])
+        .output()?;
+    assert!(quarantine_out.status.success());
+    let quarantine_json: serde_json::Value = serde_json::from_slice(&quarantine_out.stdout)?;
+    let manifest = quarantine_json["execution"]["manifest_path"]
+        .as_str()
+        .ok_or("missing manifest_path")?;
+    assert!(
+        !Command::new(exe)
+            .args(["dedup", "purge", manifest, "--json"])
+            .output()?
+            .status
+            .success()
+    );
+    let purge_out = Command::new(exe)
+        .args(["dedup", "purge", manifest, "--confirm", "--json"])
+        .output()?;
+    assert!(purge_out.status.success());
+    let purge_json: serde_json::Value = serde_json::from_slice(&purge_out.stdout)?;
+    assert_eq!(purge_json["purged_count"], 1);
+
+    // Same-volume atomic hardlink consolidation on fresh duplicate pair.
+    let hl_dup = dir.join("c_hardlink.bin");
+    fs::write(&hl_dup, &payload)?;
+    let hl_out = Command::new(exe)
+        .args([
+            "dedup",
+            "cleanup",
+            &dir.to_string_lossy(),
+            "--strategy",
+            "hardlink",
+            "--apply",
+            "--json",
+        ])
+        .output()?;
+    assert!(hl_out.status.success());
+    let hl_json: serde_json::Value = serde_json::from_slice(&hl_out.stdout)?;
+    assert_eq!(hl_json["execution"]["applied_count"], 1);
+    assert_eq!(fs::read(&hl_dup)?, payload);
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+#[test]
+fn cli_diff_visual_text_cdc_and_bit_exact_e2e() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("stage5_diff")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let json_a = dir.join("a.json");
+    let json_b = dir.join("b.json");
+    fs::write(&json_a, "{\n  \"mode\": \"fast\",\n  \"threads\": 4\n}\n")?;
+    fs::write(
+        &json_b,
+        "{\n  \"mode\": \"balanced\",\n  \"threads\": 4,\n  \"strict\": true\n}\n",
+    )?;
+
+    let exact_diff = Command::new(exe)
+        .args([
+            "diff",
+            &json_a.to_string_lossy(),
+            &json_a.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(exact_diff.status.success());
+    let exact_json: serde_json::Value = serde_json::from_slice(&exact_diff.stdout)?;
+    assert_eq!(exact_json["bit_exact"], true);
+
+    let text_diff = Command::new(exe)
+        .args([
+            "diff",
+            &json_a.to_string_lossy(),
+            &json_b.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(text_diff.status.success());
+    let text_json: serde_json::Value = serde_json::from_slice(&text_diff.stdout)?;
+    assert_eq!(text_json["bit_exact"], false);
+    assert!(text_json["text_diff"]["common_lines"].as_u64().unwrap_or(0) >= 2);
+    assert!(text_json["text_diff"]["added_lines"].as_u64().unwrap_or(0) >= 1);
+
+    let missing_diff = Command::new(exe)
+        .args([
+            "diff",
+            &json_a.to_string_lossy(),
+            &dir.join("missing.json").to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(!missing_diff.status.success());
+
+    // Visual SSIM/PSNR/pixel diff via real BMP images.
+    let img_a = dir.join("img_a.bmp");
+    let img_b = dir.join("img_b.bmp");
+    write_test_bmp(&img_a, 64, 64, false)?;
+    write_test_bmp(&img_b, 64, 64, true)?;
+    let vis_diff = Command::new(exe)
+        .args([
+            "diff",
+            &img_a.to_string_lossy(),
+            &img_b.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(vis_diff.status.success());
+    let vis_json: serde_json::Value = serde_json::from_slice(&vis_diff.stdout)?;
+    assert_eq!(vis_json["visual_diff"]["same_dimensions"], true);
+    assert!(
+        vis_json["visual_diff"]["ssim"]
+            .as_f64()
+            .is_some_and(|s| s > 0.70 && s < 1.0)
+    );
+    assert!(
+        vis_json["visual_diff"]["pixel_summary"]["differing_pixels"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0
+    );
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+fn write_test_bmp(
+    path: &std::path::Path,
+    width: u32,
+    height: u32,
+    tweak_corner: bool,
+) -> Result<(), Box<dyn Error>> {
+    let row_bytes = width * 3;
+    let pad = (4 - (row_bytes % 4)) % 4;
+    let stride = row_bytes + pad;
+    let pixel_size = stride * height;
+    let file_size = 54 + pixel_size;
+
+    let mut out = Vec::with_capacity(usize::try_from(file_size)?);
+    out.extend_from_slice(b"BM");
+    out.extend_from_slice(&file_size.to_le_bytes());
+    out.extend_from_slice(&[0u8; 4]);
+    out.extend_from_slice(&54u32.to_le_bytes());
+    out.extend_from_slice(&40u32.to_le_bytes());
+    out.extend_from_slice(&width.to_le_bytes());
+    out.extend_from_slice(&height.to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&24u16.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&pixel_size.to_le_bytes());
+    out.extend_from_slice(&[0u8; 16]);
+
+    for y in 0..height {
+        for x in 0..width {
+            let mut r = u8::try_from((x * 3) % 255).unwrap_or(0);
+            let g = u8::try_from((y * 4) % 255).unwrap_or(0);
+            let b = u8::try_from(((x + y) * 2) % 255).unwrap_or(0);
+            if tweak_corner && x < 16 && y < 16 {
+                r = r.saturating_add(48);
+            }
+            out.extend_from_slice(&[b, g, r]);
+        }
+        out.extend(std::iter::repeat_n(0u8, usize::try_from(pad)?));
+    }
+
+    fs::write(path, out)?;
+    Ok(())
+}

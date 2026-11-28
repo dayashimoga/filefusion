@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 5 — File Intelligence & Storage
 - **Phase:** Phase 5.2 — L5 Storage Orchestration, Stage 5 CLI & Corpus Verification
-- **Subphase:** `5.2.1` — L5 storage intelligence & safe cleanup orchestration (`JobManager` Stage 5 coordinator, batch dedup/treemap/diff/quarantine/restore)
+- **Subphase:** `5.2.2` — Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests
 - **Status:** `COMPLETE`
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 5.2.2 — Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests (Stage 5 Completion)
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 5 — File Intelligence & Storage |
+| **Phase** | Phase 5.2 — L5 Storage Orchestration, Stage 5 CLI & Corpus Verification |
+| **Subphase** | `5.2.2` — Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 8 (QA & Automation Engineer), Agent 9 (Security Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 3 hours |
+| **Actual Duration** | ~15 minutes |
+| **Acceptance Criteria** | 1. Implement `apps/cli/src/stage5_cmds.rs` and wire `Commands::{Dedup, Diff, Storage}` cleanly into `apps/cli/src/main.rs` (`MOD-RULE-03` compliant: Plane 1 CLI delegates strictly to L5 `JobManager` without direct `L4`/`L3` calls), exposing `filefusion dedup <exact|near|cdc|cleanup|restore|purge>`, `filefusion diff`, and `filefusion storage` with dry-run default safety (`--apply` + `--yes-permanent-delete` consent gates, `--collision <skip|rename|overwrite>`, and `--json` output).<br>2. Add 4 Stage 5 E2E & security/recovery corpus tests in `apps/cli/tests/cli_smoke.rs` (`cli_dedup_exact_near_cdc_and_storage_treemap_corpus_e2e`, `cli_dedup_cleanup_dry_run_quarantine_and_restore_e2e`, `cli_dedup_purge_and_atomic_hardlink_e2e`, `cli_diff_visual_text_cdc_and_bit_exact_e2e`) covering multi-stage I/O pruning, perceptual similarity, storage treemaps, quarantine restore collisions, purge consent gates, same-volume atomic hardlinks, and visual SSIM/PSNR + LCS diffs.<br>3. Backfill `251711a` (`stage-5.2.1`) onto `5.2.1` in `docs/PROGRESS.md`, pass `cargo fmt --all -- --check`, native & WASM Clippy (`-D warnings`), `cargo test --workspace --locked` (`129` passed, including all `17` `cli_smoke` E2E tests), and WASM-featured tests (`66` passed across 12 crates) with `Cargo.toml`/`Cargo.lock` untouched, append `TODO.md`/`CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-5.2.2`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 129 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 11, `compression-video`: 4, `conversion-core`: 8, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 17, `hardware-acceleration`: 3, `job-manager`: 19, `optimization-engine`: 10, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (12 crates): 66 passed, 0 failed; Agent 12 independent audit: **PASS**; `Cargo.lock`: untouched. |
+| **Files Changed** | `apps/cli/src/{main.rs,stage5_cmds.rs}`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-5.2.2` on `main` (pushed to `origin`; exact SHA backfilled in `6.1.1`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 5.2.1 — L5 storage intelligence & safe cleanup orchestration (`JobManager` Stage 5 coordinator, batch dedup/treemap/diff/quarantine/restore)
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Implement `crates/job-manager/src/stage5.rs` exposing L5 Stage 5 coordinators on `JobManager` (`scan_exact_duplicates`, `scan_near_duplicates`, `analyze_cdc_dedup`, `analyze_storage_treemap`, `diff_files`, `plan_duplicate_cleanup`, `execute_reclamation_plan`, `cleanup_duplicates`, `restore_quarantine`, `purge_quarantine`), `JobCleanupPlanResult`, and `JobCleanupExecutionResult` with `ActiveJobGuard` cancellation tracking and strict `L5 -> L0 & L4` dependency discipline (`MOD-RULE-03`).<br>2. Re-export Stage 5 option/report types and coordinators from `crates/job-manager/src/lib.rs` across both native and `wasm` feature builds without modifying `Cargo.toml` or `Cargo.lock`.<br>3. Backfill `d573a48` (`stage-5.1.2`) onto `5.1.2` in `docs/PROGRESS.md`, add `job_manager_orchestrates_stage5_dedup_diff_treemap_and_quarantine` test, pass `cargo fmt --all -- --check`, native & WASM Clippy (`-D warnings`), `cargo test --workspace --locked` (`125` passed), and WASM-featured tests (`66` passed across 12 crates), append `TODO.md`/`CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-5.2.1`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 125 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 11, `compression-video`: 4, `conversion-core`: 8, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 13, `hardware-acceleration`: 3, `job-manager`: 19, `optimization-engine`: 10, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (12 crates): 66 passed, 0 failed; Agent 12 independent audit: **PASS**; `Cargo.lock`: untouched. |
 | **Files Changed** | `crates/job-manager/src/{lib.rs,stage5.rs}`, `crates/optimization-engine/src/lib.rs` (1-line `rustfmt` sync), `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-5.2.1` on `main` (pushed to `origin`; exact SHA backfilled in `5.2.2`) |
+| **Commit Reference** | `251711a` (`tag stage-5.2.1` on `main`, pushed to `origin`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 5.1.2 — Unified file comparison/diff (`compare_files` / visual SSIM/PSNR / CDC delta) & safe space-reclamation planner (hardlinks + reversible quarantine) (`optimization-engine`)
@@ -956,4 +973,4 @@
 | `5.1.1` | Multi-stage exact duplicate scanner (`size -> 4 KB head/tail -> BLAKE3`), streaming `FastCDC`, `aHash`/`dHash`/`pHash` clustering & storage treemap analytics (`optimization-engine`) | `COMPLETE` | Agent 3, Agent 2, Agent 8, Agent 12 | 4 hours |
 | `5.1.2` | Unified file comparison/diff (`compare_files` / visual SSIM/PSNR / CDC delta) & safe space-reclamation planner (hardlinks + reversible quarantine) (`optimization-engine`) | `COMPLETE` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
 | `5.2.1` | L5 storage intelligence & safe cleanup orchestration (`JobManager` Stage 5 coordinator, batch dedup/treemap/diff/quarantine/restore) | `COMPLETE` | Agent 2, Agent 9, Agent 8, Agent 12 | 3 hours |
-| `5.2.2` | Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests | `QUEUED` | Agent 2, Agent 8, Agent 9, Agent 12 | 3 hours |
+| `5.2.2` | Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests | `COMPLETE` | Agent 2, Agent 8, Agent 9, Agent 12 | 3 hours |

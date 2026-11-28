@@ -475,3 +475,14 @@
 - [x] `[5.2.1]` Implement `crates/job-manager/src/stage5.rs` (`JobCleanupPlanResult`, `JobCleanupExecutionResult`, and `JobManager::{scan_exact_duplicates, scan_near_duplicates, analyze_cdc_dedup, analyze_storage_treemap, diff_files, plan_duplicate_cleanup, execute_reclamation_plan, cleanup_duplicates, restore_quarantine, purge_quarantine}`) with `ActiveJobGuard` cancellation tracking and `MOD-RULE-03` compliance.
 - [x] `[5.2.1]` Re-export Stage 5 intelligence/reclamation types from `crates/job-manager/src/lib.rs` across native and `wasm` builds and add `job_manager_orchestrates_stage5_dedup_diff_treemap_and_quarantine`.
 - [x] `[5.2.1]` Backfill `d573a48` (`stage-5.1.2`) in `docs/PROGRESS.md`, verify `125` native / `66` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 050 to `TODO.md` / `CHANGELOG.md`.
+
+
+
+---
+
+## [2026-11-28] Entry 051 — Stage 5 Subphase 5.2.2 Stage 5 CLI & Storage/Quarantine/Hardlink Corpus Tests (Stage 5 Completion)
+
+### Completed in Subphase 5.2.2
+- [x] `[5.2.2]` Implement `apps/cli/src/stage5_cmds.rs` and wire `Commands::{Dedup, Diff, Storage}` cleanly into `apps/cli/src/main.rs` (`MOD-RULE-03` compliant delegation through `JobManager`), providing `filefusion dedup <exact|near|cdc|cleanup|restore|purge>` (dry-run default safety, `--apply`, `--yes-permanent-delete`, `--collision <skip|rename|overwrite>`), `filefusion diff`, and `filefusion storage`.
+- [x] `[5.2.2]` Add 4 end-to-end Stage 5 CLI & security/recovery corpus tests in `apps/cli/tests/cli_smoke.rs` (`cli_dedup_exact_near_cdc_and_storage_treemap_corpus_e2e`, `cli_dedup_cleanup_dry_run_quarantine_and_restore_e2e`, `cli_dedup_purge_and_atomic_hardlink_e2e`, `cli_diff_visual_text_cdc_and_bit_exact_e2e`).
+- [x] `[5.2.2]` Backfill `251711a` (`stage-5.2.1`) onto `5.2.1` in `docs/PROGRESS.md`, verify `129` native / `66` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 051 to `TODO.md` / `CHANGELOG.md`.

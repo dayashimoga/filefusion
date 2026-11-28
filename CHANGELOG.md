@@ -428,3 +428,14 @@
 ### Subphase 5.2.1 — L5 Storage Intelligence & Safe Cleanup Orchestration (`job-manager`, `L5`)
 - **Added:** L5 Stage 5 storage intelligence & cleanup orchestrator (`crates/job-manager/src/stage5.rs`: `JobCleanupPlanResult`, `JobCleanupExecutionResult`, and `JobManager` methods for exact/near duplicate scanning, streaming `FastCDC`, storage treemaps, unified file diff, dry-run/live reclamation, hardlink consolidation, and reversible quarantine restore/purge) (`FR-DUP-001`..`003`, `FR-VAL-002`).
 - **Changed:** Re-exported Stage 5 storage/diff/reclamation types in `crates/job-manager/src/lib.rs`, added `job_manager_orchestrates_stage5_dedup_diff_treemap_and_quarantine` (`125` native / `66` WASM passing), backfilled `d573a48` (`stage-5.1.2`) in `docs/PROGRESS.md`, and appended Entry 050 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.
+
+
+
+---
+
+## [0.5.2-stage5.2.2] — 2026-11-28
+
+### Subphase 5.2.2 — Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Recovery/Quarantine/Hardlink Corpus (Stage 5 Completion)
+- **Added:** Stage 5 CLI subcommands (`apps/cli/src/stage5_cmds.rs` wired via `apps/cli/src/main.rs`) delivering `filefusion dedup <exact|near|cdc|cleanup|restore|purge>`, `filefusion diff`, and `filefusion storage` with dry-run default cleanup safety, `--apply` / `--yes-permanent-delete` / `--confirm` gates, `--collision <skip|rename|overwrite>`, and JSON/human output (`FR-DUP-001`..`003`, `FR-DET-004`, `FR-VAL-002`).
+- **Added:** 4 end-to-end Stage 5 CLI corpus tests in `apps/cli/tests/cli_smoke.rs` (bringing `cli_smoke` to 17 tests, `129` total native workspace tests, and `66` WASM-featured tests) covering 3-stage I/O pruning, near-duplicate image clustering, `FastCDC`, storage treemaps, quarantine restore collisions, purge consent gates, same-volume atomic hardlinks, and visual/LCS diffing.
+- **Changed:** Backfilled `251711a` (`stage-5.2.1`) in `docs/PROGRESS.md` and appended Entry 051 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.

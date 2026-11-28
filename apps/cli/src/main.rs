@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 mod stage4_cmds;
+mod stage5_cmds;
 
 use std::fmt::Write as _;
 use std::io::{self, Write};
@@ -323,6 +324,15 @@ enum Commands {
     Encrypt(Box<stage4_cmds::EncryptArgs>),
     /// Decrypt authenticated `.ffenc` containers or password-protected PDFs (`FR-SEC-002`, `FR-PDF-004`).
     Decrypt(Box<stage4_cmds::DecryptArgs>),
+    /// Multi-stage exact/near/CDC deduplication & safe quarantine/hardlink cleanup (`FR-DUP-001`..`003`).
+    Dedup {
+        #[command(subcommand)]
+        action: stage5_cmds::DedupAction,
+    },
+    /// Compare two files across byte, digest, `FastCDC`, visual `SSIM`/`PSNR`, text & metadata (`FR-VAL-002`).
+    Diff(Box<stage5_cmds::DiffArgs>),
+    /// Analyze directory treemap, domain/format disk footprint & largest files (`FR-DUP-003`).
+    Storage(Box<stage5_cmds::StorageArgs>),
     /// Run deterministic host throughput micro-benchmarks across `FastCDC` and `Zstd`.
     Bench {
         /// Iterations per micro-benchmark workload (`1..=200`).
@@ -605,6 +615,9 @@ const fn command_requests_json(command: &Commands) -> bool {
         Commands::Metadata { action } => stage4_cmds::metadata_action_wants_json(action),
         Commands::Encrypt(args) => args.json,
         Commands::Decrypt(args) => args.json,
+        Commands::Dedup { action } => stage5_cmds::dedup_action_wants_json(action),
+        Commands::Diff(args) => args.json,
+        Commands::Storage(args) => args.json,
     }
 }
 
@@ -842,6 +855,15 @@ fn run() -> CliExitCode {
         }
         Commands::Decrypt(args) => {
             stage4_cmds::handle_decrypt_command(&args, &loaded.config, cli.log_json)
+        }
+        Commands::Dedup { action } => {
+            stage5_cmds::handle_dedup_command(&action, &loaded.config, cli.log_json)
+        }
+        Commands::Diff(args) => {
+            stage5_cmds::handle_diff_command(&args, &loaded.config, cli.log_json)
+        }
+        Commands::Storage(args) => {
+            stage5_cmds::handle_storage_command(&args, &loaded.config, cli.log_json)
         }
         Commands::Bench { iterations, json } => {
             let mgr = JobManager::from_config(&loaded.config);
