@@ -6,68 +6,297 @@
 
 #![forbid(unsafe_code)]
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+use std::path::Path;
 
 pub use codec_registry::{
     CapabilityEntry, CapabilityRegistry, DoctorReport, EngineTier, LicenseClass, ToolAvailability,
     collect_baseline_doctor_report, collect_doctor_report,
 };
 pub use file_core::{
-    BatchDefaults, CliConfigOverrides, CliExitCode, CollisionPolicy, CompressibilityTier,
-    ConfigSource, DetectionConfidence, DigestSet, ErrorCategory, ErrorCode, ErrorDiagnostic,
-    FileClassification, FileFusionConfig, FileFusionError, FileFusionResult, FileInspectionReport,
-    FormatId, JobStage, LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind,
-    MetadataSummary, PathConfig, PrivacyConfig, ProcessingDomain, ProgressEvent, RecommendedAction,
-    ResourceLimits, SignatureMatch, StreamDescriptor, StreamKind, classify_inspection_report,
-    classify_processing_domain, compute_digests_from_bytes, compute_entropy_milli_bits,
-    detect_signature_from_bytes, detect_signature_from_path, enforce_spoofing_policy, init_logging,
-    inspect_bytes, inspect_path, load_config_from_path, load_effective_config, redact_path_for_log,
-    resolve_default_config_path, save_config_atomic, workspace_identity,
+    BatchDefaults, CancellationToken, CliConfigOverrides, CliExitCode, CollisionPolicy,
+    CompressibilityTier, CompressionProfile, CompressionStatus, ConfigSource, DetectionConfidence,
+    DigestSet, ErrorCategory, ErrorCode, ErrorDiagnostic, FileClassification, FileFusionConfig,
+    FileFusionError, FileFusionResult, FileInspectionReport, FormatId, ItemOutcome, ItemStatus,
+    JobContext, JobReceipt, JobStage, LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind,
+    MetadataSummary, NoOpProgressSink, PathConfig, PrivacyConfig, ProcessingDomain,
+    ProcessingHandler, ProcessingOperation, ProcessingRequest, ProgressEvent, ProgressSink,
+    RecommendedAction, ResourceLimits, SignatureMatch, StagedPath, StreamDescriptor, StreamKind,
+    ValidatedSource, VecProgressSink, classify_inspection_report, classify_processing_domain,
+    compute_digests_from_bytes, compute_entropy_milli_bits, detect_signature_from_bytes,
+    detect_signature_from_path, enforce_spoofing_policy, init_logging, inspect_bytes, inspect_path,
+    load_config_from_path, load_effective_config, redact_path_for_log, resolve_default_config_path,
+    resolve_output_destination, save_config_atomic, workspace_identity,
 };
 pub use validation_engine::{
     BombGuardError, PathSafetyError, validate_archive_member_path, validate_expansion_budget,
 };
 
-/// Cooperative thread-safe cancellation token checked at chunk/step boundaries (`NFR-REL-002`).
-#[derive(Debug, Clone, Default)]
-pub struct CancellationToken {
-    cancelled: Arc<AtomicBool>,
+/// Top-level L5 processing coordinator enforcing cancellation, validation, and receipts.
+#[derive(Debug, Clone)]
+pub struct JobManager {
+    limits: ResourceLimits,
+    defaults: BatchDefaults,
 }
 
-impl CancellationToken {
-    /// Creates a new active (non-cancelled) token.
+impl Default for JobManager {
+    fn default() -> Self {
+        Self::new(ResourceLimits::default(), BatchDefaults::default())
+    }
+}
+
+impl JobManager {
+    /// Creates a [`JobManager`] bound to explicit runtime limits and batch defaults.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new(limits: ResourceLimits, defaults: BatchDefaults) -> Self {
+        Self { limits, defaults }
     }
 
-    /// Signals cancellation across all cloned handles immediately.
-    pub fn cancel(&self) {
-        self.cancelled.store(true, Ordering::SeqCst);
-        tracing::info!(event = "job_cancelled", "cancellation signal raised");
-    }
-
-    /// Returns `true` once [`CancellationToken::cancel`] has been called.
+    /// Creates a [`JobManager`] from a validated [`FileFusionConfig`].
     #[must_use]
-    pub fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::SeqCst)
+    pub fn from_config(config: &FileFusionConfig) -> Self {
+        Self {
+            limits: config.limits,
+            defaults: config.batch.clone(),
+        }
     }
 
-    /// Returns `Err(FileFusionError)` (`FF-ERR-JOB-CANCELLED`) if cancelled.
+    /// Returns the default [`BatchDefaults`] configured on this coordinator.
+    #[must_use]
+    pub const fn defaults(&self) -> &BatchDefaults {
+        &self.defaults
+    }
+
+    /// Executes a batch request synchronously via `handler` (or performs validated inspection/dry-run).
+    ///
+    /// Checks [`CancellationToken`] at each item boundary, validates inputs via [`ValidatedSource`],
+    /// resolves destination paths via [`resolve_output_destination`], and emits monotonic [`ProgressEvent`].
     ///
     /// # Errors
-    /// Returns [`FileFusionError`] with [`ErrorCode::JobCancelled`] when aborted.
-    pub fn check(&self) -> FileFusionResult<()> {
-        if self.is_cancelled() {
+    /// Returns [`FileFusionError`] (`ErrorCode::JobCancelled`) immediately on cancellation or if `req.inputs` is empty.
+    pub fn execute_batch(
+        &self,
+        req: &ProcessingRequest,
+        handler: Option<&dyn ProcessingHandler>,
+        ctx: &JobContext,
+    ) -> FileFusionResult<JobReceipt> {
+        let total = u32::try_from(req.inputs.len()).unwrap_or(u32::MAX);
+        if total == 0 {
             return Err(
-                FileFusionError::new(ErrorCode::JobCancelled, "job cancelled by user")
-                    .with_remediation("Temporary staging files have been removed."),
+                FileFusionError::new(ErrorCode::FmtUnsupported, "no input files provided")
+                    .with_exit_code(CliExitCode::InvalidUsage)
+                    .with_remediation("Supply at least one input file path."),
             );
         }
-        Ok(())
+
+        let span = tracing::info_span!("execute_batch", job_id = %req.job_id, items = total);
+        let _guard = span.enter();
+        let mut outcomes = Vec::with_capacity(req.inputs.len());
+
+        for (idx, input_path) in req.inputs.iter().enumerate() {
+            ctx.check_cancelled()?;
+            let item_index = u32::try_from(idx + 1).unwrap_or(u32::MAX);
+            let percent = (f32::from(u16::try_from(idx).unwrap_or(u16::MAX))
+                / f32::from(u16::try_from(total.max(1)).unwrap_or(1)))
+                * 100.0;
+            ctx.emit_progress(
+                item_index,
+                total,
+                JobStage::Probing,
+                percent,
+                0,
+                format!(
+                    "Inspecting {}",
+                    redact_path_for_log(&input_path.to_string_lossy())
+                ),
+            );
+
+            let outcome = self.execute_single_item(
+                input_path,
+                item_index,
+                idx + 1,
+                total,
+                req,
+                handler,
+                ctx,
+            )?;
+            outcomes.push(outcome);
+        }
+
+        let final_stage = if outcomes.iter().any(|o| o.status == ItemStatus::Failed) {
+            JobStage::Failed
+        } else {
+            JobStage::Completed
+        };
+        Ok(JobReceipt::from_outcomes(
+            req.job_id.clone(),
+            final_stage,
+            outcomes,
+        ))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn execute_single_item(
+        &self,
+        input_path: &Path,
+        item_index: u32,
+        seq_1based: usize,
+        total: u32,
+        req: &ProcessingRequest,
+        handler: Option<&dyn ProcessingHandler>,
+        ctx: &JobContext,
+    ) -> FileFusionResult<ItemOutcome> {
+        let done_percent = (f32::from(u16::try_from(item_index).unwrap_or(u16::MAX))
+            / f32::from(u16::try_from(total.max(1)).unwrap_or(1)))
+            * 100.0;
+        let source = match ValidatedSource::open(input_path, req.strict_spoofing, &self.limits) {
+            Ok(src) => src,
+            Err(err) => {
+                return Ok(emit_failed_outcome(
+                    ctx,
+                    item_index,
+                    total,
+                    done_percent,
+                    input_path,
+                    0,
+                    String::new(),
+                    err,
+                ));
+            }
+        };
+
+        let bytes_in = source.inspection.byte_size;
+        let hash8: String = source.inspection.digests.blake3.chars().take(8).collect();
+        let (profile_slug, target_ext) = operation_tokens(&req.operation);
+
+        let resolved_dest = match resolve_output_destination(
+            input_path,
+            req.output_dir.as_deref(),
+            &hash8,
+            profile_slug,
+            seq_1based,
+            target_ext,
+            &req.batch,
+        ) {
+            Ok(Some(dest)) => Some(dest),
+            Ok(None) => {
+                ctx.emit_progress(
+                    item_index,
+                    total,
+                    JobStage::Completed,
+                    done_percent,
+                    bytes_in,
+                    "Skipped existing destination (collision policy)",
+                );
+                return Ok(ItemOutcome {
+                    item_index,
+                    source_path: input_path.to_path_buf(),
+                    output_path: None,
+                    status: ItemStatus::SkippedCollision,
+                    compression_status: None,
+                    bytes_in,
+                    bytes_out: bytes_in,
+                    blake3_in: source.inspection.digests.blake3,
+                    blake3_out: None,
+                    error: None,
+                });
+            }
+            Err(err) => {
+                return Ok(emit_failed_outcome(
+                    ctx,
+                    item_index,
+                    total,
+                    done_percent,
+                    input_path,
+                    bytes_in,
+                    source.inspection.digests.blake3,
+                    err,
+                ));
+            }
+        };
+
+        let outcome = if let Some(active_handler) = handler
+            .filter(|_| !req.dry_run && !matches!(req.operation, ProcessingOperation::InspectOnly))
+        {
+            active_handler.process_item(&source, resolved_dest.as_deref(), req, item_index, ctx)?
+        } else {
+            ItemOutcome {
+                item_index,
+                source_path: input_path.to_path_buf(),
+                output_path: if matches!(req.operation, ProcessingOperation::InspectOnly) {
+                    None
+                } else {
+                    resolved_dest
+                },
+                status: ItemStatus::Succeeded,
+                compression_status: None,
+                bytes_in,
+                bytes_out: bytes_in,
+                blake3_in: source.inspection.digests.blake3.clone(),
+                blake3_out: None,
+                error: None,
+            }
+        };
+
+        ctx.emit_progress(
+            item_index,
+            total,
+            JobStage::Completed,
+            done_percent,
+            bytes_in,
+            "Item completed",
+        );
+        Ok(outcome)
+    }
+}
+
+fn operation_tokens(operation: &ProcessingOperation) -> (&'static str, Option<&'static str>) {
+    match operation {
+        ProcessingOperation::InspectOnly => ("inspect", None),
+        ProcessingOperation::Compress {
+            profile,
+            target_format,
+            ..
+        } => (
+            profile.slug(),
+            target_format.and_then(|f| f.canonical_extensions().first().copied()),
+        ),
+        ProcessingOperation::Convert { target_format, .. } => (
+            "convert",
+            target_format.canonical_extensions().first().copied(),
+        ),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_failed_outcome(
+    ctx: &JobContext,
+    item_index: u32,
+    total: u32,
+    done_percent: f32,
+    input_path: &Path,
+    bytes_in: u64,
+    blake3_in: String,
+    err: FileFusionError,
+) -> ItemOutcome {
+    ctx.emit_progress(
+        item_index,
+        total,
+        JobStage::Failed,
+        done_percent,
+        bytes_in,
+        err.diagnostic.message.clone(),
+    );
+    ItemOutcome {
+        item_index,
+        source_path: input_path.to_path_buf(),
+        output_path: None,
+        status: ItemStatus::Failed,
+        compression_status: None,
+        bytes_in,
+        bytes_out: 0,
+        blake3_in,
+        blake3_out: None,
+        error: Some(err.diagnostic),
     }
 }
 
@@ -208,5 +437,49 @@ mod tests {
         let report = run_doctor_probe_with_config(&cfg);
         assert_eq!(report.effective_limits.max_workers, 3);
         assert_eq!(report.effective_limits.max_memory_mb, 768);
+    }
+
+    #[test]
+    fn execute_batch_emits_progress_receipts_and_honors_cancellation()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir = std::env::temp_dir().join(format!("filefusion_jm_batch_{}", std::process::id()));
+        if dir.exists() {
+            std::fs::remove_dir_all(&dir)?;
+        }
+        std::fs::create_dir_all(&dir)?;
+        let f1 = dir.join("note.txt");
+        std::fs::write(&f1, b"hello FileFusion")?;
+
+        let manager = JobManager::from_config(&FileFusionConfig::default());
+        let sink = std::sync::Arc::new(VecProgressSink::new());
+        let ctx = JobContext::new("job_01", manager.limits).with_progress(sink.clone());
+
+        let req = ProcessingRequest {
+            schema_version: file_core::CORE_SCHEMA_VERSION,
+            job_id: String::from("job_01"),
+            inputs: vec![f1],
+            output_dir: Some(dir.clone()),
+            operation: ProcessingOperation::InspectOnly,
+            batch: manager.defaults().clone(),
+            strict_spoofing: true,
+            dry_run: true,
+        };
+
+        let receipt = manager.execute_batch(&req, None, &ctx)?;
+        assert_eq!(receipt.status, JobStage::Completed);
+        assert_eq!(receipt.succeeded, 1);
+        assert_eq!(receipt.bytes_in_total, 16);
+        assert_eq!(sink.snapshot().len(), 2);
+
+        let cancel_ctx = JobContext::new("job_02", manager.limits);
+        cancel_ctx.cancellation.cancel();
+        let aborted = manager.execute_batch(&req, None, &cancel_ctx);
+        assert!(aborted.is_err());
+        if let Err(err) = aborted {
+            assert_eq!(err.diagnostic.code, ErrorCode::JobCancelled);
+        }
+
+        let _ = std::fs::remove_dir_all(&dir);
+        Ok(())
     }
 }

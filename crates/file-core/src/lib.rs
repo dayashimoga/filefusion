@@ -11,6 +11,7 @@ pub mod config;
 pub mod error;
 pub mod logging;
 pub mod metadata;
+pub mod pipeline;
 pub mod signature;
 
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,11 @@ pub use metadata::{
     DigestSet, FileInspectionReport, MetadataSummary, RecommendedAction, StreamDescriptor,
     StreamKind, compute_digests_from_bytes, compute_digests_from_reader, inspect_bytes,
     inspect_path, inspect_reader,
+};
+pub use pipeline::{
+    CancellationToken, CompressionProfile, CompressionStatus, ItemOutcome, ItemStatus, JobContext,
+    JobReceipt, NoOpProgressSink, ProcessingHandler, ProcessingOperation, ProcessingRequest,
+    ProgressSink, StagedPath, ValidatedSource, VecProgressSink, resolve_output_destination,
 };
 pub use signature::{
     DetectionConfidence, SignatureMatch, detect_signature_from_bytes, detect_signature_from_path,

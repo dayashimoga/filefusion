@@ -232,4 +232,12 @@
 - [x] `[1.2.4]` Gate native PATH/version probing cleanly behind `native-probe` with zero-warning `wasm` stub support across `codec-registry` and `job-manager`, expose `tool_availability` on `DoctorReport`, and verify `filefusion doctor --json`.
 - [x] `[1.2.4]` Backfill `9ef27ca` (`stage-1.2.3`) in `docs/PROGRESS.md` and append Subphase `1.2.4` entries to `TODO.md` and `CHANGELOG.md`.
 
+---
+
+## [2026-11-27] Entry 026 — Stage 1 Subphase 1.3.1 Processing API (Phase 1.3 Begin)
+
+### Completed in Subphase 1.3.1
+- [x] `[1.3.1]` Implement shared `L0` Processing API contracts in `crates/file-core/src/pipeline.rs` (`CancellationToken`, `ProgressSink`, `JobContext`, `CompressionProfile`, `CompressionStatus`, `ProcessingOperation`, `ProcessingRequest`, `ValidatedSource`, `StagedPath` with `.filefusion.tmp.<id>` rollback-on-drop, `resolve_output_destination`, `ItemOutcome`, `JobReceipt`, `ProcessingHandler`).
+- [x] `[1.3.1]` Consolidate `CancellationToken` in `file-core` (`MOD-RULE-01`), implement `JobManager::execute_batch` in `crates/job-manager/src/lib.rs`, backfill `a185199` (`stage-1.2.4`) in `docs/PROGRESS.md`, and append Subphase `1.3.1` entries to `TODO.md` and `CHANGELOG.md`.
+
 

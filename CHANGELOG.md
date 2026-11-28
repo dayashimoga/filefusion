@@ -204,4 +204,12 @@
 - **Added:** Two-Tier `CapabilityRegistry` and `ToolAvailability` in `crates/codec-registry/src/lib.rs` discovering Tier 1 built-in modules alongside all 7 Tier 2 external binaries (`ffmpeg`, `qpdf`, `tesseract`, `libreoffice`, `pandoc`, `calibre`, `7z`) with SPDX expressions, `LicenseClass`, `capabilities_for_format`, and `require_available` (`FF-ERR-ENG-MISSING`).
 - **Changed:** Enabled `native-probe` vs zero-warning `wasm` feature gating across `codec-registry` and `job-manager`, exposed `DoctorReport.tool_availability`, backfilled `9ef27ca` (`stage-1.2.3`) in `docs/PROGRESS.md`, and appended Entry 025 to `TODO.md`.
 
+---
+
+## [0.1.7-stage1.3.1] — 2026-11-27
+
+### Subphase 1.3.1 — Processing API (Phase 1.3 Begin)
+- **Added:** Shared `L0` Processing API contracts (`crates/file-core/src/pipeline.rs`: `JobContext`, `ProgressSink`, `VecProgressSink`, `CompressionProfile`, `CompressionStatus`, `ProcessingOperation`, `ProcessingRequest`, `ValidatedSource`, atomic `StagedPath`, `resolve_output_destination`, `ItemOutcome`, `JobReceipt`, `ProcessingHandler`) and `JobManager::execute_batch` in `crates/job-manager/src/lib.rs`.
+- **Changed:** Moved `CancellationToken` into `file-core` (re-exported identically from `job-manager` for `MOD-RULE-01` compatibility), backfilled `a185199` (`stage-1.2.4`) in `docs/PROGRESS.md`, and appended Entry 026 to `TODO.md`.
+
 
