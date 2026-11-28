@@ -567,6 +567,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "compression-video"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "codec-registry",
+ "compression-core",
+ "file-core",
+ "hardware-acceleration",
+ "quality-engine",
+ "serde",
+ "serde_json",
+ "validation-engine",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -321,3 +321,13 @@
 - [x] `[2.2.3]` Materialize L3 `crates/compression-audio` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-AV-002`, `FR-AV-003`, `FR-CMP-001`..`002`, `FR-MET-001`..`002`) implementing pure-Rust decoding (`hound`, `claxon`, `symphonia`) and lossless `WAV`/`FLAC` (`flacenc`) encoding tuned to `CompressionProfile`.
 - [x] `[2.2.3]` Implement sample-rate conversion (`resample_pcm`), channel remapping (`remap_channels`), ITU-R BS.1770 / EBU R128 K-weighted gated loudness measurement & peak-clamped normalization (`measure_integrated_lufs`, `normalize_loudness_lufs`), `ID3v1`/`ID3v2` metadata reading/writing/stripping (`tags.rs`), `AudioQualityEvaluator`, `AudioCompressionEngine`, and `native-process` Tier 2 `FFmpeg` `IsolatedProcessRunner` helpers.
 - [x] `[2.2.3]` Backfill `ba2658d` (`stage-2.2.2`) in `docs/PROGRESS.md` and append Subphase `2.2.3` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 036 — Stage 2 Subphase 2.2.4 Video Compression Crate (`compression-video`)
+
+### Completed in Subphase 2.2.4
+- [x] `[2.2.4]` Materialize L3 `crates/compression-video` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_VID -> L2_CMP & L1_REG & L1_HW`, `FR-AV-001`, `FR-AV-003`, `FR-ADP-002`, `FR-CMP-001`..`002`) with zero new third-party dependencies in `Cargo.lock`.
+- [x] `[2.2.4]` Implement `ffprobe` JSON inventory parsing (`parse_ffprobe_json_probe`), lossless container fast-path remux compatibility (`can_fast_path_remux`), unfinalized container atom health check (`diagnose_unfinalized_video_container`), pure-Rust SRT <-> WebVTT subtitle parser & converter (`subtitles.rs`), hardware-vs-CPU encoder routing (`resolve_video_route`), explicit `-f <muxer>` staged `FFmpeg` `IsolatedProcessRunner` command generation, `libvmaf` parser, and `VideoCompressionEngine` (`FR-CMP-002` No-Op Guard).
+- [x] `[2.2.4]` Backfill `ee5957b` (`stage-2.2.3`) in `docs/PROGRESS.md` and append Subphase `2.2.4` entries to `TODO.md` and `CHANGELOG.md`.

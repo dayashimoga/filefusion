@@ -1,0 +1,40 @@
+[package]
+name = "compression-video"
+description = "FileFusion L3 Tier 2 FFmpeg video pipeline (H.264/HEVC/VP9/AV1, HW/CPU fallback routing, fast-path remuxing, VMAF parsing, and SRT/WebVTT subtitle handling)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-logging", "native-process", "hw-accel"]
+native-logging = [
+    "compression-core/native-logging",
+    "file-core/native-logging",
+    "hardware-acceleration/native-logging",
+    "quality-engine/native-logging",
+]
+native-process = []
+hw-accel = ["hardware-acceleration/hw-accel"]
+wasm = [
+    "compression-core/wasm",
+    "file-core/wasm",
+    "hardware-acceleration/wasm",
+    "quality-engine/wasm",
+    "validation-engine/wasm",
+]
+
+[dependencies]
+codec-registry = { workspace = true, default-features = false }
+compression-core = { workspace = true, default-features = false }
+file-core = { workspace = true, default-features = false }
+hardware-acceleration = { workspace = true, default-features = false }
+quality-engine = { workspace = true, default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+validation-engine = { workspace = true, default-features = false }
+
+[lints]
+workspace = true

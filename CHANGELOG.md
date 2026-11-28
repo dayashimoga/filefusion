@@ -285,3 +285,12 @@
 ### Subphase 2.2.3 — Audio Compression Crate (`compression-audio`, `L3`)
 - **Added:** L3 `compression-audio` crate (`crates/compression-audio/{Cargo.toml,src/{lib.rs,dsp.rs,tags.rs,ffmpeg_adapter.rs}}`) providing pure-Rust decode (`WAV`/`FLAC`/`MP3`/`Ogg/Vorbis`/`AAC`/`M4A`/`ALAC`/`MKV`), lossless `WAV` & `FLAC` (`flacenc`) encode, `resample_pcm`, `remap_channels`, ITU-R BS.1770 / EBU R128 loudness measurement/normalization (`measure_integrated_lufs`, `normalize_loudness_lufs`), `ID3v2` read/write/strip, `AudioQualityEvaluator`, `AudioCompressionEngine` (`FR-CMP-002` No-Op guard), and `native-process` Tier 2 `FFmpeg` transcoding/stream-copy extraction via `IsolatedProcessRunner`.
 - **Changed:** Added `compression-audio` and permissive audio dependencies (`claxon`, `flacenc`, `hound`, `id3`, `symphonia`) to workspace `Cargo.toml` / `Cargo.lock`, backfilled `ba2658d` (`stage-2.2.2`) in `docs/PROGRESS.md`, and appended Entry 035 to `TODO.md`.
+
+
+---
+
+## [0.2.5-stage2.2.4] — 2026-11-28
+
+### Subphase 2.2.4 — Video Compression Crate (`compression-video`, `L3`)
+- **Added:** L3 `compression-video` crate (`crates/compression-video/{Cargo.toml,src/{lib.rs,probe.rs,subtitles.rs,pipeline.rs}}`) providing `ffprobe` JSON stream inventory parsing (`parse_ffprobe_json_probe`), container fast-path remuxing (`can_fast_path_remux`), unfinalized atom diagnostics (`diagnose_unfinalized_video_container`), pure-Rust SRT <-> WebVTT subtitle conversion (`parse_srt_cues`, `parse_webvtt_cues`, `convert_subtitle_text`) + `FFmpeg` subtitle extraction args, hardware-vs-CPU routing (`resolve_video_route`), explicit `-f <muxer>` staged `FFmpeg` transcode invocation builder, `libvmaf` parser, and `VideoCompressionEngine` (`FR-CMP-002` No-Op guard & `VideoQualityEvaluator`).
+- **Changed:** Added `compression-video` to workspace `Cargo.toml` / `Cargo.lock` with zero new third-party dependencies, backfilled `ee5957b` (`stage-2.2.3`) in `docs/PROGRESS.md`, and appended Entry 036 to `TODO.md`.

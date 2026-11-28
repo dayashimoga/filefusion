@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 2 — Universal Compression Engine
 - **Phase:** Phase 2.2 — Format Compression Engines
-- **Subphase:** `2.2.3` — Audio compression crate (`compression-audio`)
-- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.2.4` — Video compression crate)
+- **Subphase:** `2.2.4` — Video compression crate (`compression-video`)
+- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.2.5` — PDF & Office compression crates)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 2.2.4 — Video compression crate (`compression-video`)
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 2 — Universal Compression Engine |
+| **Phase** | Phase 2.2 — Format Compression Engines |
+| **Subphase** | `2.2.4` — Video compression crate (`compression-video`) |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 3 (Compression & Codec Engineer), Agent 9 (Security Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 3 hours |
+| **Actual Duration** | ~20 minutes |
+| **Acceptance Criteria** | 1. Materialize L3 `crates/compression-video` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L3_VID -> L2_CMP & L1_REG & L1_HW`, `FR-AV-001`, `FR-AV-003`, `FR-ADP-002`, `FR-CMP-001`..`002`), depending only on `L0`–`L2` (`file-core`, `codec-registry`, `hardware-acceleration`, `quality-engine`, `validation-engine`, `compression-core`, `serde`, `serde_json` — zero new third-party dependencies in `Cargo.lock`).<br>2. Implement `ffprobe` JSON inventory parsing (`parse_ffprobe_json_probe`, `VideoContainerInventory`), lossless container fast-path remux compatibility (`can_fast_path_remux`), unfinalized container atom health check (`diagnose_unfinalized_video_container`), pure-Rust SRT <-> WebVTT subtitle parser & converter (`parse_srt_cues`, `parse_webvtt_cues`, `convert_subtitle_text`, `build_ffmpeg_extract_subtitle_invocation`), hardware-vs-CPU routing (`select_video_backend` for `H264`/`Hevc`/`Vp9`/`Av1`), explicit `-f <muxer>` staged `FFmpeg` invocations via `IsolatedProcessRunner` (`build_ffmpeg_video_transcode_invocation`), `libvmaf` parser (`build_ffmpeg_vmaf_invocation`, `parse_ffmpeg_vmaf_score`), and `VideoCompressionEngine` (`CompressionEngine` + `compress_with_runner`) enforcing `FR-CMP-002` No-Op Guard.<br>3. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (83 tests), WASM-featured unit tests (34 tests), verify zero unapproved additions in `Cargo.lock`, backfill `ee5957b` (`stage-2.2.3`), append `TODO.md` / `CHANGELOG.md`, obtain Agent 12 `PASS` audit, commit, tag `stage-2.2.4`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `hardware-acceleration`, `quality-engine`, `validation-engine`, `compression-core`, `compression-image`, `compression-archive`, `compression-audio`, `compression-video`, `job-manager`): PASS (0 warnings); `cargo clippy -p compression-video --all-targets --no-default-features --features wasm --locked -- -D warnings`: PASS (0 warnings); `cargo test --workspace --locked`: 83 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-video`: 4, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 6, `hardware-acceleration`: 3, `job-manager`: 16, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `compression-video`: 3, `hardware-acceleration`: 3, `job-manager`: 12, `quality-engine`: 2): 34 passed, 0 failed; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/compression-video/Cargo.toml`, `crates/compression-video/src/{lib.rs,probe.rs,subtitles.rs,pipeline.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-2.2.4` on `main` (pushed to `origin`; exact SHA backfilled in `2.2.5`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 2.2.3 — Audio compression crate (`compression-audio`)
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Materialize L3 `crates/compression-audio` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-AV-002`, `FR-AV-003`, `FR-CMP-001`..`002`, `FR-MET-001`..`002`) implementing pure-Rust audio decoding (`WAV` via `hound`, `FLAC` via `claxon`, `MP3`/`Ogg/Vorbis`/`AAC`/`M4A`/`ALAC`/`MKV` via `symphonia`) and lossless `WAV` / `FLAC` (`flacenc`) encoding tuned to `CompressionProfile`.<br>2. Implement DSP sample-rate conversion (`resample_pcm`), channel layout remapping (`remap_channels`), and ITU-R BS.1770 / EBU R128 K-weighted gated loudness measurement & true-peak-limited normalization (`measure_integrated_lufs`, `normalize_loudness_lufs`).<br>3. Implement ID3v1/v2 tag inspection, writing, and privacy stripping (`read_id3_metadata`, `write_id3_metadata`, `strip_id3_metadata`, `has_non_essential_metadata`), `AudioQualityEvaluator` (PCM bit-exactness & time-domain waveform PSNR), `AudioCompressionEngine` (`FR-CMP-002` No-Op Guard), and `native-process`-gated Tier 2 `FFmpeg` `IsolatedProcessRunner` helpers (`build_ffmpeg_audio_transcode_invocation`, `build_ffmpeg_extract_audio_invocation`, `execute_ffmpeg_invocation`).<br>4. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (79 tests), WASM-featured unit tests (31 tests), verify permissive `Cargo.lock` licenses, backfill `ba2658d` (`stage-2.2.2`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-2.2.3`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `hardware-acceleration`, `quality-engine`, `validation-engine`, `compression-core`, `compression-image`, `compression-archive`, `compression-audio`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 79 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 6, `hardware-acceleration`: 3, `job-manager`: 16, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `hardware-acceleration`: 3, `job-manager`: 12, `quality-engine`: 2): 31 passed, 0 failed; Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/compression-audio/Cargo.toml`, `crates/compression-audio/src/{lib.rs,dsp.rs,tags.rs,ffmpeg_adapter.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-2.2.3` on `main` (pushed to `origin`; exact SHA backfilled in `2.2.4`) |
+| **Commit Reference** | `ee5957b` (tag `stage-2.2.3`, pushed to `origin/main`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 2.2.2 — Archive compression crate (`compression-archive`)
@@ -665,7 +682,7 @@
 | `2.2.1` | Image compression crate (`compression-image`) | `COMPLETE` | Agent 3, Agent 8, Agent 12 | 4 hours |
 | `2.2.2` | Archive compression crate (`compression-archive`) | `COMPLETE` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
 | `2.2.3` | Audio compression crate (`compression-audio`) | `COMPLETE` | Agent 3, Agent 8, Agent 12 | 3 hours |
-| `2.2.4` | Video compression crate (`compression-video`) | `NOT STARTED` | Agent 3, Agent 9, Agent 8, Agent 12 | 3 hours |
+| `2.2.4` | Video compression crate (`compression-video`) | `COMPLETE` | Agent 3, Agent 9, Agent 8, Agent 12 | 3 hours |
 | `2.2.5` | PDF & Office compression crates (`compression-pdf`, `compression-office`) | `NOT STARTED` | Agent 3, Agent 4, Agent 8, Agent 12 | 4 hours |
 | `2.3.1` | Adaptive optimization engine & quality solver (`optimization-engine`) | `NOT STARTED` | Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
 | `2.3.2` | Stage 2 CLI (`compress`/`archive`) & Criterion benchmarks | `NOT STARTED` | Agent 2, Agent 3, Agent 8, Agent 12 | 3 hours |
