@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 5 — File Intelligence & Storage
 - **Phase:** Phase 5.1 — Duplicate, Perceptual Similarity & Storage Analytics Engines
-- **Subphase:** `5.1.1` — Multi-stage exact duplicate scanner (`size -> 4 KB head/tail -> BLAKE3`), streaming `FastCDC`, `aHash`/`dHash`/`pHash` clustering & storage treemap analytics (`optimization-engine`)
+- **Subphase:** `5.1.2` — Unified file comparison/diff (`compare_files` / visual SSIM/PSNR / CDC delta) & safe space-reclamation planner (hardlinks + reversible quarantine) (`optimization-engine`)
 - **Status:** `COMPLETE`
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 5.1.2 — Unified file comparison/diff (`compare_files` / visual SSIM/PSNR / CDC delta) & safe space-reclamation planner (hardlinks + reversible quarantine) (`optimization-engine`)
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 5 — File Intelligence & Storage |
+| **Phase** | Phase 5.1 — Duplicate, Perceptual Similarity & Storage Analytics Engines |
+| **Subphase** | `5.1.2` — Unified file comparison/diff (`compare_files` / visual SSIM/PSNR / CDC delta) & safe space-reclamation planner (hardlinks + reversible quarantine) (`optimization-engine`) |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 3 (Compression & Codec Engineer), Agent 9 (Security Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 4 hours |
+| **Actual Duration** | ~25 minutes |
+| **Acceptance Criteria** | 1. Implement `crates/optimization-engine/src/diff.rs` (`compare_files`: streaming byte & `BLAKE3`/`SHA-256`/`xxHash64` equality, streaming `FastCDC` chunk reuse ratio, visual `SSIM`/`PSNR`/pixel summary & perceptual Hamming distance via `quality-engine`, bounded LCS UTF-8 text line hunks with positional fallback, and normalized metadata attribute/privacy diff, `FR-VAL-002`, `FR-DET-004`).<br>2. Implement `crates/optimization-engine/src/reclaim.rs` (`build_reclamation_plan`, `execute_reclamation_plan`, `restore_quarantine_batch`, `purge_quarantine_batch`: dry-run preview planning, pre-mutation `BLAKE3` TOCTOU verification, same-volume atomic hardlink staging swap protecting cross-volume safety, reversible `.filefusion-quarantine/<batch>/manifest.json` staging with `Skip`/`RenameWithSuffix`/`OverwriteWithBackup` collision safety & mid-loop manifest flush, and gated permanent purge, `FR-DUP-003`, `DEF-009`).<br>3. Re-export `diff` and `reclaim` APIs in `crates/optimization-engine/src/lib.rs`, backfill `8c034ee` (`stage-5.1.1`) onto `5.1.1` in `docs/PROGRESS.md`, add integration tests covering visual/CDC/LCS-text diffs and quarantine-restore (`Skip`/`RenameWithSuffix`/`OverwriteWithBackup`)-purge + TOCTOU + hardlink consolidation, pass `cargo fmt --all -- --check`, native & WASM Clippy (`-D warnings`), `cargo test --workspace --locked` (`124` passed), and WASM-featured tests (`65` passed across 12 crates) with `Cargo.toml`/`Cargo.lock` untouched, append `TODO.md`/`CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-5.1.2`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 124 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 11, `compression-video`: 4, `conversion-core`: 8, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 13, `hardware-acceleration`: 3, `job-manager`: 18, `optimization-engine`: 10, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (12 crates): 65 passed, 0 failed; Agent 12 independent audit: **PASS**; `Cargo.lock`: untouched. |
+| **Files Changed** | `crates/optimization-engine/src/{diff.rs,lib.rs,reclaim.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-5.1.2` on `main` (pushed to `origin`; exact SHA backfilled in `5.2.1`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 5.1.1 — Multi-stage exact duplicate scanner (`size -> 4 KB head/tail -> BLAKE3`), streaming `FastCDC`, `aHash`/`dHash`/`pHash` clustering & storage treemap analytics (`optimization-engine`)
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Upgrade `crates/optimization-engine/src/dedup.rs` with bounded-memory streaming `FastCDC` (`chunk_stream_fastcdc` matching `chunk_bytes_fastcdc` cuts identically without full-file buffering, `NFR-PERF-001`) plus `compute_image_ahash` and `compute_perceptual_hash_set` (`aHash`, `dHash`, `pHash`, `FR-DET-004`).<br>2. Implement `crates/optimization-engine/src/storage.rs` delivering 3-stage exact duplicate scanning (`scan_exact_duplicates`: size bucket -> `4 KB` head + `4 KB` tail `BLAKE3` -> full `64 KB` streaming `BLAKE3`, `.filefusion-quarantine` & symlink-loop protection, `FR-DUP-001`), perceptual near-duplicate image clustering (`scan_near_duplicate_images`: union-find similarity groups with highest-resolution keeper selection, `FR-DUP-002`), and hierarchical directory treemap + domain/format analytics (`analyze_storage_treemap`).<br>3. Re-export Stage 5 APIs cleanly in `crates/optimization-engine/src/lib.rs`, backfill `a4f9b9f` (`stage-4.2.2`) onto `4.2.2` in `docs/PROGRESS.md`, add unit/integration tests covering streaming `FastCDC`, 3-stage I/O pruning, near-duplicate clustering, and treemap rollups, pass `cargo fmt --all -- --check`, native & WASM Clippy (`-D warnings`), `cargo test --workspace --locked` (`122` passed), and WASM-featured tests (`63` passed across 12 crates) with `Cargo.toml`/`Cargo.lock` untouched, append `TODO.md`/`CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-5.1.1`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 122 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 11, `compression-video`: 4, `conversion-core`: 8, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 13, `hardware-acceleration`: 3, `job-manager`: 18, `optimization-engine`: 8, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (12 crates): 63 passed, 0 failed; Agent 12 independent audit: **PASS**; `Cargo.lock`: untouched. |
 | **Files Changed** | `crates/optimization-engine/src/{dedup.rs,lib.rs,storage.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-5.1.1` on `main` (pushed to `origin`; exact SHA backfilled in `5.1.2`) |
+| **Commit Reference** | `8c034ee` (`tag stage-5.1.1` on `main`, pushed to `origin`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 4.2.2 — Stage 4 CLI (`filefusion pdf`, `repair`, `metadata`, `encrypt`/`decrypt`) & Stage 4 security/recovery corpus tests (Stage 4 Completion)
@@ -920,6 +937,6 @@
 | Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
 | :--- | :--- | :--- | :--- | :--- |
 | `5.1.1` | Multi-stage exact duplicate scanner (`size -> 4 KB head/tail -> BLAKE3`), streaming `FastCDC`, `aHash`/`dHash`/`pHash` clustering & storage treemap analytics (`optimization-engine`) | `COMPLETE` | Agent 3, Agent 2, Agent 8, Agent 12 | 4 hours |
-| `5.1.2` | Unified file comparison/diff (`compare_files` / visual SSIM/PSNR / CDC delta) & safe space-reclamation planner (hardlinks + reversible quarantine) (`optimization-engine`) | `QUEUED` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
+| `5.1.2` | Unified file comparison/diff (`compare_files` / visual SSIM/PSNR / CDC delta) & safe space-reclamation planner (hardlinks + reversible quarantine) (`optimization-engine`) | `COMPLETE` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
 | `5.2.1` | L5 storage intelligence & safe cleanup orchestration (`JobManager` Stage 5 coordinator, batch dedup/treemap/diff/quarantine/restore) | `QUEUED` | Agent 2, Agent 9, Agent 8, Agent 12 | 3 hours |
 | `5.2.2` | Stage 5 CLI (`filefusion dedup`, `diff`, `storage`) & Stage 5 recovery/quarantine/hardlink corpus tests | `QUEUED` | Agent 2, Agent 8, Agent 9, Agent 12 | 3 hours |

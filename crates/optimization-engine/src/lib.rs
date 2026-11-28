@@ -5,8 +5,10 @@
 #![forbid(unsafe_code)]
 
 pub mod dedup;
+pub mod diff;
 pub mod dispatcher;
 pub mod metadata;
+pub mod reclaim;
 pub mod recommender;
 pub mod repair;
 pub mod security;
@@ -35,6 +37,10 @@ pub use dedup::{
     are_perceptually_similar, chunk_bytes_fastcdc, chunk_stream_fastcdc, compute_image_ahash,
     compute_image_dhash, compute_image_phash, compute_perceptual_hash_set, hamming_distance_u64,
 };
+pub use diff::{
+    CdcDeltaSummary, FileDiffOptions, FileDiffReport, MetadataFieldDiff, TextDiffHunk,
+    TextDiffSummary, VisualDiffSummary, compare_files,
+};
 pub use dispatcher::{
     ArchiveContainerKind, ArchiveExtractionReport, ArchiveInputEntry, ArchiveMemberMetadata,
     ArchiveWriteSummary, OptimizationDispatcher, StreamCodec, archive_kind_from_output_path,
@@ -44,6 +50,12 @@ pub use dispatcher::{
 pub use metadata::{
     EditableMetadataFields, MetadataOperationReport, inspect_unified_metadata,
     sanitize_and_edit_metadata_to_staged,
+};
+pub use reclaim::{
+    QuarantineBatchManifest, QuarantineEntry, QuarantinePurgeReport, QuarantineRestoreReport,
+    ReclamationAction, ReclamationExecutionReport, ReclamationPlan, ReclamationStrategy,
+    build_reclamation_plan, execute_reclamation_plan, purge_quarantine_batch,
+    restore_quarantine_batch,
 };
 pub use recommender::{CodecRecommendation, RecommendationHints, recommend_codec};
 #[cfg(feature = "native-process")]
@@ -606,6 +618,165 @@ mod tests {
         assert_eq!(tree.treemap_roots[0].file_count, 5);
         assert!(tree.treemap_roots[0].children.len() >= 2);
         assert_ne!(tree.domain_breakdown.len(), 0);
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn compares_files_across_cdc_visual_ssim_psnr_and_text_deltas() -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("stage5_diff");
+        let ctx = JobContext::new("opt-s5-diff", ResourceLimits::default());
+
+        // 1. Visual SSIM/PSNR + pixel diff on identical dimensions with subtle edit.
+        let img_a = gradient_rgba_image(64, 64);
+        let mut rgba_b = img_a.to_rgba8();
+        for y in 0..16 {
+            for x in 0..16 {
+                let px = rgba_b.get_pixel_mut(x, y);
+                px[0] = px[0].saturating_add(40);
+            }
+        }
+        let img_b = DynamicImage::ImageRgba8(rgba_b);
+        let path_img_a = dir.join("frame_a.png");
+        let path_img_b = dir.join("frame_b.png");
+        img_a.save(&path_img_a)?;
+        img_b.save(&path_img_b)?;
+
+        let visual_rep =
+            compare_files(&path_img_a, &path_img_b, &FileDiffOptions::default(), &ctx)?;
+        assert!(!visual_rep.bit_exact);
+        let vis = visual_rep
+            .visual_diff
+            .ok_or("expected VisualDiffSummary for matching PNG inputs")?;
+        assert!(vis.same_dimensions);
+        assert!(vis.ssim.is_some_and(|s| s > 0.70 && s < 1.0));
+        assert!(vis.psnr_db.is_some_and(|p| p > 10.0 && p < 100.0));
+        assert!(vis.pixel_summary.is_some_and(|p| p.differing_pixels == 256));
+
+        // 2. Bounded UTF-8 text line diff.
+        let txt_a = dir.join("config_a.json");
+        let txt_b = dir.join("config_b.json");
+        fs::write(&txt_a, "{\n  \"mode\": \"fast\",\n  \"workers\": 4\n}\n")?;
+        fs::write(
+            &txt_b,
+            "{\n  \"mode\": \"balanced\",\n  \"workers\": 4,\n  \"verify\": true\n}\n",
+        )?;
+        let txt_rep = compare_files(&txt_a, &txt_b, &FileDiffOptions::default(), &ctx)?;
+        let tdiff = txt_rep
+            .text_diff
+            .ok_or("expected TextDiffSummary for JSON files")?;
+        assert!(tdiff.common_lines >= 2);
+        assert!(tdiff.added_lines >= 1);
+        assert_ne!(tdiff.sample_hunks.len(), 0);
+
+        // 3. Bit-exact identical comparison.
+        let exact_rep = compare_files(&txt_a, &txt_a, &FileDiffOptions::default(), &ctx)?;
+        assert!(exact_rep.bit_exact);
+        assert_eq!(exact_rep.size_delta_bytes, 0);
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn plans_and_executes_quarantine_restore_purge_and_atomic_hardlinks()
+    -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("stage5_reclaim");
+        let ctx = JobContext::new("opt-s5-reclaim", ResourceLimits::default());
+
+        let payload = vec![0x4Au8; 16 * 1024];
+        let keeper = dir.join("a_keeper.bin");
+        let dup1 = dir.join("b_dup.bin");
+        let dup2 = dir.join("c_dup.bin");
+        fs::write(&keeper, &payload)?;
+        fs::write(&dup1, &payload)?;
+        fs::write(&dup2, &payload)?;
+
+        let scan = scan_exact_duplicates(&[dir.as_path()], &DuplicateScanOptions::default(), &ctx)?;
+        assert_eq!(scan.total_duplicate_files, 2);
+
+        // Consent gate blocks unconfirmed permanent delete.
+        let del_plan = build_reclamation_plan(&scan, ReclamationStrategy::PermanentDelete, None);
+        assert!(execute_reclamation_plan(&del_plan, false, &ctx).is_err());
+
+        // Quarantine duplicates -> restore -> re-quarantine -> explicit purge.
+        let q_plan = build_reclamation_plan(&scan, ReclamationStrategy::Quarantine, None);
+        assert_eq!(q_plan.actions.len(), 2);
+        assert_eq!(q_plan.estimated_reclaimable_bytes, 32 * 1024);
+
+        let exec_q = execute_reclamation_plan(&q_plan, false, &ctx)?;
+        assert_eq!(exec_q.applied_count, 2);
+        assert_eq!(exec_q.reclaimed_bytes, 32 * 1024);
+        assert!(keeper.exists());
+        assert!(!dup1.exists());
+        assert!(!dup2.exists());
+
+        let after_q =
+            scan_exact_duplicates(&[dir.as_path()], &DuplicateScanOptions::default(), &ctx)?;
+        assert_eq!(after_q.total_duplicate_files, 0);
+
+        let manifest_path = PathBuf::from(exec_q.manifest_path.ok_or("missing manifest_path")?);
+        let restored = restore_quarantine_batch(
+            &manifest_path,
+            file_core::CollisionPolicy::OverwriteWithBackup,
+            &ctx,
+        )?;
+        assert_eq!(restored.restored_count, 2);
+        assert!(dup1.exists() && dup2.exists());
+        assert!(!manifest_path.with_extension("json.bak").exists());
+
+        // Second quarantine -> test Skip and RenameWithSuffix collision protection!
+        let exec_q2 = execute_reclamation_plan(&q_plan, false, &ctx)?;
+        let m2 = PathBuf::from(exec_q2.manifest_path.ok_or("missing second manifest")?);
+        let sentinel_a = b"USER_NEW_FILE_DO_NOT_OVERWRITE";
+        let sentinel_b = b"USER_SECOND_NEW_FILE";
+        fs::write(&dup1, sentinel_a)?;
+        fs::write(&dup2, sentinel_b)?;
+
+        let skipped_res =
+            restore_quarantine_batch(&m2, file_core::CollisionPolicy::Skip, &ctx)?;
+        assert_eq!(skipped_res.restored_count, 0);
+        assert_eq!(skipped_res.skipped_count, 2);
+        assert_eq!(fs::read(&dup1)?, sentinel_a);
+        assert_eq!(fs::read(&dup2)?, sentinel_b);
+
+        let renamed_res =
+            restore_quarantine_batch(&m2, file_core::CollisionPolicy::RenameWithSuffix, &ctx)?;
+        assert_eq!(renamed_res.restored_count, 2);
+        assert_eq!(fs::read(&dup1)?, sentinel_a);
+        assert_eq!(fs::read(&dup2)?, sentinel_b);
+        assert_eq!(fs::read(dir.join("b_dup_1.bin"))?, payload);
+        assert_eq!(fs::read(dir.join("c_dup_1.bin"))?, payload);
+
+        // TOCTOU protection skips modified targets (`dup1`/`dup2` hold sentinel bytes, not `payload`).
+        let skipped_toctou = execute_reclamation_plan(&q_plan, false, &ctx)?;
+        assert_eq!(skipped_toctou.applied_count, 0);
+        assert_eq!(skipped_toctou.skipped_count, 2);
+
+        // Fresh quarantine + consent-gated permanent purge of `b_dup_1.bin` and `c_dup_1.bin`.
+        let scan_for_purge =
+            scan_exact_duplicates(&[dir.as_path()], &DuplicateScanOptions::default(), &ctx)?;
+        let q_plan_purge =
+            build_reclamation_plan(&scan_for_purge, ReclamationStrategy::Quarantine, None);
+        let exec_q3 = execute_reclamation_plan(&q_plan_purge, false, &ctx)?;
+        assert_eq!(exec_q3.applied_count, 2);
+        let m3 = PathBuf::from(exec_q3.manifest_path.ok_or("missing third manifest")?);
+        assert!(purge_quarantine_batch(&m3, false, &ctx).is_err());
+        let purged = purge_quarantine_batch(&m3, true, &ctx)?;
+        assert_eq!(purged.purged_count, 2);
+        assert_eq!(purged.purged_bytes, 32 * 1024);
+
+        // Atomic same-volume hardlink consolidation on fresh duplicate pair.
+        let hl_target = dir.join("hl_dup.bin");
+        fs::write(&hl_target, &payload)?;
+        let scan_hl =
+            scan_exact_duplicates(&[dir.as_path()], &DuplicateScanOptions::default(), &ctx)?;
+        let hl_plan = build_reclamation_plan(&scan_hl, ReclamationStrategy::Hardlink, None);
+        let exec_hl = execute_reclamation_plan(&hl_plan, false, &ctx)?;
+        assert_eq!(exec_hl.applied_count, 1);
+        assert!(keeper.exists() && hl_target.exists());
+        assert_eq!(fs::read(&hl_target)?, payload);
 
         let _ = fs::remove_dir_all(&dir);
         Ok(())

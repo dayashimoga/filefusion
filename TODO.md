@@ -453,3 +453,14 @@
 - [x] `[5.1.1]` Upgrade `crates/optimization-engine/src/dedup.rs` with bounded-memory streaming `FastCDC` (`chunk_stream_fastcdc` preserving identical cuts to `chunk_bytes_fastcdc` without whole-file buffering, `NFR-PERF-001`), `compute_image_ahash`, and `compute_perceptual_hash_set` (`aHash`, `dHash`, `pHash`, `FR-DET-004`).
 - [x] `[5.1.1]` Implement `crates/optimization-engine/src/storage.rs` delivering 3-stage exact duplicate scanning (`scan_exact_duplicates`: size bucketing -> `4 KB` head/tail partial hash -> full `64 KB` streaming `BLAKE3`, `FR-DUP-001`), perceptual near-duplicate image clustering (`scan_near_duplicate_images`, `FR-DUP-002`), and bounded hierarchical directory treemap + domain/format analytics (`analyze_storage_treemap`).
 - [x] `[5.1.1]` Re-export Stage 5 storage intelligence APIs in `crates/optimization-engine/src/lib.rs`, initialize the Stage 5 subphase queue and backfill `a4f9b9f` (`stage-4.2.2`) in `docs/PROGRESS.md`, verify `122` native / `63` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 048 to `TODO.md` / `CHANGELOG.md`.
+
+
+
+---
+
+## [2026-11-28] Entry 049 — Stage 5 Subphase 5.1.2 Unified File Diff Engine & Safe Space-Reclamation Planner (`optimization-engine`)
+
+### Completed in Subphase 5.1.2
+- [x] `[5.1.2]` Implement `crates/optimization-engine/src/diff.rs` (`compare_files`, `FileDiffOptions`, `FileDiffReport`): streaming byte/`BLAKE3`/`SHA-256`/`xxHash64` comparison, streaming `FastCDC` chunk overlap (`CdcDeltaSummary`), visual `SSIM`/`PSNR`/`PixelDiffSummary` & perceptual Hamming deltas (`VisualDiffSummary`), bounded LCS UTF-8 line hunks (`TextDiffSummary`), and normalized metadata attribute diffs (`MetadataFieldDiff`, `FR-VAL-002`, `FR-DET-004`).
+- [x] `[5.1.2]` Implement `crates/optimization-engine/src/reclaim.rs` (`build_reclamation_plan`, `execute_reclamation_plan`, `restore_quarantine_batch`, `purge_quarantine_batch`): inspectable dry-run reclamation plans, TOCTOU `BLAKE3` verification, atomic same-volume hardlink consolidation (`atomic_hardlink_replace`), reversible `.filefusion-quarantine/<batch>/manifest.json` isolation, collision-aware restoration, and explicitly gated permanent purge (`FR-DUP-003`, `DEF-009`).
+- [x] `[5.1.2]` Re-export `diff` and `reclaim` APIs in `crates/optimization-engine/src/lib.rs`, backfill `8c034ee` (`stage-5.1.1`) in `docs/PROGRESS.md`, verify `124` native / `65` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 049 to `TODO.md` / `CHANGELOG.md`.

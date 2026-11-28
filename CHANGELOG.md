@@ -407,3 +407,14 @@
 ### Subphase 5.1.1 — Multi-Stage Exact Duplicate Scanner, Streaming `FastCDC`, Perceptual Clustering & Storage Treemap (`optimization-engine`, `L4`)
 - **Added:** Stage 5 storage intelligence module (`crates/optimization-engine/src/storage.rs`) delivering 3-stage exact duplicate detection (`scan_exact_duplicates`: size -> `4 KB` head/tail partial hash -> full streaming `BLAKE3` with I/O savings metrics, `FR-DUP-001`), perceptual near-duplicate image clustering (`scan_near_duplicate_images` across `aHash`/`dHash`/`pHash` with keeper selection, `FR-DUP-002`), and directory treemap / domain / format disk analytics (`analyze_storage_treemap`), re-exported from `crates/optimization-engine/src/lib.rs`.
 - **Changed:** Upgraded `analyze_files_fastcdc` in `crates/optimization-engine/src/dedup.rs` to bounded sliding-window streaming via `chunk_stream_fastcdc` (`NFR-PERF-001`) alongside `compute_image_ahash` and `compute_perceptual_hash_set` (`FR-DET-004`); initialized Stage 5 queue (`5.1.1`..`5.2.2`) and backfilled `a4f9b9f` (`stage-4.2.2`) in `docs/PROGRESS.md`, expanded `optimization-engine` to 8 tests (`122` native / `63` WASM passing), and appended Entry 048 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.
+
+
+
+---
+
+## [0.5.1-stage5.1.2] — 2026-11-28
+
+### Subphase 5.1.2 — Unified File Comparison/Diff & Safe Space-Reclamation Planner (`optimization-engine`, `L4`)
+- **Added:** Unified file comparison/diff module (`crates/optimization-engine/src/diff.rs`: `compare_files`) combining streaming byte/`BLAKE3` equality, streaming `FastCDC` overlap, `SSIM`/`PSNR`/pixel summary & `aHash`/`dHash`/`pHash` distances via `quality-engine`, bounded LCS UTF-8 text line hunks, and metadata diffs (`FR-VAL-002`, `FR-DET-004`).
+- **Added:** Safe space-reclamation planner & executor (`crates/optimization-engine/src/reclaim.rs`: `build_reclamation_plan`, `execute_reclamation_plan`, `restore_quarantine_batch`, `purge_quarantine_batch`) with TOCTOU `BLAKE3` verification, atomic same-volume hardlink swapping, reversible `.filefusion-quarantine/<batch>/manifest.json` quarantine/restore, and explicit consent-gated purge (`FR-DUP-003`, `DEF-009`), re-exported from `crates/optimization-engine/src/lib.rs`.
+- **Changed:** Backfilled `8c034ee` (`stage-5.1.1`) in `docs/PROGRESS.md`, expanded `optimization-engine` to 10 tests (`124` native / `65` WASM passing), and appended Entry 049 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.
