@@ -6,6 +6,7 @@
 
 pub mod optimizer;
 pub mod repair;
+pub mod studio;
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -31,6 +32,12 @@ use file_core::IsolatedProcessRunner;
 
 pub use optimizer::{PdfCompressionOptions, PdfCompressionReport, optimize_pdf_bytes};
 pub use repair::{PdfHealthReport, PdfRepairAssessment, QpdfMode, inspect_pdf_health};
+pub use studio::{
+    PdfCropMargins, PdfScanInspection, PdfWatermarkOptions, apply_pdf_text_watermark,
+    build_simple_text_pdf_bytes, crop_pdf_pages, extract_or_reorder_pdf_pages,
+    inspect_pdf_scan_status, merge_pdfs, parse_page_range_spec, rotate_pdf_pages,
+    split_pdf_by_ranges, split_pdf_every_n_pages,
+};
 
 #[cfg(feature = "native-process")]
 pub use repair::build_qpdf_optimize_invocation;
@@ -606,6 +613,191 @@ mod tests {
         assert!(outcome.bytes_out < outcome.bytes_in);
 
         let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn studio_merges_splits_reorders_rotates_crops_and_watermarks_pdfs()
+    -> Result<(), Box<dyn Error>> {
+        let ctx = JobContext::new("pdf-studio", ResourceLimits::default());
+        let pdf_a = build_simple_text_pdf_bytes(&["Page One", "Page Two"]);
+        let pdf_b = build_simple_text_pdf_bytes(&["Page Three"]);
+
+        // Merge -> 3 pages preserving extractable text order.
+        let merged = merge_pdfs(&[&pdf_a, &pdf_b], &ctx)?;
+        let merged_doc = Document::load_mem(&merged)?;
+        assert_eq!(merged_doc.get_pages().len(), 3);
+        let merged_text = merged_doc.extract_text(&[1, 2, 3])?;
+        assert!(merged_text.contains("Page One"));
+        assert!(merged_text.contains("Page Two"));
+        assert!(merged_text.contains("Page Three"));
+
+        // Reorder `[3, 1]` and verify page count & order.
+        let reordered = extract_or_reorder_pdf_pages(&merged, &[3, 1], &ctx)?;
+        let reordered_doc = Document::load_mem(&reordered)?;
+        assert_eq!(reordered_doc.get_pages().len(), 2);
+        assert!(reordered_doc.extract_text(&[1])?.contains("Page Three"));
+        assert!(reordered_doc.extract_text(&[2])?.contains("Page One"));
+
+        // Split by ranges & fixed chunk size.
+        let splits = split_pdf_by_ranges(&merged, &["1-2", "3"], &ctx)?;
+        assert_eq!(splits.len(), 2);
+        assert_eq!(Document::load_mem(&splits[0])?.get_pages().len(), 2);
+        assert_eq!(Document::load_mem(&splits[1])?.get_pages().len(), 1);
+        assert_eq!(split_pdf_every_n_pages(&merged, 2, &ctx)?.len(), 2);
+
+        // Rotate + Crop + Watermark.
+        let rotated = rotate_pdf_pages(&merged, Some(&[2]), 90, &ctx)?;
+        let rot_doc = Document::load_mem(&rotated)?;
+        let p2_id = rot_doc.get_pages()[&2];
+        assert_eq!(rot_doc.get_dictionary(p2_id)?.get(b"Rotate")?.as_i64()?, 90);
+
+        let cropped = crop_pdf_pages(
+            &rotated,
+            None,
+            PdfCropMargins {
+                left_pt: 36.0,
+                bottom_pt: 36.0,
+                right_pt: 36.0,
+                top_pt: 36.0,
+            },
+            &ctx,
+        )?;
+        let crop_doc = Document::load_mem(&cropped)?;
+        let p1_id = crop_doc.get_pages()[&1];
+        assert!(crop_doc.get_dictionary(p1_id)?.has(b"CropBox"));
+
+        let watermarked = apply_pdf_text_watermark(
+            &cropped,
+            &PdfWatermarkOptions {
+                text: String::from("CONFIDENTIAL"),
+                ..PdfWatermarkOptions::default()
+            },
+            &ctx,
+        )?;
+        let scan_info = inspect_pdf_scan_status(&watermarked)?;
+        assert_eq!(scan_info.total_pages, 3);
+        assert!(!scan_info.is_scanned_image_only);
+        assert!(!scan_info.has_digital_signatures);
+        let wm_text = Document::load_mem(&watermarked)?.extract_text(&[1])?;
+        assert!(wm_text.contains("CONFIDENTIAL"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn detects_image_only_scanned_pdf_status() -> Result<(), Box<dyn Error>> {
+        let mut scan_doc = Document::with_version("1.5");
+        let scan_pages_id = scan_doc.new_object_id();
+        let img_id = scan_doc.add_object(Stream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => 4,
+                "Height" => 4,
+                "ColorSpace" => "DeviceRGB",
+                "BitsPerComponent" => 8,
+            },
+            vec![128u8; 4 * 4 * 3],
+        ));
+        let res_id = scan_doc.add_object(dictionary! {
+            "XObject" => dictionary! { "Im0" => img_id },
+        });
+        let draw_ops = Content {
+            operations: vec![Operation::new("Do", vec!["Im0".into()])],
+        };
+        let stream_id = scan_doc.add_object(Stream::new(dictionary! {}, draw_ops.encode()?));
+        let leaf_page_id = scan_doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => scan_pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 200.into(), 200.into()],
+            "Resources" => res_id,
+            "Contents" => stream_id,
+        });
+        scan_doc.objects.insert(
+            scan_pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![leaf_page_id.into()],
+                "Count" => 1,
+            }),
+        );
+        let cat_id = scan_doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => scan_pages_id,
+        });
+        scan_doc.trailer.set("Root", cat_id);
+        let mut scanned_bytes = Vec::new();
+        scan_doc.save_to(&mut scanned_bytes)?;
+
+        let scanned_status = inspect_pdf_scan_status(&scanned_bytes)?;
+        assert_eq!(scanned_status.total_pages, 1);
+        assert!(scanned_status.is_scanned_image_only);
+        assert_eq!(scanned_status.image_only_pages, vec![1]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn studio_preserves_inherited_cropbox_and_rejects_non_finite_params()
+    -> Result<(), Box<dyn Error>> {
+        let mut doc = Document::with_version("1.5");
+        let inherited_pages_id = doc.new_object_id();
+        let leaf_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => inherited_pages_id,
+        });
+        doc.objects.insert(
+            inherited_pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+                "CropBox" => vec![20.into(), 20.into(), 592.into(), 772.into()],
+                "Rotate" => 180,
+                "Kids" => vec![leaf_id.into()],
+                "Count" => 1,
+            }),
+        );
+        let root_cat_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => inherited_pages_id,
+        });
+        doc.trailer.set("Root", root_cat_id);
+        let mut raw = Vec::new();
+        doc.save_to(&mut raw)?;
+
+        let ctx = JobContext::new("pdf-inherit", ResourceLimits::default());
+        let extracted = extract_or_reorder_pdf_pages(&raw, &[1], &ctx)?;
+        let out_doc = Document::load_mem(&extracted)?;
+        let out_leaf_id = out_doc.get_pages()[&1];
+        let leaf_dict = out_doc.get_dictionary(out_leaf_id)?;
+        assert!(leaf_dict.has(b"CropBox"));
+        assert!(leaf_dict.has(b"MediaBox"));
+        assert_eq!(leaf_dict.get(b"Rotate")?.as_i64()?, 180);
+
+        let nan_crop = crop_pdf_pages(
+            &extracted,
+            None,
+            PdfCropMargins {
+                left_pt: f32::NAN,
+                bottom_pt: 0.0,
+                right_pt: 0.0,
+                top_pt: 0.0,
+            },
+            &ctx,
+        );
+        assert!(nan_crop.is_err());
+
+        let nan_wm = apply_pdf_text_watermark(
+            &extracted,
+            &PdfWatermarkOptions {
+                opacity: f32::NAN,
+                ..PdfWatermarkOptions::default()
+            },
+            &ctx,
+        );
+        assert!(nan_wm.is_err());
+
         Ok(())
     }
 }

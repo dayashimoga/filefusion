@@ -401,3 +401,13 @@
 - [x] `[3.2.2]` Wire L5 `crates/job-manager` to L4 `crates/conversion-core` (`FF-MOD-001` §4 DAG `L5_JOB -> L0 & L1_REG & L4_OPT & L4_CNV`), exposing `JobManager::preflight_conversion`, `JobManager::convert_file`, and `ConvertFileReport` across both native and `wasm` feature builds.
 - [x] `[3.2.2]` Implement `filefusion convert` CLI subcommand (`--to`, `-o/--output`, `--preflight-only`, `--force-loss`, `--no-preserve-structure`, `--strip-metadata`, `--overwrite`, `--json`) in `apps/cli/src/main.rs` (`MOD-RULE-03`) with expanded `CliTargetFormat` coverage across markup, tabular, OOXML/ODF/EPUB, audio, video, and archive targets.
 - [x] `[3.2.2]` Add E2E Stage 3 conversion & fidelity corpus tests (`apps/cli/tests/cli_smoke.rs`) and `JobManager::convert_file` unit tests, backfill `1c90d81` (`stage-3.2.1`) in `docs/PROGRESS.md`, and append Subphase `3.2.2` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 044 — Stage 4 Subphase 4.1.1 PDF Studio Structural Manipulation (`merge`/`split`/`reorder`/`rotate`/`crop`/`watermark`)
+
+### Completed in Subphase 4.1.1
+- [x] `[4.1.1]` Implement pure-Rust WASM-native PDF Studio operations in `crates/compression-pdf/src/studio.rs` (`#![forbid(unsafe_code)]`, `FR-PDF-001`, `FR-PDF-004`): `parse_page_range_spec`, `merge_pdfs`, `extract_or_reorder_pdf_pages`, `split_pdf_by_ranges`, `split_pdf_every_n_pages`, `rotate_pdf_pages`, `crop_pdf_pages`, and `apply_pdf_text_watermark` with encrypted PDF `FmtDrm` gating and zero external crate additions.
+- [x] `[4.1.1]` Implement `inspect_pdf_scan_status` (`PdfScanInspection`) detecting image-only scanned OCR candidates and `/Sig`/`/ByteRange` signature dictionaries (`FR-PDF-003`..`004`), and export PDF Studio APIs in `crates/compression-pdf/src/lib.rs`.
+- [x] `[4.1.1]` Backfill `186ecde` (`stage-3.2.2`) and initialize the Stage 4 subphase queue in `docs/PROGRESS.md`, and append Subphase `4.1.1` entries to `TODO.md` and `CHANGELOG.md`.

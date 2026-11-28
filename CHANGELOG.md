@@ -357,3 +357,12 @@
 ### Subphase 3.2.2 — Stage 3 CLI (`filefusion convert`), `job-manager` Wiring & Conversion Fidelity Corpus (Stage 3 Completion)
 - **Added:** Real `filefusion convert` CLI subcommand (`--to`, `--preflight-only`, `--force-loss`, `--strip-metadata`, `--overwrite`, `--json`) with full target-format coverage in `apps/cli/src/main.rs`, L5 `JobManager::preflight_conversion`, `JobManager::convert_file`, and `ConvertFileReport` in `crates/job-manager/src/lib.rs`, plus E2E Stage 3 conversion & fidelity corpus coverage in `apps/cli/tests/cli_smoke.rs`.
 - **Changed:** Wired `job-manager -> conversion-core` across `native-process`, `native-logging`, and `wasm` features (`crates/job-manager/Cargo.toml`, `Cargo.lock`) with zero new external dependencies, backfilled `1c90d81` (`stage-3.2.1`) in `docs/PROGRESS.md`, and appended Entry 043 to `TODO.md`.
+
+
+---
+
+## [0.4.1-stage4.1.1] — 2026-11-28
+
+### Subphase 4.1.1 — PDF Studio Structural Manipulation & Scan Detection (`compression-pdf`, `L3`)
+- **Added:** Pure-Rust WASM-compatible PDF Studio suite (`crates/compression-pdf/src/studio.rs`) delivering multi-PDF `merge_pdfs`, `split_pdf_by_ranges`, `split_pdf_every_n_pages`, `extract_or_reorder_pdf_pages`, `rotate_pdf_pages`, `crop_pdf_pages`, rotated transparent vector text watermarking (`apply_pdf_text_watermark`), and `inspect_pdf_scan_status` (`FR-PDF-001`, `FR-PDF-003`..`004`), re-exported from `crates/compression-pdf/src/lib.rs`.
+- **Changed:** Backfilled `186ecde` (`stage-3.2.2`) and queued Stage 4 subphases in `docs/PROGRESS.md`, and appended Entry 044 to `TODO.md` with zero changes to `Cargo.toml` / `Cargo.lock`.
