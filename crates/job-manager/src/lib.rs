@@ -7,6 +7,7 @@
 #![forbid(unsafe_code)]
 
 pub mod backends;
+pub mod scheduler;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -35,6 +36,9 @@ pub use file_core::{
     inspect_bytes, inspect_path, load_config_from_path, load_effective_config, redact_path_for_log,
     resolve_default_config_path, resolve_output_destination, save_config_atomic,
     workspace_identity,
+};
+pub use scheduler::{
+    JobPriority, JobScheduler, ScheduledItemSpec, SchedulerController, SchedulerStats,
 };
 pub use validation_engine::{
     BombGuardError, MagicByteOutputValidator, PathSafetyError, validate_archive_member_path,
@@ -83,10 +87,40 @@ impl JobManager {
             .with_process_runner(Arc::new(NativeIsolatedProcessRunner::new()))
     }
 
-    /// Executes a batch request synchronously via `handler` (or performs validated inspection/dry-run).
+    /// Returns a bounded [`JobScheduler`] configured with this coordinator's [`ResourceLimits`].
+    #[must_use]
+    pub const fn scheduler(&self) -> JobScheduler {
+        JobScheduler::new(self.limits)
+    }
+
+    /// Creates a thread-safe [`SchedulerController`] for pause/resume, per-item cancel, and stats.
+    #[must_use]
+    pub fn create_scheduler_controller(&self) -> SchedulerController {
+        SchedulerController::new(self.limits)
+    }
+
+    /// Executes a scheduled batch of [`ScheduledItemSpec`] work items through the bounded scheduler.
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] on invalid inputs, scheduler initialization errors, or cancellation.
+    pub fn execute_scheduled_batch(
+        &self,
+        req: &ProcessingRequest,
+        items: &[ScheduledItemSpec],
+        handler: Option<&dyn ProcessingHandler>,
+        controller: Option<&SchedulerController>,
+        ctx: &JobContext,
+    ) -> FileFusionResult<JobReceipt> {
+        self.scheduler()
+            .execute_scheduled_items(req, items, handler, controller, ctx)
+    }
+
+    /// Executes a batch request through the bounded [`JobScheduler`] via `handler`
+    /// (or performs validated inspection/dry-run).
     ///
     /// Checks [`CancellationToken`] at each item boundary, validates inputs via [`ValidatedSource`],
-    /// resolves destination paths via [`resolve_output_destination`], and emits monotonic [`ProgressEvent`].
+    /// resolves destination paths via [`resolve_output_destination`], enforces bounded concurrency
+    /// and RAM permits, and emits deterministic [`ItemOutcome`] receipts sorted by item index.
     ///
     /// # Errors
     /// Returns [`FileFusionError`] (`ErrorCode::JobCancelled`) immediately on cancellation or if `req.inputs` is empty.
@@ -96,173 +130,204 @@ impl JobManager {
         handler: Option<&dyn ProcessingHandler>,
         ctx: &JobContext,
     ) -> FileFusionResult<JobReceipt> {
-        let total = u32::try_from(req.inputs.len()).unwrap_or(u32::MAX);
-        if total == 0 {
-            return Err(
-                FileFusionError::new(ErrorCode::FmtUnsupported, "no input files provided")
-                    .with_exit_code(CliExitCode::InvalidUsage)
-                    .with_remediation("Supply at least one input file path."),
-            );
-        }
-
-        let span = tracing::info_span!("execute_batch", job_id = %req.job_id, items = total);
-        let _guard = span.enter();
-        let mut outcomes = Vec::with_capacity(req.inputs.len());
-
-        for (idx, input_path) in req.inputs.iter().enumerate() {
-            ctx.check_cancelled()?;
-            let item_index = u32::try_from(idx + 1).unwrap_or(u32::MAX);
-            let percent = (f32::from(u16::try_from(idx).unwrap_or(u16::MAX))
-                / f32::from(u16::try_from(total.max(1)).unwrap_or(1)))
-                * 100.0;
-            ctx.emit_progress(
-                item_index,
-                total,
-                JobStage::Probing,
-                percent,
-                0,
-                format!(
-                    "Inspecting {}",
-                    redact_path_for_log(&input_path.to_string_lossy())
-                ),
-            );
-
-            let outcome = self.execute_single_item(
-                input_path,
-                item_index,
-                idx + 1,
-                total,
-                req,
-                handler,
-                ctx,
-            )?;
-            outcomes.push(outcome);
-        }
-
-        let final_stage = if outcomes.iter().any(|o| o.status == ItemStatus::Failed) {
-            JobStage::Failed
-        } else {
-            JobStage::Completed
-        };
-        Ok(JobReceipt::from_outcomes(
-            req.job_id.clone(),
-            final_stage,
-            outcomes,
-        ))
+        self.scheduler().execute_batch(req, handler, ctx)
     }
+}
 
-    #[allow(clippy::too_many_arguments)]
-    fn execute_single_item(
-        &self,
-        input_path: &Path,
-        item_index: u32,
-        seq_1based: usize,
-        total: u32,
-        req: &ProcessingRequest,
-        handler: Option<&dyn ProcessingHandler>,
-        ctx: &JobContext,
-    ) -> FileFusionResult<ItemOutcome> {
-        let done_percent = (f32::from(u16::try_from(item_index).unwrap_or(u16::MAX))
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_validated_item(
+    limits: &ResourceLimits,
+    input_path: &Path,
+    item_index: u32,
+    seq_1based: usize,
+    total: u32,
+    req: &ProcessingRequest,
+    handler: Option<&dyn ProcessingHandler>,
+    ctx: &JobContext,
+) -> FileFusionResult<ItemOutcome> {
+    ctx.check_cancelled()?;
+    let start_percent =
+        (f32::from(u16::try_from(item_index.saturating_sub(1)).unwrap_or(u16::MAX))
             / f32::from(u16::try_from(total.max(1)).unwrap_or(1)))
             * 100.0;
-        let source = match ValidatedSource::open(input_path, req.strict_spoofing, &self.limits) {
-            Ok(src) => src,
-            Err(err) => {
-                return Ok(emit_failed_outcome(
-                    ctx,
-                    item_index,
-                    total,
-                    done_percent,
-                    input_path,
-                    0,
-                    String::new(),
-                    err,
-                ));
-            }
-        };
+    ctx.emit_progress(
+        item_index,
+        total,
+        JobStage::Probing,
+        start_percent,
+        0,
+        format!(
+            "Inspecting {}",
+            redact_path_for_log(&input_path.to_string_lossy())
+        ),
+    );
 
-        let bytes_in = source.inspection.byte_size;
-        let hash8: String = source.inspection.digests.blake3.chars().take(8).collect();
-        let (profile_slug, target_ext) = operation_tokens(&req.operation);
-
-        let resolved_dest = match resolve_output_destination(
-            input_path,
-            req.output_dir.as_deref(),
-            &hash8,
-            profile_slug,
-            seq_1based,
-            target_ext,
-            &req.batch,
-        ) {
-            Ok(Some(dest)) => Some(dest),
-            Ok(None) => {
-                ctx.emit_progress(
-                    item_index,
-                    total,
-                    JobStage::Completed,
-                    done_percent,
-                    bytes_in,
-                    "Skipped existing destination (collision policy)",
-                );
-                return Ok(ItemOutcome {
-                    item_index,
-                    source_path: input_path.to_path_buf(),
-                    output_path: None,
-                    status: ItemStatus::SkippedCollision,
-                    compression_status: None,
-                    bytes_in,
-                    bytes_out: bytes_in,
-                    blake3_in: source.inspection.digests.blake3,
-                    blake3_out: None,
-                    error: None,
-                });
+    let done_percent = (f32::from(u16::try_from(item_index).unwrap_or(u16::MAX))
+        / f32::from(u16::try_from(total.max(1)).unwrap_or(1)))
+        * 100.0;
+    let source = match ValidatedSource::open(input_path, req.strict_spoofing, limits) {
+        Ok(src) => src,
+        Err(err) => {
+            if err.diagnostic.code == ErrorCode::JobCancelled {
+                return Err(err);
             }
-            Err(err) => {
-                return Ok(emit_failed_outcome(
-                    ctx,
-                    item_index,
-                    total,
-                    done_percent,
-                    input_path,
-                    bytes_in,
-                    source.inspection.digests.blake3,
-                    err,
-                ));
-            }
-        };
-
-        let outcome = if let Some(active_handler) = handler
-            .filter(|_| !req.dry_run && !matches!(req.operation, ProcessingOperation::InspectOnly))
-        {
-            active_handler.process_item(&source, resolved_dest.as_deref(), req, item_index, ctx)?
-        } else {
-            ItemOutcome {
+            return Ok(emit_failed_outcome(
+                ctx,
                 item_index,
-                source_path: input_path.to_path_buf(),
-                output_path: if matches!(req.operation, ProcessingOperation::InspectOnly) {
-                    None
-                } else {
-                    resolved_dest
-                },
-                status: ItemStatus::Succeeded,
-                compression_status: None,
-                bytes_in,
-                bytes_out: bytes_in,
-                blake3_in: source.inspection.digests.blake3.clone(),
-                blake3_out: None,
-                error: None,
-            }
-        };
+                total,
+                done_percent,
+                input_path,
+                0,
+                String::new(),
+                err,
+            ));
+        }
+    };
 
-        ctx.emit_progress(
+    let bytes_in = source.inspection.byte_size;
+    let hash8: String = source.inspection.digests.blake3.chars().take(8).collect();
+    let (profile_slug, target_ext) = operation_tokens(&req.operation);
+
+    let resolved_dest = match resolve_output_destination(
+        input_path,
+        req.output_dir.as_deref(),
+        &hash8,
+        profile_slug,
+        seq_1based,
+        target_ext,
+        &req.batch,
+    ) {
+        Ok(Some(dest)) => Some(dest),
+        Ok(None) => {
+            return Ok(skipped_collision_outcome(
+                ctx,
+                item_index,
+                total,
+                done_percent,
+                input_path,
+                bytes_in,
+                source.inspection.digests.blake3,
+            ));
+        }
+        Err(err) => {
+            return Ok(emit_failed_outcome(
+                ctx,
+                item_index,
+                total,
+                done_percent,
+                input_path,
+                bytes_in,
+                source.inspection.digests.blake3,
+                err,
+            ));
+        }
+    };
+
+    let outcome = execute_handler_or_default(
+        &source,
+        resolved_dest,
+        req,
+        handler,
+        item_index,
+        total,
+        done_percent,
+        input_path,
+        ctx,
+    )?;
+
+    ctx.emit_progress(
+        item_index,
+        total,
+        JobStage::Completed,
+        done_percent,
+        bytes_in,
+        "Item completed",
+    );
+    Ok(outcome)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_handler_or_default(
+    source: &ValidatedSource,
+    resolved_dest: Option<std::path::PathBuf>,
+    req: &ProcessingRequest,
+    handler: Option<&dyn ProcessingHandler>,
+    item_index: u32,
+    total: u32,
+    done_percent: f32,
+    input_path: &Path,
+    ctx: &JobContext,
+) -> FileFusionResult<ItemOutcome> {
+    let bytes_in = source.inspection.byte_size;
+    let Some(active_handler) = handler
+        .filter(|_| !req.dry_run && !matches!(req.operation, ProcessingOperation::InspectOnly))
+    else {
+        return Ok(ItemOutcome {
             item_index,
-            total,
-            JobStage::Completed,
-            done_percent,
+            source_path: input_path.to_path_buf(),
+            output_path: if matches!(req.operation, ProcessingOperation::InspectOnly) {
+                None
+            } else {
+                resolved_dest
+            },
+            status: ItemStatus::Succeeded,
+            compression_status: None,
             bytes_in,
-            "Item completed",
-        );
-        Ok(outcome)
+            bytes_out: bytes_in,
+            blake3_in: source.inspection.digests.blake3.clone(),
+            blake3_out: None,
+            error: None,
+        });
+    };
+
+    match active_handler.process_item(source, resolved_dest.as_deref(), req, item_index, ctx) {
+        Ok(out) => Ok(out),
+        Err(err) => {
+            if err.diagnostic.code == ErrorCode::JobCancelled {
+                return Err(err);
+            }
+            Ok(emit_failed_outcome(
+                ctx,
+                item_index,
+                total,
+                done_percent,
+                input_path,
+                bytes_in,
+                source.inspection.digests.blake3.clone(),
+                err,
+            ))
+        }
+    }
+}
+
+fn skipped_collision_outcome(
+    ctx: &JobContext,
+    item_index: u32,
+    total: u32,
+    done_percent: f32,
+    input_path: &Path,
+    bytes_in: u64,
+    blake3_in: String,
+) -> ItemOutcome {
+    ctx.emit_progress(
+        item_index,
+        total,
+        JobStage::Completed,
+        done_percent,
+        bytes_in,
+        "Skipped existing destination (collision policy)",
+    );
+    ItemOutcome {
+        item_index,
+        source_path: input_path.to_path_buf(),
+        output_path: None,
+        status: ItemStatus::SkippedCollision,
+        compression_status: None,
+        bytes_in,
+        bytes_out: bytes_in,
+        blake3_in,
+        blake3_out: None,
+        error: None,
     }
 }
 

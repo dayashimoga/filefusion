@@ -9,13 +9,18 @@ repository.workspace = true
 authors.workspace = true
 
 [features]
-default = ["native-logging"]
+default = ["native-logging", "native-scheduler", "rayon-parallel"]
 native-logging = ["file-core/native-logging", "codec-registry/native-probe"]
+native-scheduler = ["dep:tokio"]
+rayon-parallel = ["dep:rayon"]
 wasm = ["file-core/wasm", "codec-registry/wasm"]
 
 [dependencies]
 codec-registry = { workspace = true, default-features = false }
 file-core = { workspace = true, default-features = false }
+rayon = { workspace = true, optional = true }
+serde.workspace = true
+tokio = { workspace = true, optional = true }
 tracing.workspace = true
 validation-engine.workspace = true
 

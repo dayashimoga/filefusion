@@ -250,3 +250,12 @@
 - [x] `[1.3.2]` Backfill `8ec6dd2` (`stage-1.3.1`) in `docs/PROGRESS.md` and append Subphase `1.3.2` entries to `TODO.md` and `CHANGELOG.md`.
 
 
+---
+
+## [2026-11-28] Entry 028 — Stage 1 Subphase 1.3.3 Job Scheduler
+
+### Completed in Subphase 1.3.3
+- [x] `[1.3.3]` Add bounded `tokio` and `rayon` workspace dependencies with `native-scheduler`, `rayon-parallel`, and `wasm` feature gating (`FF-MOD-001` §6, `ADR-003`).
+- [x] `[1.3.3]` Implement `JobScheduler`, `SchedulerController`, `JobPriority`, `ScheduledItemSpec`, and `SchedulerStats` in `crates/job-manager/src/scheduler.rs` enforcing `max_workers`, `max_memory_mb` permits (`FF-ERR-RES-MEMORY`), priority + FIFO ties, pause/resume, per-item cancellation, and `< 500 ms` global abort (`FR-BAT-001`, `NFR-PERF-003`, `NFR-REL-002`).
+- [x] `[1.3.3]` Wire `JobManager::execute_batch` / `execute_scheduled_batch` in `crates/job-manager/src/lib.rs`, verify 1,200-item concurrency & WASM parity tests, backfill `b26ae47` (`stage-1.3.2`), and append entries to `TODO.md` and `CHANGELOG.md`.
+

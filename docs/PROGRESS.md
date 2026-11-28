@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 1 — Rust Core Foundation
 - **Phase:** Phase 1.3 — Pipeline & Execution
-- **Subphase:** `1.3.2` — Plugin/backend contracts
-- **Status:** `COMPLETE` (Awaiting user confirmation before starting `1.3.3` — Job scheduler)
+- **Subphase:** `1.3.3` — Job scheduler
+- **Status:** `COMPLETE` (Awaiting user confirmation before starting `1.3.4` — Cancellation and progress)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 1.3.3 — Job scheduler
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 1 — Rust Core Foundation |
+| **Phase** | Phase 1.3 — Pipeline & Execution |
+| **Subphase** | `1.3.3` — Job scheduler |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 4 hours |
+| **Actual Duration** | ~20 minutes |
+| **Acceptance Criteria** | 1. Add feature-gated bounded `tokio` + `rayon` dependencies (`native-scheduler`, `rayon-parallel`, zero-warning `wasm` single-worker fallback) in `Cargo.toml` / `crates/job-manager/Cargo.toml` (`ADR-003`, `FF-MOD-001` §6).<br>2. Implement `JobScheduler`, `SchedulerController`, `JobPriority` (`High` > `Normal` > `Low` + FIFO tie-breaking), `ScheduledItemSpec`, and `SchedulerStats` in `crates/job-manager/src/scheduler.rs` enforcing `ResourceLimits::max_workers`, memory-weighted `max_memory_mb` permits (`FF-ERR-RES-MEMORY` rejection for oversized items), pause/resume, per-item cancellation, and `< 500 ms` global cancellation abort (`FR-BAT-001`, `NFR-PERF-003`, `NFR-REL-002`).<br>3. Wire `JobManager::execute_batch` / `execute_scheduled_batch` / `create_scheduler_controller` in `crates/job-manager/src/lib.rs` with 1,200+ item stress, memory-permit serialization, priority-order, pause/resume, and WASM-parity tests.<br>4. Pass `cargo fmt --all -- --check`, `clippy -- -D warnings` (native & `--features wasm`), `cargo test --workspace --locked`, WASM unit tests, backfill `b26ae47` (`stage-1.3.2`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.3.3`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 49 passed, 0 failed (`codec-registry`: 3, `file-core`: 22, `validation-engine`: 5, `job-manager`: 12, `filefusion` unit: 1, `cli_smoke`: 6); `cargo test -p job-manager --no-default-features --features wasm --locked`: 9 passed, 0 failed; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/scheduler.rs`, `crates/job-manager/src/lib.rs`, `crates/job-manager/src/backends.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-1.3.3` on `main` (pushed to `origin`; exact SHA backfilled in `1.3.4`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 1.3.2 — Plugin/backend contracts
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Define canonical backend traits & DTOs in `crates/file-core/src/contracts.rs` (`FF-CTR-001` §3, `MOD-RULE-01`, `MOD-RULE-04`): `CompressionEngine`, `ConversionEngine`, `ExternalToolAdapter`, `IsolatedProcessRunner`, `QualityEvaluator`, `OutputValidator`, plus `CompressionRequest`, `CompressionOutcome`, `QualityMetrics`, `ConversionRoute`, `PreflightAssessment`, `ConversionRequest`, `ConversionFidelityReport`, `ValidationOutcome`, `ProcessInvocation`, and `ProcessOutput`.<br>2. Inject `Option<Arc<dyn IsolatedProcessRunner>>` into `JobContext` (`crates/file-core/src/pipeline.rs`) and implement L1 `MagicByteOutputValidator` (`OutputValidator`) in `crates/validation-engine/src/lib.rs`.<br>3. Implement `NativeIsolatedProcessRunner` (sanitized `env_clear()`, private RAII temp dir, argument arrays, bounded I/O capture, timeout + cancellation kill, with `wasm32` stub) and pluggable `BackendCatalog` in `crates/job-manager/src/backends.rs` + `JobManager::create_context`.<br>4. Pass `cargo fmt --all -- --check`, `clippy -- -D warnings` (native & `--features wasm`), `cargo test --workspace --locked`, backfill `8ec6dd2` (`stage-1.3.1`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.3.2`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 43 passed, 0 failed (`codec-registry`: 3, `file-core`: 22, `validation-engine`: 5, `job-manager`: 6, `filefusion` unit: 1, `cli_smoke`: 6); Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `crates/file-core/src/contracts.rs`, `crates/file-core/src/pipeline.rs`, `crates/file-core/src/lib.rs`, `crates/validation-engine/src/lib.rs`, `crates/job-manager/src/backends.rs`, `crates/job-manager/src/lib.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-1.3.2` on `main` (pushed to `origin`; exact SHA backfilled in `1.3.3`) |
+| **Commit Reference** | `b26ae47` (tag `stage-1.3.2`, pushed to `origin/main`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 1.3.1 — Processing API
@@ -514,6 +531,6 @@
 | `1.2.4` | Capability registry | `COMPLETE` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
 | `1.3.1` | Processing API | `COMPLETE` | Agent 2, Agent 1, Agent 12 | 2 hours |
 | `1.3.2` | Plugin/backend contracts | `COMPLETE` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
-| `1.3.3` | Job scheduler | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 4 hours |
+| `1.3.3` | Job scheduler | `COMPLETE` | Agent 2, Agent 8, Agent 12 | 4 hours |
 | `1.3.4` | Cancellation and progress | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 2 hours |
 | `1.3.5` | Resource limits | `NOT STARTED` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |

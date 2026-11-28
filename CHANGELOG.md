@@ -221,3 +221,11 @@
 - **Changed:** Wired `IsolatedProcessRunner` into `JobContext` and `JobManager::create_context`, backfilled `8ec6dd2` (`stage-1.3.1`) in `docs/PROGRESS.md`, and appended Entry 027 to `TODO.md`.
 
 
+---
+
+## [0.1.9-stage1.3.3] — 2026-11-28
+
+### Subphase 1.3.3 — Job Scheduler
+- **Added:** Bounded dual-pool `tokio` + `rayon` job scheduler (`crates/job-manager/src/scheduler.rs`: `JobScheduler`, `SchedulerController`, `JobPriority`, `ScheduledItemSpec`, `SchedulerStats`) with priority ordering, FIFO ties, memory-weighted permits, pause/resume, per-item cancellation, `< 500 ms` abort, and zero-warning WASM sequential fallback.
+- **Changed:** Wired `JobManager` batch execution through `JobScheduler` (`crates/job-manager/src/lib.rs`), fixed `wasm` test feature imports in `crates/job-manager/src/backends.rs`, backfilled `b26ae47` (`stage-1.3.2`) in `docs/PROGRESS.md`, and appended Entry 028 to `TODO.md`.
+

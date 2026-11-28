@@ -307,11 +307,11 @@ impl BackendCatalog {
 #[cfg(test)]
 mod tests {
     use std::ffi::OsString;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
 
     use file_core::{
         CompressionOutcome, CompressionRequest, CompressionStatus, FileInspectionReport,
-        ProcessingRequest, ResourceLimits, StagedPath, ValidatedSource,
+        ProcessingRequest, StagedPath, ValidatedSource,
     };
 
     use super::*;
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn isolated_process_runner_executes_command_and_honors_cancellation() -> FileFusionResult<()> {
         let runner = NativeIsolatedProcessRunner::new();
-        let ctx = JobContext::new("iso_ok", ResourceLimits::default());
+        let ctx = JobContext::new("iso_ok", file_core::ResourceLimits::default());
         let inv = ProcessInvocation {
             executable: PathBuf::from("rustc"),
             args: vec![OsString::from("--version")],
@@ -434,7 +434,7 @@ mod tests {
         let stdout_text = String::from_utf8_lossy(&out.stdout);
         assert!(stdout_text.contains("rustc"));
 
-        let cancelled_ctx = JobContext::new("iso_cancel", ResourceLimits::default());
+        let cancelled_ctx = JobContext::new("iso_cancel", file_core::ResourceLimits::default());
         cancelled_ctx.cancellation.cancel();
         let aborted = runner.run_isolated(&inv, &cancelled_ctx);
         assert!(aborted.is_err());
