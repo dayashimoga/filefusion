@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 1 — Rust Core Foundation
 - **Phase:** Phase 1.3 — Pipeline & Execution
-- **Subphase:** `1.3.1` — Processing API
-- **Status:** `COMPLETE` (Phase 1.3 begun; Verified, Agent 12 PASS, committed & tagged `stage-1.3.1`)
+- **Subphase:** `1.3.2` — Plugin/backend contracts
+- **Status:** `COMPLETE` (Awaiting user confirmation before starting `1.3.3` — Job scheduler)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 1.3.2 — Plugin/backend contracts
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 1 — Rust Core Foundation |
+| **Phase** | Phase 1.3 — Pipeline & Execution |
+| **Subphase** | `1.3.2` — Plugin/backend contracts |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 3 (Compression & Codec Engineer), Agent 4 (Document & Conversion Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~10 minutes |
+| **Acceptance Criteria** | 1. Define canonical backend traits & DTOs in `crates/file-core/src/contracts.rs` (`FF-CTR-001` §3, `MOD-RULE-01`, `MOD-RULE-04`): `CompressionEngine`, `ConversionEngine`, `ExternalToolAdapter`, `IsolatedProcessRunner`, `QualityEvaluator`, `OutputValidator`, plus `CompressionRequest`, `CompressionOutcome`, `QualityMetrics`, `ConversionRoute`, `PreflightAssessment`, `ConversionRequest`, `ConversionFidelityReport`, `ValidationOutcome`, `ProcessInvocation`, and `ProcessOutput`.<br>2. Inject `Option<Arc<dyn IsolatedProcessRunner>>` into `JobContext` (`crates/file-core/src/pipeline.rs`) and implement L1 `MagicByteOutputValidator` (`OutputValidator`) in `crates/validation-engine/src/lib.rs`.<br>3. Implement `NativeIsolatedProcessRunner` (sanitized `env_clear()`, private RAII temp dir, argument arrays, bounded I/O capture, timeout + cancellation kill, with `wasm32` stub) and pluggable `BackendCatalog` in `crates/job-manager/src/backends.rs` + `JobManager::create_context`.<br>4. Pass `cargo fmt --all -- --check`, `clippy -- -D warnings` (native & `--features wasm`), `cargo test --workspace --locked`, backfill `8ec6dd2` (`stage-1.3.1`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.3.2`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 43 passed, 0 failed (`codec-registry`: 3, `file-core`: 22, `validation-engine`: 5, `job-manager`: 6, `filefusion` unit: 1, `cli_smoke`: 6); Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `crates/file-core/src/contracts.rs`, `crates/file-core/src/pipeline.rs`, `crates/file-core/src/lib.rs`, `crates/validation-engine/src/lib.rs`, `crates/job-manager/src/backends.rs`, `crates/job-manager/src/lib.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-1.3.2` on `main` (pushed to `origin`; exact SHA backfilled in `1.3.3`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 1.3.1 — Processing API
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Implement shared L0 Processing API contracts in `crates/file-core/src/pipeline.rs` (`MOD-RULE-01`, `FF-CTR-001` §3–§4): `CancellationToken`, `ProgressSink` / `NoOpProgressSink` / `VecProgressSink`, `JobContext`, `CompressionProfile` (`FR-CMP-001`), `CompressionStatus` (`FR-CMP-002`), `ProcessingOperation`, `ProcessingRequest`, `ValidatedSource`, `StagedPath` (atomic sibling `.filefusion.tmp.<id>` staging & cleanup-on-drop rollback), `resolve_output_destination` (`FR-BAT-002`), `ItemOutcome` / `JobReceipt`, and `ProcessingHandler`.<br>2. Lift `CancellationToken` ownership cleanly from `job-manager` to `file-core` (preserving re-exports) and implement `JobManager::execute_batch` in `crates/job-manager/src/lib.rs` with monotonic `ProgressEvent` emission, `ValidatedSource` checks, collision resolution, and cancellation propagation.<br>3. Pass `cargo fmt --all -- --check`, `clippy -- -D warnings` (native & `--features wasm`), `cargo test --workspace --locked`, backfill `a185199` (`stage-1.2.4`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.3.1`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 40 passed, 0 failed (`codec-registry`: 3, `file-core`: 22, `validation-engine`: 4, `job-manager`: 4, `filefusion` unit: 1, `cli_smoke`: 6); Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `crates/file-core/src/pipeline.rs`, `crates/file-core/src/lib.rs`, `crates/job-manager/src/lib.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-1.3.1` on `main` (pushed to `origin`; exact SHA backfilled in `1.3.2`) |
+| **Commit Reference** | `8ec6dd2` (tag `stage-1.3.1` on `main`, pushed to `origin`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 1.2.4 — Capability registry
@@ -496,7 +513,7 @@
 | `1.2.3` | File classification | `COMPLETE` | Agent 2, Agent 3, Agent 12 | 1 hour |
 | `1.2.4` | Capability registry | `COMPLETE` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
 | `1.3.1` | Processing API | `COMPLETE` | Agent 2, Agent 1, Agent 12 | 2 hours |
-| `1.3.2` | Plugin/backend contracts | `NOT STARTED` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
+| `1.3.2` | Plugin/backend contracts | `COMPLETE` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
 | `1.3.3` | Job scheduler | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 4 hours |
 | `1.3.4` | Cancellation and progress | `NOT STARTED` | Agent 2, Agent 8, Agent 12 | 2 hours |
 | `1.3.5` | Resource limits | `NOT STARTED` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |

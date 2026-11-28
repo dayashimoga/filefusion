@@ -6,7 +6,13 @@
 #![forbid(unsafe_code)]
 
 use core::fmt;
-use file_core::{ErrorCode, FileFusionError, ResourceLimits};
+use std::fs;
+use std::path::Path;
+
+use file_core::{
+    ErrorCode, FileFusionError, FileFusionResult, FormatId, OutputValidator, ResourceLimits,
+    ValidationOutcome, detect_signature_from_path,
+};
 use serde::{Deserialize, Serialize};
 
 /// Reasons an archive member path is rejected by the security gate.
@@ -180,6 +186,76 @@ pub fn validate_expansion_budget(
     Ok(())
 }
 
+/// Default L1 [`OutputValidator`] verifying file non-emptiness, size ceiling, and
+/// magic-byte signature conformance before atomic destination promote (`FR-VAL-001`).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct MagicByteOutputValidator;
+
+impl OutputValidator for MagicByteOutputValidator {
+    fn validator_id(&self) -> &'static str {
+        "validation-engine-magic-byte"
+    }
+
+    fn validate_staged(
+        &self,
+        staged_path: &Path,
+        expected_format: FormatId,
+        limits: &ResourceLimits,
+    ) -> FileFusionResult<ValidationOutcome> {
+        let meta = fs::metadata(staged_path)?;
+        if !meta.is_file() {
+            return Err(FileFusionError::new(
+                ErrorCode::FmtCorrupt,
+                "staged output path is not a regular file",
+            )
+            .with_remediation("Aborted atomic commit to preserve destination integrity."));
+        }
+        if meta.len() == 0 {
+            return Err(FileFusionError::new(
+                ErrorCode::FmtCorrupt,
+                "staged output is empty (0 bytes)",
+            )
+            .with_remediation("Aborted commit; source file remains untouched."));
+        }
+        if meta.len() > limits.max_uncompressed_bytes {
+            return Err(FileFusionError::new(
+                ErrorCode::SecBomb,
+                format!(
+                    "staged output ({} bytes) exceeds limit ({} bytes)",
+                    meta.len(),
+                    limits.max_uncompressed_bytes
+                ),
+            ));
+        }
+
+        let sig = detect_signature_from_path(staged_path)?;
+        let compatible = sig.detected_format == expected_format
+            || (expected_format == FormatId::Unknown
+                && sig.detected_format != FormatId::Executable);
+        if !compatible {
+            return Err(FileFusionError::new(
+                ErrorCode::FmtCorrupt,
+                format!(
+                    "staged output signature {:?} does not match expected format {:?}",
+                    sig.detected_format, expected_format
+                ),
+            )
+            .with_remediation("OutputValidator rejected corrupt or misencoded staged artifact."));
+        }
+
+        Ok(ValidationOutcome {
+            valid: true,
+            validator_id: String::from(self.validator_id()),
+            detail: format!(
+                "Verified {:?} ({}) staged output ({} bytes)",
+                sig.detected_format,
+                sig.mime_type,
+                meta.len()
+            ),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -263,5 +339,41 @@ mod tests {
         });
         assert_eq!(bomb.diagnostic.code, ErrorCode::SecBomb);
         assert_eq!(bomb.exit_code(), CliExitCode::SecurityRejection);
+    }
+
+    #[test]
+    fn magic_byte_output_validator_accepts_valid_png_and_rejects_corrupt_or_empty()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let dir =
+            std::env::temp_dir().join(format!("filefusion_val_staged_{}", std::process::id()));
+        if dir.exists() {
+            fs::remove_dir_all(&dir)?;
+        }
+        fs::create_dir_all(&dir)?;
+
+        let validator = MagicByteOutputValidator;
+        let limits = ResourceLimits::default();
+
+        let valid_png = dir.join("ok.tmp");
+        fs::write(&valid_png, b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")?;
+        let ok = validator.validate_staged(&valid_png, FormatId::Png, &limits)?;
+        assert!(ok.valid);
+
+        let mismatch = validator.validate_staged(&valid_png, FormatId::Pdf, &limits);
+        assert!(mismatch.is_err());
+        if let Err(err) = mismatch {
+            assert_eq!(err.diagnostic.code, ErrorCode::FmtCorrupt);
+        }
+
+        let empty = dir.join("empty.tmp");
+        fs::write(&empty, b"")?;
+        assert!(
+            validator
+                .validate_staged(&empty, FormatId::Png, &limits)
+                .is_err()
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
     }
 }

@@ -212,4 +212,12 @@
 - **Added:** Shared `L0` Processing API contracts (`crates/file-core/src/pipeline.rs`: `JobContext`, `ProgressSink`, `VecProgressSink`, `CompressionProfile`, `CompressionStatus`, `ProcessingOperation`, `ProcessingRequest`, `ValidatedSource`, atomic `StagedPath`, `resolve_output_destination`, `ItemOutcome`, `JobReceipt`, `ProcessingHandler`) and `JobManager::execute_batch` in `crates/job-manager/src/lib.rs`.
 - **Changed:** Moved `CancellationToken` into `file-core` (re-exported identically from `job-manager` for `MOD-RULE-01` compatibility), backfilled `a185199` (`stage-1.2.4`) in `docs/PROGRESS.md`, and appended Entry 026 to `TODO.md`.
 
+---
+
+## [0.1.8-stage1.3.2] — 2026-11-28
+
+### Subphase 1.3.2 — Plugin/Backend Contracts
+- **Added:** Canonical engine/backend traits & DTOs (`crates/file-core/src/contracts.rs`: `CompressionEngine`, `ConversionEngine`, `ExternalToolAdapter`, `IsolatedProcessRunner`, `QualityEvaluator`, `OutputValidator`, `ProcessInvocation`, `ProcessOutput`), `MagicByteOutputValidator` (`crates/validation-engine/src/lib.rs`), and `NativeIsolatedProcessRunner` + `BackendCatalog` (`crates/job-manager/src/backends.rs`).
+- **Changed:** Wired `IsolatedProcessRunner` into `JobContext` and `JobManager::create_context`, backfilled `8ec6dd2` (`stage-1.3.1`) in `docs/PROGRESS.md`, and appended Entry 027 to `TODO.md`.
+
 

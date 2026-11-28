@@ -11,6 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::config::{BatchDefaults, CollisionPolicy};
+use crate::contracts::{IsolatedProcessRunner, ProcessInvocation, ProcessOutput};
 use crate::error::{ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult};
 use crate::metadata::{FileInspectionReport, inspect_path};
 use crate::{CORE_SCHEMA_VERSION, FormatId, JobStage, ProgressEvent, ResourceLimits};
@@ -127,6 +128,8 @@ pub struct JobContext {
     pub cancellation: CancellationToken,
     /// Shared progress event sink.
     pub progress: Arc<dyn ProgressSink>,
+    /// Optional injected isolated subprocess runner (`MOD-RULE-01`, `MOD-RULE-04`).
+    pub process_runner: Option<Arc<dyn IsolatedProcessRunner>>,
 }
 
 impl JobContext {
@@ -138,6 +141,7 @@ impl JobContext {
             limits,
             cancellation: CancellationToken::new(),
             progress: Arc::new(NoOpProgressSink),
+            process_runner: None,
         }
     }
 
@@ -153,6 +157,34 @@ impl JobContext {
     pub fn with_cancellation(mut self, cancellation: CancellationToken) -> Self {
         self.cancellation = cancellation;
         self
+    }
+
+    /// Attaches an [`IsolatedProcessRunner`] implementation for Tier 2 tool execution.
+    #[must_use]
+    pub fn with_process_runner(mut self, runner: Arc<dyn IsolatedProcessRunner>) -> Self {
+        self.process_runner = Some(runner);
+        self
+    }
+
+    /// Executes a Tier 2 external binary using the injected [`IsolatedProcessRunner`].
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] (`ErrorCode::EngMissing`) if no runner is configured,
+    /// or forwards runner execution errors.
+    pub fn run_isolated_process(
+        &self,
+        invocation: &ProcessInvocation,
+    ) -> FileFusionResult<ProcessOutput> {
+        let Some(runner) = &self.process_runner else {
+            return Err(FileFusionError::new(
+                ErrorCode::EngMissing,
+                "no IsolatedProcessRunner configured in JobContext",
+            )
+            .with_remediation(
+                "Construct JobContext via JobManager::create_context or attach a runner.",
+            ));
+        };
+        runner.run_isolated(invocation, self)
     }
 
     /// Checks whether cancellation was requested.

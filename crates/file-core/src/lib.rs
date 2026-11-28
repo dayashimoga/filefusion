@@ -8,6 +8,7 @@
 
 pub mod classification;
 pub mod config;
+pub mod contracts;
 pub mod error;
 pub mod logging;
 pub mod metadata;
@@ -26,6 +27,13 @@ pub use config::{
     LoadedConfig, PathConfig, PrivacyConfig, load_config_from_path, load_effective_config,
     load_effective_config_with, resolve_default_config_path, resolve_default_config_path_with,
     save_config_atomic,
+};
+pub use contracts::{
+    CompressionEngine, CompressionOutcome, CompressionRequest, ConversionEngine,
+    ConversionFidelityReport, ConversionRequest, ConversionRoute, ExternalToolAdapter,
+    FidelitySeverity, IsolatedProcessRunner, OutputValidator, PreflightAssessment,
+    PreflightWarning, ProcessInvocation, ProcessOutput, QualityEvaluator, QualityMetrics,
+    ValidationOutcome,
 };
 pub use error::{ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult};
 pub use logging::{LogFormat, LogLevel, LoggingConfig, init_logging, redact_path_for_log};

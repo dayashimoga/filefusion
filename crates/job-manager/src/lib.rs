@@ -6,29 +6,39 @@
 
 #![forbid(unsafe_code)]
 
-use std::path::Path;
+pub mod backends;
 
+use std::path::Path;
+use std::sync::Arc;
+
+pub use backends::{BackendCatalog, NativeIsolatedProcessRunner};
 pub use codec_registry::{
     CapabilityEntry, CapabilityRegistry, DoctorReport, EngineTier, LicenseClass, ToolAvailability,
     collect_baseline_doctor_report, collect_doctor_report,
 };
 pub use file_core::{
     BatchDefaults, CancellationToken, CliConfigOverrides, CliExitCode, CollisionPolicy,
-    CompressibilityTier, CompressionProfile, CompressionStatus, ConfigSource, DetectionConfidence,
-    DigestSet, ErrorCategory, ErrorCode, ErrorDiagnostic, FileClassification, FileFusionConfig,
-    FileFusionError, FileFusionResult, FileInspectionReport, FormatId, ItemOutcome, ItemStatus,
-    JobContext, JobReceipt, JobStage, LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind,
-    MetadataSummary, NoOpProgressSink, PathConfig, PrivacyConfig, ProcessingDomain,
-    ProcessingHandler, ProcessingOperation, ProcessingRequest, ProgressEvent, ProgressSink,
+    CompressibilityTier, CompressionEngine, CompressionOutcome, CompressionProfile,
+    CompressionRequest, CompressionStatus, ConfigSource, ConversionEngine,
+    ConversionFidelityReport, ConversionRequest, ConversionRoute, DetectionConfidence, DigestSet,
+    ErrorCategory, ErrorCode, ErrorDiagnostic, ExternalToolAdapter, FidelitySeverity,
+    FileClassification, FileFusionConfig, FileFusionError, FileFusionResult, FileInspectionReport,
+    FormatId, IsolatedProcessRunner, ItemOutcome, ItemStatus, JobContext, JobReceipt, JobStage,
+    LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind, MetadataSummary, NoOpProgressSink,
+    OutputValidator, PathConfig, PreflightAssessment, PreflightWarning, PrivacyConfig,
+    ProcessInvocation, ProcessOutput, ProcessingDomain, ProcessingHandler, ProcessingOperation,
+    ProcessingRequest, ProgressEvent, ProgressSink, QualityEvaluator, QualityMetrics,
     RecommendedAction, ResourceLimits, SignatureMatch, StagedPath, StreamDescriptor, StreamKind,
-    ValidatedSource, VecProgressSink, classify_inspection_report, classify_processing_domain,
-    compute_digests_from_bytes, compute_entropy_milli_bits, detect_signature_from_bytes,
-    detect_signature_from_path, enforce_spoofing_policy, init_logging, inspect_bytes, inspect_path,
-    load_config_from_path, load_effective_config, redact_path_for_log, resolve_default_config_path,
-    resolve_output_destination, save_config_atomic, workspace_identity,
+    ValidatedSource, ValidationOutcome, VecProgressSink, classify_inspection_report,
+    classify_processing_domain, compute_digests_from_bytes, compute_entropy_milli_bits,
+    detect_signature_from_bytes, detect_signature_from_path, enforce_spoofing_policy, init_logging,
+    inspect_bytes, inspect_path, load_config_from_path, load_effective_config, redact_path_for_log,
+    resolve_default_config_path, resolve_output_destination, save_config_atomic,
+    workspace_identity,
 };
 pub use validation_engine::{
-    BombGuardError, PathSafetyError, validate_archive_member_path, validate_expansion_budget,
+    BombGuardError, MagicByteOutputValidator, PathSafetyError, validate_archive_member_path,
+    validate_expansion_budget,
 };
 
 /// Top-level L5 processing coordinator enforcing cancellation, validation, and receipts.
@@ -64,6 +74,13 @@ impl JobManager {
     #[must_use]
     pub const fn defaults(&self) -> &BatchDefaults {
         &self.defaults
+    }
+
+    /// Creates a [`JobContext`] pre-wired with an isolated [`NativeIsolatedProcessRunner`].
+    #[must_use]
+    pub fn create_context(&self, job_id: impl Into<String>) -> JobContext {
+        JobContext::new(job_id, self.limits)
+            .with_process_runner(Arc::new(NativeIsolatedProcessRunner::new()))
     }
 
     /// Executes a batch request synchronously via `handler` (or performs validated inspection/dry-run).

@@ -240,4 +240,13 @@
 - [x] `[1.3.1]` Implement shared `L0` Processing API contracts in `crates/file-core/src/pipeline.rs` (`CancellationToken`, `ProgressSink`, `JobContext`, `CompressionProfile`, `CompressionStatus`, `ProcessingOperation`, `ProcessingRequest`, `ValidatedSource`, `StagedPath` with `.filefusion.tmp.<id>` rollback-on-drop, `resolve_output_destination`, `ItemOutcome`, `JobReceipt`, `ProcessingHandler`).
 - [x] `[1.3.1]` Consolidate `CancellationToken` in `file-core` (`MOD-RULE-01`), implement `JobManager::execute_batch` in `crates/job-manager/src/lib.rs`, backfill `a185199` (`stage-1.2.4`) in `docs/PROGRESS.md`, and append Subphase `1.3.1` entries to `TODO.md` and `CHANGELOG.md`.
 
+---
+
+## [2026-11-28] Entry 027 — Stage 1 Subphase 1.3.2 Plugin/Backend Contracts
+
+### Completed in Subphase 1.3.2
+- [x] `[1.3.2]` Define canonical backend, conversion, quality, validation, and subprocess traits (`CompressionEngine`, `ConversionEngine`, `ExternalToolAdapter`, `IsolatedProcessRunner`, `QualityEvaluator`, `OutputValidator`) + DTOs in `crates/file-core/src/contracts.rs` and inject `process_runner` into `JobContext`.
+- [x] `[1.3.2]` Implement `MagicByteOutputValidator` (`OutputValidator`) in `crates/validation-engine/src/lib.rs` and `NativeIsolatedProcessRunner` (env-cleared, private temp dir, timeout & cancellation kill) + `BackendCatalog` in `crates/job-manager/src/backends.rs`.
+- [x] `[1.3.2]` Backfill `8ec6dd2` (`stage-1.3.1`) in `docs/PROGRESS.md` and append Subphase `1.3.2` entries to `TODO.md` and `CHANGELOG.md`.
+
 
