@@ -495,3 +495,401 @@ fn cli_convert_stage3_spreadsheet_preflight_and_force_loss_gate() -> Result<(), 
     let _ = fs::remove_dir_all(&dir);
     Ok(())
 }
+
+#[test]
+fn cli_pdf_studio_merge_split_rotate_crop_and_watermark_e2e() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("pdf_studio")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let pdf_a = dir.join("a.pdf");
+    let pdf_b = dir.join("b.pdf");
+    let merged = dir.join("merged.pdf");
+    let rotated = dir.join("rotated.pdf");
+    let cropped = dir.join("cropped.pdf");
+    let watermarked = dir.join("watermarked.pdf");
+    let split_dir = dir.join("split");
+
+    fs::write(
+        &pdf_a,
+        job_manager::build_simple_text_pdf_bytes(&["Alpha Page"]),
+    )?;
+    fs::write(
+        &pdf_b,
+        job_manager::build_simple_text_pdf_bytes(&["Beta Page", "Gamma Page"]),
+    )?;
+
+    let merge_out = Command::new(exe)
+        .args([
+            "pdf",
+            "merge",
+            &merged.to_string_lossy(),
+            &pdf_a.to_string_lossy(),
+            &pdf_b.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(merge_out.status.success());
+    let merge_json: serde_json::Value = serde_json::from_slice(&merge_out.stdout)?;
+    assert_eq!(merge_json["operation"], "merge");
+    assert_eq!(merge_json["page_count"], 3);
+
+    let split_out = Command::new(exe)
+        .args([
+            "pdf",
+            "split",
+            &merged.to_string_lossy(),
+            "-o",
+            &split_dir.to_string_lossy(),
+            "--ranges",
+            "1-2;3",
+            "--json",
+        ])
+        .output()?;
+    assert!(split_out.status.success());
+    let split_json: serde_json::Value = serde_json::from_slice(&split_out.stdout)?;
+    assert_eq!(split_json["output_paths"].as_array().map(Vec::len), Some(2));
+
+    for args in [
+        vec![
+            "pdf".to_owned(),
+            "rotate".to_owned(),
+            merged.to_string_lossy().into_owned(),
+            "--degrees".to_owned(),
+            "90".to_owned(),
+            "-p".to_owned(),
+            "2".to_owned(),
+            "-o".to_owned(),
+            rotated.to_string_lossy().into_owned(),
+        ],
+        vec![
+            "pdf".to_owned(),
+            "crop".to_owned(),
+            rotated.to_string_lossy().into_owned(),
+            "--margin".to_owned(),
+            "24".to_owned(),
+            "-o".to_owned(),
+            cropped.to_string_lossy().into_owned(),
+        ],
+        vec![
+            "pdf".to_owned(),
+            "watermark".to_owned(),
+            cropped.to_string_lossy().into_owned(),
+            "--text".to_owned(),
+            "STAGE4-OK".to_owned(),
+            "-p".to_owned(),
+            "all".to_owned(),
+            "-o".to_owned(),
+            watermarked.to_string_lossy().into_owned(),
+        ],
+    ] {
+        assert!(Command::new(exe).args(&args).output()?.status.success());
+    }
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+#[test]
+fn cli_pdf_security_scan_verify_protect_and_unlock_e2e() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("pdf_security")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+    let src = dir.join("doc.pdf");
+    let protected = dir.join("protected.pdf");
+    let unlocked = dir.join("unlocked.pdf");
+
+    fs::write(
+        &src,
+        job_manager::build_simple_text_pdf_bytes(&["P1", "P2", "P3"]),
+    )?;
+
+    let scan_out = Command::new(exe)
+        .args(["pdf", "scan-check", &src.to_string_lossy(), "--json"])
+        .output()?;
+    assert!(scan_out.status.success());
+    let scan_json: serde_json::Value = serde_json::from_slice(&scan_out.stdout)?;
+    assert_eq!(scan_json["total_pages"], 3);
+    assert_eq!(scan_json["is_scanned_image_only"], false);
+
+    let sig_out = Command::new(exe)
+        .args(["pdf", "verify-sig", &src.to_string_lossy(), "--json"])
+        .output()?;
+    assert!(sig_out.status.success());
+    let sig_json: serde_json::Value = serde_json::from_slice(&sig_out.stdout)?;
+    assert_eq!(sig_json["has_signatures"], false);
+
+    assert!(
+        Command::new(exe)
+            .args([
+                "pdf",
+                "protect",
+                &src.to_string_lossy(),
+                "-o",
+                &protected.to_string_lossy(),
+                "--owner-password",
+                "owner-422",
+                "--user-password",
+                "user-422",
+                "--cipher",
+                "aes256",
+                "--print-only",
+            ])
+            .output()?
+            .status
+            .success()
+    );
+
+    let bad_unlock = Command::new(exe)
+        .args([
+            "pdf",
+            "unlock",
+            &protected.to_string_lossy(),
+            "-o",
+            &unlocked.to_string_lossy(),
+            "--password",
+            "wrong-pw",
+            "--json",
+        ])
+        .output()?;
+    assert!(!bad_unlock.status.success());
+    assert!(String::from_utf8_lossy(&bad_unlock.stderr).contains("FF-ERR-FMT-DRM"));
+
+    let good_unlock = Command::new(exe)
+        .args([
+            "pdf",
+            "unlock",
+            &protected.to_string_lossy(),
+            "-o",
+            &unlocked.to_string_lossy(),
+            "--password",
+            "user-422",
+            "--json",
+        ])
+        .output()?;
+    assert!(good_unlock.status.success());
+    assert!(unlocked.is_file());
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+#[test]
+fn cli_repair_corpus_recovers_corrupt_pdf_and_zip_and_rejects_noise() -> Result<(), Box<dyn Error>>
+{
+    let dir = temp_test_dir("repair_corpus")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+
+    // 1. Corrupt PDF missing xref/startxref/%%EOF -> diagnose + repair cleanly.
+    let valid_pdf = job_manager::build_simple_text_pdf_bytes(&["Corpus Recoverable PDF"]);
+    let xref_idx = valid_pdf
+        .windows(4)
+        .position(|w| w == b"xref")
+        .ok_or("missing xref in generated PDF")?;
+    let broken_pdf = dir.join("broken.pdf");
+    let fixed_pdf = dir.join("fixed.pdf");
+    fs::write(&broken_pdf, &valid_pdf[..xref_idx])?;
+
+    let diag_out = Command::new(exe)
+        .args([
+            "repair",
+            &broken_pdf.to_string_lossy(),
+            "--diagnose-only",
+            "--json",
+        ])
+        .output()?;
+    assert!(diag_out.status.success());
+    let diag_json: serde_json::Value = serde_json::from_slice(&diag_out.stdout)?;
+    assert_eq!(diag_json["detected_format"], "pdf");
+    assert_eq!(diag_json["recoverability"], "fully_repairable");
+
+    let fix_out = Command::new(exe)
+        .args([
+            "repair",
+            &broken_pdf.to_string_lossy(),
+            "-o",
+            &fixed_pdf.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(fix_out.status.success());
+    let post_diag = Command::new(exe)
+        .args([
+            "repair",
+            &fixed_pdf.to_string_lossy(),
+            "--diagnose-only",
+            "--json",
+        ])
+        .output()?;
+    assert!(post_diag.status.success());
+    let post_json: serde_json::Value = serde_json::from_slice(&post_diag.stdout)?;
+    assert_eq!(post_json["recoverability"], "healthy");
+
+    // 2. Truncated ZIP missing EOCD -> repair rebuilds Central Directory -> listable via `archive list`.
+    let src_txt = dir.join("payload.txt");
+    let good_zip = dir.join("good.zip");
+    let broken_zip = dir.join("broken.zip");
+    let fixed_zip = dir.join("fixed.zip");
+    fs::write(&src_txt, b"Stage 4 ZIP central directory recovery fixture")?;
+    assert!(
+        Command::new(exe)
+            .args([
+                "archive",
+                "create",
+                &good_zip.to_string_lossy(),
+                &src_txt.to_string_lossy(),
+            ])
+            .output()?
+            .status
+            .success()
+    );
+    let zip_bytes = fs::read(&good_zip)?;
+    fs::write(&broken_zip, &zip_bytes[..zip_bytes.len() - 22])?;
+    assert!(
+        Command::new(exe)
+            .args([
+                "repair",
+                &broken_zip.to_string_lossy(),
+                "-o",
+                &fixed_zip.to_string_lossy(),
+            ])
+            .output()?
+            .status
+            .success()
+    );
+    let listed = Command::new(exe)
+        .args(["archive", "list", &fixed_zip.to_string_lossy(), "--json"])
+        .output()?;
+    assert!(listed.status.success());
+    let list_json: serde_json::Value = serde_json::from_slice(&listed.stdout)?;
+    assert_eq!(list_json[0]["path"], "payload.txt");
+
+    // 3. Unrecoverable random payload -> honest classification & non-zero repair rejection.
+    let noise = dir.join("noise.bin");
+    fs::write(&noise, b"NOT_A_SUPPORTED_CONTAINER_RANDOM_BYTES")?;
+    let noise_diag = Command::new(exe)
+        .args([
+            "repair",
+            &noise.to_string_lossy(),
+            "--diagnose-only",
+            "--json",
+        ])
+        .output()?;
+    assert!(noise_diag.status.success());
+    let noise_json: serde_json::Value = serde_json::from_slice(&noise_diag.stdout)?;
+    assert_eq!(noise_json["recoverability"], "unrecoverable");
+
+    let noise_fix = Command::new(exe)
+        .args(["repair", &noise.to_string_lossy(), "--json"])
+        .output()?;
+    assert!(!noise_fix.status.success());
+    assert!(String::from_utf8_lossy(&noise_fix.stderr).contains("FF-ERR-FMT-CORRUPT"));
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}
+
+#[test]
+fn cli_metadata_encrypt_decrypt_and_ffenc_tamper_security_corpus() -> Result<(), Box<dyn Error>> {
+    let dir = temp_test_dir("sec_corpus")?;
+    let exe = env!("CARGO_BIN_EXE_filefusion");
+
+    let pdf_in = dir.join("report.pdf");
+    let pdf_clean = dir.join("report_clean.pdf");
+    let vault = dir.join("report_clean.ffenc");
+    let tampered = dir.join("report_tampered.ffenc");
+    let restored = dir.join("report_restored.pdf");
+
+    fs::write(
+        &pdf_in,
+        job_manager::build_simple_text_pdf_bytes(&["Audit Record"]),
+    )?;
+
+    let meta_out = Command::new(exe)
+        .args([
+            "metadata",
+            "scrub",
+            &pdf_in.to_string_lossy(),
+            "-o",
+            &pdf_clean.to_string_lossy(),
+            "--title",
+            "Clean Report",
+            "--author",
+            "Release Bot",
+            "--json",
+        ])
+        .output()?;
+    assert!(meta_out.status.success());
+    let meta_json: serde_json::Value = serde_json::from_slice(&meta_out.stdout)?;
+    assert_eq!(meta_json["report"]["after"]["title"], "Clean Report");
+    assert_eq!(meta_json["report"]["after"]["author"], "Release Bot");
+
+    let inspect_meta = Command::new(exe)
+        .args([
+            "metadata",
+            "inspect",
+            &pdf_clean.to_string_lossy(),
+            "--json",
+        ])
+        .output()?;
+    assert!(inspect_meta.status.success());
+    let inspect_json: serde_json::Value = serde_json::from_slice(&inspect_meta.stdout)?;
+    assert_eq!(inspect_json["title"], "Clean Report");
+
+    // Encrypt using passphrase-env + ChaCha20-Poly1305.
+    let enc_out = Command::new(exe)
+        .args([
+            "encrypt",
+            &pdf_clean.to_string_lossy(),
+            "-o",
+            &vault.to_string_lossy(),
+            "--cipher",
+            "chacha20-poly1305",
+            "--passphrase-env",
+            "FF_STAGE4_TEST_SECRET",
+            "--fast-kdf",
+            "--json",
+        ])
+        .env("FF_STAGE4_TEST_SECRET", "top-secret-422")
+        .output()?;
+    assert!(enc_out.status.success());
+    let vault_bytes = fs::read(&vault)?;
+    assert!(vault_bytes.starts_with(b"FFENC\x01\x00"));
+
+    // Flip 1 ciphertext bit -> AEAD decryption MUST fail with FF-ERR-FMT-DRM.
+    let mut bad_bytes = vault_bytes;
+    if let Some(last) = bad_bytes.last_mut() {
+        *last ^= 0x55;
+    }
+    fs::write(&tampered, &bad_bytes)?;
+    let tamper_dec = Command::new(exe)
+        .args([
+            "decrypt",
+            &tampered.to_string_lossy(),
+            "-o",
+            &restored.to_string_lossy(),
+            "--passphrase-env",
+            "FF_STAGE4_TEST_SECRET",
+            "--json",
+        ])
+        .env("FF_STAGE4_TEST_SECRET", "top-secret-422")
+        .output()?;
+    assert!(!tamper_dec.status.success());
+    assert!(String::from_utf8_lossy(&tamper_dec.stderr).contains("FF-ERR-FMT-DRM"));
+
+    // Decrypt valid .ffenc -> byte-for-byte identity with pdf_clean.
+    let good_dec = Command::new(exe)
+        .args([
+            "decrypt",
+            &vault.to_string_lossy(),
+            "-o",
+            &restored.to_string_lossy(),
+            "--passphrase-env",
+            "FF_STAGE4_TEST_SECRET",
+            "--json",
+        ])
+        .env("FF_STAGE4_TEST_SECRET", "top-secret-422")
+        .output()?;
+    assert!(good_dec.status.success());
+    assert_eq!(fs::read(&restored)?, fs::read(&pdf_clean)?);
+
+    let _ = fs::remove_dir_all(&dir);
+    Ok(())
+}

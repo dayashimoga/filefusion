@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 4 — PDF & Document Studio, Repair & Security Engines
 - **Phase:** Phase 4.2 — Unified Repair, Encryption & Metadata Orchestration
-- **Subphase:** `4.2.1` — Unified file repair (`PDF`/`ZIP`/media index), `.ffenc` container & privacy metadata sanitizer/editor orchestration
-- **Status:** `COMPLETE` (awaiting user confirmation to proceed to `4.2.2`)
+- **Subphase:** `4.2.2` — Stage 4 CLI (`filefusion pdf`, `repair`, `metadata`, `encrypt`/`decrypt`) & Stage 4 security/recovery corpus tests
+- **Status:** `COMPLETE`
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 4.2.2 — Stage 4 CLI (`filefusion pdf`, `repair`, `metadata`, `encrypt`/`decrypt`) & Stage 4 security/recovery corpus tests (Stage 4 Completion)
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 4 — PDF & Document Studio, Repair & Security Engines |
+| **Phase** | Phase 4.2 — Unified Repair, Encryption & Metadata Orchestration |
+| **Subphase** | `4.2.2` — Stage 4 CLI (`filefusion pdf`, `repair`, `metadata`, `encrypt`/`decrypt`) & Stage 4 security/recovery corpus tests |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 4 (Document & Conversion Engineer), Agent 8 (QA & Automation Engineer), Agent 9 (Security Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 3 hours |
+| **Actual Duration** | ~35 minutes |
+| **Acceptance Criteria** | 1. Re-export PDF Studio & OCR APIs cleanly from L4 `crates/optimization-engine/src/lib.rs` and expose L5 coordinator methods (`JobManager::{pdf_merge, pdf_split, pdf_reorder, pdf_rotate, pdf_crop, pdf_watermark, pdf_scan_check, pdf_verify_signatures, pdf_inspect_security, pdf_ocr}`) in `crates/job-manager/src/stage4.rs` (`MOD-RULE-03` compliant, zero L5->L3 bypasses, `tier2-tesseract` `EngMissing` gating).<br>2. Implement real Stage 4 CLI commands in `apps/cli/src/{stage4_cmds.rs,main.rs}`: `filefusion pdf <merge|split|reorder|rotate|crop|watermark|scan-check|verify-sig|security|ocr|protect|unlock>`, `filefusion repair`, `filefusion metadata <inspect|scrub|edit>`, `filefusion encrypt`, and `filefusion decrypt` (`--passphrase`, `--passphrase-env`, `--json`, `--overwrite`), boxing heavy `Commands` variants and executing `run()` on an `8 MiB` thread stack for Windows debug CLI reliability.<br>3. Add 4 Stage 4 CLI & security/recovery corpus E2E tests in `apps/cli/tests/cli_smoke.rs`, backfill `4f3f737` (`stage-4.2.1`) onto `4.2.1`, pass `cargo fmt --all -- --check`, native & WASM Clippy (`-D warnings`), `cargo test --workspace --locked` (120 passed across workspace + all 13 `cli_smoke` E2E tests), and WASM-featured unit tests (61 passed across 12 crates), keep `Cargo.toml`/`Cargo.lock` untouched, append `TODO.md`/`CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-4.2.2`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 120 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 11, `compression-video`: 4, `conversion-core`: 8, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 13, `hardware-acceleration`: 3, `job-manager`: 18, `optimization-engine`: 6, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (12 crates): 61 passed, 0 failed; Agent 12 independent audit: **PASS**; `Cargo.lock`: untouched. |
+| **Files Changed** | `crates/optimization-engine/src/lib.rs`, `crates/job-manager/src/{lib.rs,stage4.rs}`, `apps/cli/src/{main.rs,stage4_cmds.rs}`, `apps/cli/tests/cli_smoke.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-4.2.2` on `main` (pushed to `origin`; exact SHA backfilled in `5.1.1`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 4.2.1 — Unified file repair (`PDF`/`ZIP`/media index), `.ffenc` container & privacy metadata sanitizer/editor orchestration
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Extend L3 engines cleanly for cross-format Stage 4 orchestration (`FR-REP-001`..`002`, `FR-MET-001`..`002`, `FR-SEC-002`): `compression-archive` (`inspect_zip_health`, `inspect_ffenc_header`), `compression-pdf` (`repair_pdf_bytes` with pure-Rust `xref` synthesis, `repair_pdf_to_staged_with_runner`, `update_pdf_metadata_bytes`), `compression-office` (`OfficeContainerMetadata`, `extract_office_metadata_from_entries`, `edit_metadata_xml`, `sanitize_and_edit_office_metadata`), and `compression-video` (`build_ffmpeg_container_repair_invocation`).<br>2. Implement L4 unified orchestrators (`optimization-engine/src/{repair.rs,metadata.rs,security.rs}`) classifying `Healthy`/`FullyRepairable`/`PartiallySalvageable`/`Unrecoverable`, staging repairs across `PDF`/`ZIP`/`MP4`/`MOV`/`MKV`/`WebM`, inspecting & scrubbing/editing metadata while preserving essential orientation/color profiles, and staging `.ffenc` / PDF AES encryption.<br>3. Wire L5 control-plane orchestration onto `JobManager` (`job-manager/src/stage4.rs`), backfill `84a9eeb` (`stage-4.1.2`) onto `4.1.2`, pass `cargo fmt --all -- --check`, native & WASM Clippy (`-D warnings`), `cargo test --workspace --locked` (116 tests), and WASM-featured tests (61 tests across 12 crates), keep `Cargo.toml`/`Cargo.lock` untouched, append `TODO.md`/`CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-4.2.1`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 116 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 11, `compression-video`: 4, `conversion-core`: 8, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 9, `hardware-acceleration`: 3, `job-manager`: 18, `optimization-engine`: 6, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 9, `compression-video`: 3, `conversion-core`: 7, `hardware-acceleration`: 3, `job-manager`: 14, `optimization-engine`: 6, `quality-engine`: 2): 61 passed, 0 failed; Agent 12 independent audit: **PASS**; `Cargo.lock`: untouched. |
 | **Files Changed** | `crates/compression-archive/src/{ffenc.rs,lib.rs,repair.rs}`, `crates/compression-office/src/{container.rs,lib.rs,xml.rs}`, `crates/compression-pdf/src/{lib.rs,optimizer.rs,repair.rs}`, `crates/compression-video/src/{lib.rs,pipeline.rs}`, `crates/optimization-engine/src/{lib.rs,metadata.rs,repair.rs,security.rs}`, `crates/job-manager/src/{lib.rs,stage4.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-4.2.1` on `main` (pushed to `origin`; exact SHA backfilled in `4.2.2`) |
+| **Commit Reference** | `4f3f737` (`tag stage-4.2.1` on `main`, pushed to `origin`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 4.1.2 — Local OCR (`TesseractAdapter`, searchable PDF text overlay) + PDF encryption, permissions & `/Sig` verification
@@ -877,4 +894,4 @@
 | `4.1.1` | Structural PDF manipulation (`merge`, `split`, `reorder`, `rotate`, `crop`, `watermark`, scan detection) | `COMPLETE` | Agent 4, Agent 3, Agent 8, Agent 12 | 3 hours |
 | `4.1.2` | Local OCR (`TesseractAdapter`, searchable PDF text overlay) + PDF encryption, permissions & `/Sig` verification | `COMPLETE` | Agent 4, Agent 9, Agent 8, Agent 12 | 4 hours |
 | `4.2.1` | Unified file repair (`PDF`/`ZIP`/media index), `.ffenc` container & privacy metadata sanitizer/editor orchestration | `COMPLETE` | Agent 3, Agent 9, Agent 2, Agent 12 | 4 hours |
-| `4.2.2` | Stage 4 CLI (`filefusion pdf`, `repair`, `metadata`, `encrypt`/`decrypt`) & Stage 4 security/recovery corpus tests | `NOT STARTED` | Agent 2, Agent 4, Agent 8, Agent 9, Agent 12 | 3 hours |
+| `4.2.2` | Stage 4 CLI (`filefusion pdf`, `repair`, `metadata`, `encrypt`/`decrypt`) & Stage 4 security/recovery corpus tests | `COMPLETE` | Agent 2, Agent 4, Agent 8, Agent 9, Agent 12 | 3 hours |

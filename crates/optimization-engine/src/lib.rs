@@ -17,10 +17,17 @@ pub use compression_archive::{
     ZipRepairReport, decrypt_ffenc_bytes, encrypt_ffenc_bytes, inspect_ffenc_header,
     inspect_zip_health,
 };
+#[cfg(feature = "native-process")]
+pub use compression_pdf::TesseractAdapter;
 pub use compression_pdf::{
+    ExtractedPdfImage, OcrDocumentResult, OcrOptions, OcrPageResult, OcrWordBox, PdfCropMargins,
     PdfEncryptionAlgorithm, PdfHealthReport, PdfPermissions, PdfProtectionOptions,
-    PdfRepairAssessment, PdfSecurityReport, PdfSignatureInfo, PdfSignatureReport,
-    PdfSignatureStatus, inspect_pdf_health, inspect_pdf_security, verify_pdf_signatures,
+    PdfRepairAssessment, PdfScanInspection, PdfSecurityReport, PdfSignatureInfo,
+    PdfSignatureReport, PdfSignatureStatus, PdfWatermarkOptions, TesseractOutputMode,
+    apply_pdf_text_watermark, build_simple_text_pdf_bytes, crop_pdf_pages,
+    extract_or_reorder_pdf_pages, inspect_pdf_health, inspect_pdf_scan_status,
+    inspect_pdf_security, merge_pdfs, parse_page_range_spec, rotate_pdf_pages, split_pdf_by_ranges,
+    split_pdf_every_n_pages, verify_pdf_signatures,
 };
 pub use dedup::{
     CdcChunk, CdcDeduplicationReport, FastCdcConfig, analyze_files_fastcdc,

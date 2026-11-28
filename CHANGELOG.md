@@ -386,3 +386,14 @@
 - **Added:** L4 unified repair, metadata inspection/sanitization/editing, and `.ffenc`/PDF security orchestrators (`optimization-engine/src/{repair.rs,metadata.rs,security.rs}`) plus L5 `JobManager` Stage 4 orchestration (`job-manager/src/stage4.rs`: `diagnose_repair`, `repair_file`, `inspect_metadata`, `sanitize_and_edit_metadata`, `inspect_ffenc`, `encrypt_ffenc`, `decrypt_ffenc`, `encrypt_pdf`, `decrypt_pdf`) (`FR-REP-001`..`002`, `FR-MET-001`..`002`, `FR-SEC-002`, `FR-PDF-004`).
 - **Added:** L3 primitives for pure-Rust `xref` PDF recovery & `/Info` updates (`compression-pdf`), ZIP & `.ffenc` header diagnostics (`compression-archive`), Office/ODF/EPUB metadata extraction & XML editing (`compression-office`), and `FFmpeg` container repair invocations (`compression-video`).
 - **Changed:** Backfilled `84a9eeb` (`stage-4.1.2`) in `docs/PROGRESS.md`, expanded `optimization-engine` (6 tests) and `job-manager` (18 tests) suites (`116` native / `61` WASM passing), and appended Entry 046 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.
+
+
+
+---
+
+## [0.4.2-stage4.2.2] — 2026-11-28
+
+### Subphase 4.2.2 — Stage 4 CLI (`filefusion pdf`, `repair`, `metadata`, `encrypt`/`decrypt`) & Stage 4 Security/Recovery Corpus (Stage 4 Completion)
+- **Added:** Stage 4 CLI surface (`apps/cli/src/stage4_cmds.rs` wired via `apps/cli/src/main.rs`) delivering `filefusion pdf <merge|split|reorder|rotate|crop|watermark|scan-check|verify-sig|security|ocr|protect|unlock>`, `filefusion repair`, `filefusion metadata <inspect|scrub|edit>`, `filefusion encrypt`, and `filefusion decrypt` (`--passphrase` / `--passphrase-env`, `--json`, `--overwrite`).
+- **Added:** L5 `JobManager` PDF Studio & OCR coordinator methods (`crates/job-manager/src/stage4.rs`), clean L4 PDF Studio/OCR re-exports (`crates/optimization-engine/src/lib.rs`), and 4 end-to-end Stage 4 CLI security & recovery corpus integration tests in `apps/cli/tests/cli_smoke.rs` (13 total `cli_smoke` tests, `120` total native workspace tests, `61` WASM-featured tests).
+- **Changed:** Boxed heavy `Commands::{Repair, Encrypt, Decrypt}` variants and wrapped `apps/cli/src/main.rs` execution in an `8 MiB` `std::thread::Builder` stack to prevent Windows debug main-thread stack overflows; backfilled `4f3f737` (`stage-4.2.1`) in `docs/PROGRESS.md`, and appended Entry 047 to `TODO.md` with `Cargo.toml` and `Cargo.lock` untouched.

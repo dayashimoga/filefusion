@@ -431,3 +431,14 @@
 - [x] `[4.2.1]` Add L3 Stage 4 recovery & metadata primitives: `compression-archive` (`inspect_zip_health`, `inspect_ffenc_header`), `compression-pdf` (`repair_pdf_bytes` with pure-Rust `xref` synthesis, `repair_pdf_to_staged_with_runner`, `update_pdf_metadata_bytes`), `compression-office` (`OfficeContainerMetadata`, `extract_office_metadata_from_entries`, `edit_metadata_xml`, `sanitize_and_edit_office_metadata`), and `compression-video` (`build_ffmpeg_container_repair_invocation`).
 - [x] `[4.2.1]` Implement L4 Stage 4 orchestrators in `optimization-engine/src/{repair.rs,metadata.rs,security.rs}` (`FR-REP-001`..`002`, `FR-MET-001`..`002`, `FR-SEC-002`) covering honest recoverability classification, `PDF`/`ZIP`/`MP4`/`MOV`/`MKV`/`WebM` staged recovery, cross-domain privacy scrubbing/editing, and `.ffenc` / PDF AES staged encryption.
 - [x] `[4.2.1]` Wire L5 `JobManager` orchestration methods in `crates/job-manager/src/stage4.rs`, backfill `84a9eeb` onto `4.1.2` in `docs/PROGRESS.md`, verify `116` native / `61` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 046 to `TODO.md` / `CHANGELOG.md`.
+
+
+
+---
+
+## [2026-11-28] Entry 047 — Stage 4 Subphase 4.2.2 Stage 4 CLI & Security/Recovery Corpus Tests (Stage 4 Completion)
+
+### Completed in Subphase 4.2.2
+- [x] `[4.2.2]` Re-export PDF Studio & OCR APIs from L4 `crates/optimization-engine/src/lib.rs` and add L5 coordinator methods (`JobManager::{pdf_merge, pdf_split, pdf_reorder, pdf_rotate, pdf_crop, pdf_watermark, pdf_scan_check, pdf_verify_signatures, pdf_inspect_security, pdf_ocr}`) in `crates/job-manager/src/stage4.rs` (`MOD-RULE-03`, `tier2-tesseract` `EngMissing` gating).
+- [x] `[4.2.2]` Implement Stage 4 CLI commands in `apps/cli/src/{stage4_cmds.rs,main.rs}`: `filefusion pdf <merge|split|reorder|rotate|crop|watermark|scan-check|verify-sig|security|ocr|protect|unlock>`, `filefusion repair`, `filefusion metadata <inspect|scrub|edit>`, `filefusion encrypt`, and `filefusion decrypt` with `--passphrase` / `--passphrase-env`, JSON/human output, boxed heavy CLI subcommand enums, and an `8 MiB` `std::thread::Builder` runner stack.
+- [x] `[4.2.2]` Add 4 Stage 4 CLI & security/recovery corpus E2E tests in `apps/cli/tests/cli_smoke.rs` (`cli_pdf_studio_merge_split_rotate_crop_and_watermark_e2e`, `cli_pdf_security_scan_verify_protect_and_unlock_e2e`, `cli_repair_corpus_recovers_corrupt_pdf_and_zip_and_rejects_noise`, `cli_metadata_encrypt_decrypt_and_ffenc_tamper_security_corpus`), backfill `4f3f737` (`stage-4.2.1`) in `docs/PROGRESS.md`, verify `120` native / `61` WASM tests passing with `Cargo.toml` and `Cargo.lock` untouched, and append Entry 047 to `TODO.md` / `CHANGELOG.md`.

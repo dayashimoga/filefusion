@@ -6,6 +6,8 @@
 
 #![forbid(unsafe_code)]
 
+mod stage4_cmds;
+
 use std::fmt::Write as _;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -305,6 +307,22 @@ enum Commands {
         #[command(subcommand)]
         action: ArchiveAction,
     },
+    /// PDF Studio manipulation, OCR, AES-256 protection, and signature verification (`FR-PDF-001`..`004`).
+    Pdf {
+        #[command(subcommand)]
+        action: stage4_cmds::PdfAction,
+    },
+    /// Diagnose and repair damaged `PDF`, `ZIP`, or media container files (`FR-REP-001`..`002`).
+    Repair(Box<stage4_cmds::RepairArgs>),
+    /// Inspect, privacy-scrub, or edit normalized file metadata (`FR-MET-001`..`002`).
+    Metadata {
+        #[command(subcommand)]
+        action: stage4_cmds::MetadataAction,
+    },
+    /// Encrypt files into authenticated `.ffenc` containers or AES-256 PDFs (`FR-SEC-002`, `FR-PDF-004`).
+    Encrypt(Box<stage4_cmds::EncryptArgs>),
+    /// Decrypt authenticated `.ffenc` containers or password-protected PDFs (`FR-SEC-002`, `FR-PDF-004`).
+    Decrypt(Box<stage4_cmds::DecryptArgs>),
     /// Run deterministic host throughput micro-benchmarks across `FastCDC` and `Zstd`.
     Bench {
         /// Iterations per micro-benchmark workload (`1..=200`).
@@ -438,7 +456,7 @@ fn write_stream(stream: &mut dyn Write, content: &str) -> io::Result<()> {
     stream.flush()
 }
 
-fn emit_text_stdout(content: &str, json_err_mode: bool) -> CliExitCode {
+pub(crate) fn emit_text_stdout(content: &str, json_err_mode: bool) -> CliExitCode {
     let mut stdout = io::stdout().lock();
     if let Err(err) = write_stream(&mut stdout, content) {
         let ff_err = FileFusionError::from(err);
@@ -447,7 +465,7 @@ fn emit_text_stdout(content: &str, json_err_mode: bool) -> CliExitCode {
     CliExitCode::Success
 }
 
-fn emit_json_stdout<T: Serialize>(value: &T) -> CliExitCode {
+pub(crate) fn emit_json_stdout<T: Serialize>(value: &T) -> CliExitCode {
     match serde_json::to_string_pretty(value) {
         Ok(rendered) => emit_text_stdout(&rendered, true),
         Err(err) => {
@@ -460,7 +478,7 @@ fn emit_json_stdout<T: Serialize>(value: &T) -> CliExitCode {
     }
 }
 
-fn report_cli_error(err: &FileFusionError, json_mode: bool) -> CliExitCode {
+pub(crate) fn report_cli_error(err: &FileFusionError, json_mode: bool) -> CliExitCode {
     tracing::error!(
         code = %err.diagnostic.code,
         category = ?err.diagnostic.category,
@@ -582,6 +600,11 @@ const fn command_requests_json(command: &Commands) -> bool {
             | ConfigAction::Init { json, .. }
             | ConfigAction::Validate { json } => *json,
         },
+        Commands::Pdf { action } => stage4_cmds::pdf_action_wants_json(action),
+        Commands::Repair(args) => args.json,
+        Commands::Metadata { action } => stage4_cmds::metadata_action_wants_json(action),
+        Commands::Encrypt(args) => args.json,
+        Commands::Decrypt(args) => args.json,
     }
 }
 
@@ -805,6 +828,21 @@ fn run() -> CliExitCode {
         Commands::Archive { action } => {
             handle_archive_command(&action, &loaded.config, cli.log_json)
         }
+        Commands::Pdf { action } => {
+            stage4_cmds::handle_pdf_command(&action, &loaded.config, cli.log_json)
+        }
+        Commands::Repair(args) => {
+            stage4_cmds::handle_repair_command(&args, &loaded.config, cli.log_json)
+        }
+        Commands::Metadata { action } => {
+            stage4_cmds::handle_metadata_command(&action, &loaded.config, cli.log_json)
+        }
+        Commands::Encrypt(args) => {
+            stage4_cmds::handle_encrypt_command(&args, &loaded.config, cli.log_json)
+        }
+        Commands::Decrypt(args) => {
+            stage4_cmds::handle_decrypt_command(&args, &loaded.config, cli.log_json)
+        }
         Commands::Bench { iterations, json } => {
             let mgr = JobManager::from_config(&loaded.config);
             let ctx = mgr.create_context("cli-bench");
@@ -894,11 +932,7 @@ fn handle_compress_command(
         strip_metadata: *strip_metadata,
         no_op_if_larger: !*no_noop_guard,
     };
-    let policy = if *overwrite {
-        CollisionPolicy::OverwriteWithBackup
-    } else {
-        CollisionPolicy::RenameWithSuffix
-    };
+    let policy = collision_policy(*overwrite);
     match mgr.compress_file(input, &dest, &req, *solve_quality, policy, &ctx) {
         Ok(report) => {
             if *json {
@@ -1009,11 +1043,7 @@ fn handle_convert_command(
         preserve_structure: !*no_preserve_structure,
         fail_on_breaking_loss: !*force_loss,
     };
-    let policy = if *overwrite {
-        CollisionPolicy::OverwriteWithBackup
-    } else {
-        CollisionPolicy::RenameWithSuffix
-    };
+    let policy = collision_policy(*overwrite);
     match mgr.convert_file(input, &dest, &req, policy, &ctx) {
         Ok(report) => {
             if *json {
@@ -1041,11 +1071,7 @@ fn handle_archive_command(
             overwrite,
             json,
         } => {
-            let policy = if *overwrite {
-                CollisionPolicy::OverwriteWithBackup
-            } else {
-                CollisionPolicy::RenameWithSuffix
-            };
+            let policy = collision_policy(*overwrite);
             match mgr.create_archive(
                 inputs,
                 output,
@@ -1108,7 +1134,23 @@ fn handle_archive_command(
 }
 
 fn main() -> ExitCode {
-    ExitCode::from(run())
+    let code = std::thread::Builder::new()
+        .name(String::from("filefusion-main"))
+        .stack_size(8 * 1024 * 1024)
+        .spawn(run)
+        .map_or_else(
+            |_| run(),
+            |handle| handle.join().unwrap_or(CliExitCode::OperationalFailure),
+        );
+    ExitCode::from(code)
+}
+
+pub(crate) const fn collision_policy(overwrite: bool) -> CollisionPolicy {
+    if overwrite {
+        CollisionPolicy::OverwriteWithBackup
+    } else {
+        CollisionPolicy::RenameWithSuffix
+    }
 }
 
 #[cfg(test)]

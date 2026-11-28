@@ -52,22 +52,26 @@ pub use hardware_acceleration::{
 pub use optimization_engine::{
     ArchiveContainerKind, ArchiveExtractionReport, ArchiveInputEntry, ArchiveMemberMetadata,
     ArchiveWriteSummary, CodecRecommendation, EditableMetadataFields, FFENC_MAGIC, FastCdcConfig,
-    FfencCipherSuite, FfencHeaderInfo, FfencKdfParams, MetadataOperationReport,
-    OptimizationDispatcher, PdfEncryptionAlgorithm, PdfHealthReport, PdfPermissions,
-    PdfProtectionOptions, PdfRepairAssessment, PdfSecurityReport, PdfSignatureInfo,
-    PdfSignatureReport, PdfSignatureStatus, QualityTargetConstraint, RecommendationHints,
-    RecoverabilityClass, StreamCodec, UnifiedRepairDiagnosis, UnifiedRepairOutcome,
-    ZipHealthReport, ZipRepairReport, archive_kind_from_output_path, chunk_bytes_fastcdc,
+    FfencCipherSuite, FfencHeaderInfo, FfencKdfParams, MetadataOperationReport, OcrDocumentResult,
+    OcrOptions, OcrPageResult, OcrWordBox, OptimizationDispatcher, PdfCropMargins,
+    PdfEncryptionAlgorithm, PdfHealthReport, PdfPermissions, PdfProtectionOptions,
+    PdfRepairAssessment, PdfScanInspection, PdfSecurityReport, PdfSignatureInfo,
+    PdfSignatureReport, PdfSignatureStatus, PdfWatermarkOptions, QualityTargetConstraint,
+    RecommendationHints, RecoverabilityClass, StreamCodec, TesseractOutputMode,
+    UnifiedRepairDiagnosis, UnifiedRepairOutcome, ZipHealthReport, ZipRepairReport,
+    archive_kind_from_output_path, build_simple_text_pdf_bytes, chunk_bytes_fastcdc,
     collect_archive_input_entries, compress_stream_bytes, create_archive_from_entries,
     decrypt_ffenc_bytes, encrypt_ffenc_bytes, extract_archive_safely, inspect_ffenc_header,
-    inspect_pdf_health, inspect_pdf_security, inspect_zip_health, list_archive_members,
-    recommend_codec, solve_and_stage_jpeg, verify_pdf_signatures,
+    inspect_pdf_security, inspect_zip_health, list_archive_members, recommend_codec,
+    solve_and_stage_jpeg, verify_pdf_signatures,
 };
 pub use progress::{ProgressBus, ProgressBusStats, ProgressSubscription};
 pub use scheduler::{
     JobPriority, JobScheduler, ScheduledItemSpec, SchedulerController, SchedulerStats,
 };
-pub use stage4::{JobEncryptResult, JobMetadataResult, JobRepairResult};
+pub use stage4::{
+    JobEncryptResult, JobMetadataResult, JobPdfOcrResult, JobPdfResult, JobRepairResult,
+};
 pub use validation_engine::{
     BombGuardError, MagicByteOutputValidator, PathSafetyError, validate_archive_member_path,
     validate_expansion_budget,
