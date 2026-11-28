@@ -23,20 +23,22 @@ pub use file_core::{
     BatchDefaults, CallbackProgressSink, CancelSubscription, CancellationToken, CliConfigOverrides,
     CliExitCode, CollisionPolicy, CompressibilityTier, CompressionEngine, CompressionOutcome,
     CompressionProfile, CompressionRequest, CompressionStatus, ConfigSource, ConversionEngine,
-    ConversionFidelityReport, ConversionRequest, ConversionRoute, DetectionConfidence, DigestSet,
-    ErrorCategory, ErrorCode, ErrorDiagnostic, ExternalToolAdapter, FidelitySeverity,
-    FileClassification, FileFusionConfig, FileFusionError, FileFusionResult, FileInspectionReport,
-    FormatId, IsolatedProcessRunner, ItemOutcome, ItemStatus, JobContext, JobReceipt, JobStage,
-    LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind, MetadataSummary,
+    ConversionFidelityReport, ConversionRequest, ConversionRoute, DetectionConfidence,
+    DeviceProfile, DigestSet, ErrorCategory, ErrorCode, ErrorDiagnostic, ExternalToolAdapter,
+    FidelitySeverity, FileClassification, FileFusionConfig, FileFusionError, FileFusionResult,
+    FileInspectionReport, FormatId, IsolatedProcessRunner, ItemOutcome, ItemStatus, JobContext,
+    JobReceipt, JobStage, LoadedConfig, LogFormat, LogLevel, LoggingConfig, MediaKind,
+    MemoryBudgetSnapshot, MemoryGovernor, MemoryReservation, MetadataSummary,
     MonotonicProgressSink, NoOpProgressSink, OutputValidator, PathConfig, PreflightAssessment,
     PreflightWarning, PrivacyConfig, ProcessInvocation, ProcessOutput, ProcessingDomain,
     ProcessingHandler, ProcessingOperation, ProcessingRequest, ProgressEvent, ProgressSink,
     QualityEvaluator, QualityMetrics, RecommendedAction, ResourceLimits, SignatureMatch,
     StagedPath, StreamDescriptor, StreamKind, ThrottledProgressSink, ValidatedSource,
     ValidationOutcome, VecProgressSink, classify_inspection_report, classify_processing_domain,
-    compute_digests_from_bytes, compute_entropy_milli_bits, detect_signature_from_bytes,
-    detect_signature_from_path, enforce_spoofing_policy, init_logging, inspect_bytes, inspect_path,
-    load_config_from_path, load_effective_config, redact_path_for_log, resolve_default_config_path,
+    compute_digests_from_bytes, compute_entropy_milli_bits, copy_bounded_streaming,
+    detect_signature_from_bytes, detect_signature_from_path, enforce_spoofing_policy, init_logging,
+    inspect_bytes, inspect_path, load_config_from_path, load_effective_config,
+    parse_proc_meminfo_mb, redact_path_for_log, resolve_default_config_path,
     resolve_output_destination, save_config_atomic, workspace_identity,
 };
 pub use progress::{ProgressBus, ProgressBusStats, ProgressSubscription};
@@ -100,6 +102,7 @@ pub struct JobManager {
     limits: ResourceLimits,
     defaults: BatchDefaults,
     active_jobs: Arc<Mutex<HashMap<String, ActiveJobEntry>>>,
+    governor: Arc<MemoryGovernor>,
 }
 
 impl Default for JobManager {
@@ -116,17 +119,14 @@ impl JobManager {
             limits,
             defaults,
             active_jobs: Arc::new(Mutex::new(HashMap::new())),
+            governor: Arc::new(MemoryGovernor::new(limits)),
         }
     }
 
     /// Creates a [`JobManager`] from a validated [`FileFusionConfig`].
     #[must_use]
     pub fn from_config(config: &FileFusionConfig) -> Self {
-        Self {
-            limits: config.limits,
-            defaults: config.batch.clone(),
-            active_jobs: Arc::new(Mutex::new(HashMap::new())),
-        }
+        Self::new(config.limits, config.batch.clone())
     }
 
     /// Returns the default [`BatchDefaults`] configured on this coordinator.
@@ -135,11 +135,25 @@ impl JobManager {
         &self.defaults
     }
 
-    /// Creates a [`JobContext`] pre-wired with an isolated [`NativeIsolatedProcessRunner`].
+    /// Returns the shared [`MemoryGovernor`] enforcing working-set permits across jobs.
+    #[must_use]
+    pub const fn memory_governor(&self) -> &Arc<MemoryGovernor> {
+        &self.governor
+    }
+
+    /// Returns a live [`MemoryBudgetSnapshot`] across jobs managed by this coordinator.
+    #[must_use]
+    pub fn memory_stats(&self) -> MemoryBudgetSnapshot {
+        self.governor.snapshot()
+    }
+
+    /// Creates a [`JobContext`] pre-wired with an isolated [`NativeIsolatedProcessRunner`]
+    /// and the coordinator's shared [`MemoryGovernor`].
     #[must_use]
     pub fn create_context(&self, job_id: impl Into<String>) -> JobContext {
         JobContext::new(job_id, self.limits)
             .with_process_runner(Arc::new(NativeIsolatedProcessRunner::new()))
+            .with_memory_governor(Arc::clone(&self.governor))
     }
 
     /// Returns a bounded [`JobScheduler`] configured with this coordinator's [`ResourceLimits`].
@@ -692,6 +706,36 @@ mod tests {
         }
 
         let _ = std::fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn job_manager_context_shares_memory_governor_and_tracks_reservations() -> FileFusionResult<()>
+    {
+        let limits = ResourceLimits {
+            max_memory_mb: 256,
+            ..ResourceLimits::default()
+        };
+        let manager = JobManager::new(limits, BatchDefaults::default());
+        let ctx = manager.create_context("job_mem_gov");
+
+        assert_eq!(manager.memory_stats().limit_mb, 256);
+        assert_eq!(manager.memory_stats().used_mb, 0);
+
+        let guard = ctx.reserve_working_set_mb(180, "stage_decode")?;
+        assert!(guard.is_some());
+        assert_eq!(manager.memory_stats().used_mb, 180);
+
+        let overflow = ctx.reserve_working_set_mb(100, "stage_overflow");
+        assert!(overflow.is_err());
+        if let Err(err) = overflow {
+            assert_eq!(err.diagnostic.code, ErrorCode::ResMemory);
+        }
+
+        drop(guard);
+        assert_eq!(manager.memory_stats().used_mb, 0);
+        assert_eq!(manager.memory_stats().peak_used_mb, 180);
+        assert_eq!(manager.memory_stats().rejected_requests, 1);
         Ok(())
     }
 }

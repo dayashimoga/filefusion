@@ -14,8 +14,8 @@ use std::sync::{Arc, Mutex};
 
 use file_core::{
     CancellationToken, ErrorCode, FileFusionConfig, FileFusionError, FileFusionResult, ItemOutcome,
-    ItemStatus, JobContext, JobReceipt, JobStage, ProcessingHandler, ProcessingRequest,
-    ResourceLimits,
+    ItemStatus, JobContext, JobReceipt, JobStage, MemoryBudgetSnapshot, MemoryGovernor,
+    ProcessingHandler, ProcessingRequest, ResourceLimits,
 };
 use serde::{Deserialize, Serialize};
 
@@ -138,6 +138,7 @@ struct SchedulerState {
     peak_allocated_memory_mb: AtomicU64,
     cancelled_items: Mutex<HashSet<u32>>,
     item_tokens: Mutex<HashMap<u32, CancellationToken>>,
+    governor: MemoryGovernor,
     #[cfg(all(feature = "native-scheduler", feature = "rayon-parallel"))]
     notify: tokio::sync::Notify,
 }
@@ -161,6 +162,7 @@ impl SchedulerState {
             peak_allocated_memory_mb: AtomicU64::new(0),
             cancelled_items: Mutex::new(HashSet::new()),
             item_tokens: Mutex::new(HashMap::new()),
+            governor: MemoryGovernor::new(limits),
             #[cfg(all(feature = "native-scheduler", feature = "rayon-parallel"))]
             notify: tokio::sync::Notify::new(),
         }
@@ -395,6 +397,12 @@ impl SchedulerController {
             max_memory_mb: self.state.max_memory_mb,
             paused: self.is_paused(),
         }
+    }
+
+    /// Returns a live [`MemoryBudgetSnapshot`] from the scheduler's [`MemoryGovernor`].
+    #[must_use]
+    pub fn memory_snapshot(&self) -> MemoryBudgetSnapshot {
+        self.state.governor.snapshot()
     }
 }
 
@@ -672,6 +680,7 @@ fn build_priority_heap(
 #[cfg(all(feature = "native-scheduler", feature = "rayon-parallel"))]
 struct WorkerCompletion {
     est_mb: u64,
+    reservation: file_core::MemoryReservation,
     spec: ScheduledItemSpec,
     result: FileFusionResult<ItemOutcome>,
 }
@@ -711,9 +720,7 @@ struct NativeLoopState<'a> {
     limits: ResourceLimits,
     total: u32,
     max_workers: usize,
-    max_memory_mb: u64,
     active_workers: usize,
-    allocated_memory_mb: u64,
     cancelled_aborted: bool,
     heap: BinaryHeap<QueuedEntry>,
     outcomes: Vec<ItemOutcome>,
@@ -726,8 +733,8 @@ struct NativeLoopState<'a> {
 #[cfg(all(feature = "native-scheduler", feature = "rayon-parallel"))]
 impl NativeLoopState<'_> {
     fn handle_completion(&mut self, done: WorkerCompletion) -> FileFusionResult<()> {
+        drop(done.reservation);
         self.active_workers = self.active_workers.saturating_sub(1);
-        self.allocated_memory_mb = self.allocated_memory_mb.saturating_sub(done.est_mb);
         match done.result {
             Ok(outcome) => {
                 self.controller
@@ -770,16 +777,22 @@ fn dispatch_ready_entries<'a, 'scope>(
             break;
         };
         let est_mb = next_entry.spec.estimated_memory_mb.max(1);
-        if loop_state.allocated_memory_mb.saturating_add(est_mb) > loop_state.max_memory_mb {
+        let purpose = format!("scheduled_item_{}", next_entry.spec.item_index);
+        let Ok(reservation) = loop_state
+            .controller
+            .state
+            .governor
+            .try_reserve_mb(est_mb, &purpose)
+        else {
             break;
-        }
+        };
         let Some(entry) = loop_state.heap.pop() else {
+            drop(reservation);
             break;
         };
         let spec = entry.spec;
         loop_state.controller.state.mark_dispatched(est_mb);
         loop_state.active_workers += 1;
-        loop_state.allocated_memory_mb = loop_state.allocated_memory_mb.saturating_add(est_mb);
 
         let limits = loop_state.limits;
         let total = loop_state.total;
@@ -803,6 +816,7 @@ fn dispatch_ready_entries<'a, 'scope>(
             );
             let _ = tx.send(WorkerCompletion {
                 est_mb,
+                reservation,
                 spec,
                 result: res,
             });
@@ -833,9 +847,7 @@ impl JobScheduler {
             limits: self.limits,
             total,
             max_workers,
-            max_memory_mb,
             active_workers: 0,
-            allocated_memory_mb: 0,
             cancelled_aborted: false,
             heap,
             outcomes,
@@ -950,11 +962,13 @@ impl JobScheduler {
             }
 
             let est_mb = entry.spec.estimated_memory_mb.max(1);
+            let purpose = format!("scheduled_item_{}", entry.spec.item_index);
+            let mem_guard = state.governor.try_reserve_mb(est_mb, &purpose)?;
             state.mark_dispatched(est_mb);
             let mut item_ctx = ctx.clone();
             item_ctx.cancellation = entry.spec.cancellation.clone();
 
-            match run_validated_item(
+            let item_res = run_validated_item(
                 &self.limits,
                 &entry.spec.input_path,
                 entry.spec.item_index,
@@ -963,7 +977,10 @@ impl JobScheduler {
                 req,
                 handler,
                 &item_ctx,
-            ) {
+            );
+            drop(mem_guard);
+
+            match item_res {
                 Ok(outcome) => {
                     state.mark_worker_released(est_mb, outcome.status);
                     outcomes.push(outcome);

@@ -268,3 +268,12 @@
 - [x] `[1.3.4]` Implement `ProgressBus`, `ProgressSubscription`, `ProgressBusStats`, rolling empirical ETA estimation, and `ndjson_line` formatting in `crates/job-manager/src/progress.rs`.
 - [x] `[1.3.4]` Add `ActiveJobGuard`, `JobManager::cancel_job`, `JobManager::active_job_ids`, reactive scheduler wake hooks, monotonic lifecycle progress stages, and live `< 500 ms` cancellation tests across scheduler and isolated subprocess execution; backfill `02e86d7` (`stage-1.3.3`) in `docs/PROGRESS.md` and append to `TODO.md` and `CHANGELOG.md`.
 
+---
+
+## [2026-11-28] Entry 030 — Stage 1 Subphase 1.3.5 Resource Limits (Stage 1 Close)
+
+### Completed in Subphase 1.3.5
+- [x] `[1.3.5]` Implement runtime resource governance (`DeviceProfile`, `MemoryGovernor`, RAII `MemoryReservation`, `MemoryBudgetSnapshot`, `recommended_chunk_bytes`, `clamp_workers_for_job`, `validate_file_budget`, `parse_proc_meminfo_mb`, and `copy_bounded_streaming`) in `crates/file-core/src/limits.rs`.
+- [x] `[1.3.5]` Inject shared `MemoryGovernor` into `JobContext` (`reserve_working_set_mb`), `JobScheduler` (`WorkerCompletion` RAII permit reservations + `SchedulerController::memory_snapshot`), and `JobManager` (`memory_governor` / `memory_stats`), closing Stage 1 Phase 1.3.
+- [x] `[1.3.5]` Backfill `15651ec` (`stage-1.3.4`, `4aadd0a` lock sync) in `docs/PROGRESS.md` and append Subphase `1.3.5` entries to `TODO.md` and `CHANGELOG.md`.
+

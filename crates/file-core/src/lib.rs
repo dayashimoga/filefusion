@@ -10,6 +10,7 @@ pub mod classification;
 pub mod config;
 pub mod contracts;
 pub mod error;
+pub mod limits;
 pub mod logging;
 pub mod metadata;
 pub mod pipeline;
@@ -36,6 +37,10 @@ pub use contracts::{
     ValidationOutcome,
 };
 pub use error::{ErrorCategory, ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult};
+pub use limits::{
+    DeviceProfile, MemoryBudgetSnapshot, MemoryGovernor, MemoryReservation, copy_bounded_streaming,
+    parse_proc_meminfo_mb,
+};
 pub use logging::{LogFormat, LogLevel, LoggingConfig, init_logging, redact_path_for_log};
 pub use metadata::{
     DigestSet, FileInspectionReport, MetadataSummary, RecommendedAction, StreamDescriptor,
@@ -465,9 +470,7 @@ impl ResourceLimits {
 
 impl Default for ResourceLimits {
     fn default() -> Self {
-        let cpus = std::thread::available_parallelism().map_or(2, std::num::NonZeroUsize::get);
-        // Conservative 4096 MB baseline when exact host RAM is not queried directly.
-        Self::for_host(cpus, 4096)
+        limits::detect_default_limits()
     }
 }
 

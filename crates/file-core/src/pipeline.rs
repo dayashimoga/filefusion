@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::{BatchDefaults, CollisionPolicy};
 use crate::contracts::{IsolatedProcessRunner, ProcessInvocation, ProcessOutput};
 use crate::error::{ErrorCode, ErrorDiagnostic, FileFusionError, FileFusionResult};
+use crate::limits::{MemoryGovernor, MemoryReservation};
 use crate::metadata::{FileInspectionReport, inspect_path};
 use crate::{CORE_SCHEMA_VERSION, FormatId, JobStage, ProgressEvent, ResourceLimits};
 
@@ -466,6 +467,8 @@ pub struct JobContext {
     pub progress: Arc<dyn ProgressSink>,
     /// Optional injected isolated subprocess runner (`MOD-RULE-01`, `MOD-RULE-04`).
     pub process_runner: Option<Arc<dyn IsolatedProcessRunner>>,
+    /// Optional shared working-set memory governor (`NFR-PERF-001`).
+    pub memory_governor: Option<Arc<MemoryGovernor>>,
 }
 
 impl JobContext {
@@ -478,6 +481,7 @@ impl JobContext {
             cancellation: CancellationToken::new(),
             progress: Arc::new(NoOpProgressSink),
             process_runner: None,
+            memory_governor: None,
         }
     }
 
@@ -500,6 +504,30 @@ impl JobContext {
     pub fn with_process_runner(mut self, runner: Arc<dyn IsolatedProcessRunner>) -> Self {
         self.process_runner = Some(runner);
         self
+    }
+
+    /// Attaches a shared [`MemoryGovernor`] enforcing working-set permits.
+    #[must_use]
+    pub fn with_memory_governor(mut self, governor: Arc<MemoryGovernor>) -> Self {
+        self.memory_governor = Some(governor);
+        self
+    }
+
+    /// Reserves `requested_mb` from the attached [`MemoryGovernor`], or validates against
+    /// `limits.max_memory_mb` when running standalone without a shared governor.
+    ///
+    /// # Errors
+    /// Returns [`FileFusionError`] (`ErrorCode::ResMemory`) when memory ceilings are exceeded.
+    pub fn reserve_working_set_mb(
+        &self,
+        requested_mb: u64,
+        purpose: &str,
+    ) -> FileFusionResult<Option<MemoryReservation>> {
+        if let Some(gov) = &self.memory_governor {
+            return gov.try_reserve_mb(requested_mb, purpose).map(Some);
+        }
+        self.limits.validate_file_budget(0, requested_mb)?;
+        Ok(None)
     }
 
     /// Executes a Tier 2 external binary using the injected [`IsolatedProcessRunner`].

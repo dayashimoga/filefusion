@@ -237,3 +237,11 @@
 - **Added:** Hierarchical `CancellationToken::child()` & `subscribe_on_cancel` hooks, `CallbackProgressSink`, `MonotonicProgressSink`, `ThrottledProgressSink`, and `JobContext::emit_progress_estimate` (`crates/file-core/src/pipeline.rs`); multi-subscriber `ProgressBus` with empirical ETA estimation and NDJSON formatting (`crates/job-manager/src/progress.rs`); `JobManager::cancel_job` / `active_job_ids` registry and live subprocess cancellation latency test (`crates/job-manager/src/{lib.rs,backends.rs}`).
 - **Changed:** Wired `JobScheduler` reactive `subscribe_on_cancel` hooks and `run_validated_item` monotonic lifecycle stages (`Processing` / `Validating`), added `serde_json` to `crates/job-manager/Cargo.toml`, backfilled `02e86d7` (`stage-1.3.3`) in `docs/PROGRESS.md`, and appended Entry 029 to `TODO.md`.
 
+---
+
+## [0.1.11-stage1.3.5] — 2026-11-28
+
+### Subphase 1.3.5 — Resource Limits (Stage 1 Phase 1.3 Complete)
+- **Added:** L0 `DeviceProfile` (`Workstation`, `Mobile`, `WebWasm`), thread-safe `MemoryGovernor` / RAII `MemoryReservation`, `MemoryBudgetSnapshot`, `recommended_chunk_bytes` (`64 KiB`–`1 MiB`), `clamp_workers_for_job`, `validate_file_budget`, Linux/Android `/proc/meminfo` probe, and cancellation-aware `copy_bounded_streaming` (`crates/file-core/src/limits.rs`).
+- **Changed:** Wired `MemoryGovernor` into `JobContext`, `JobScheduler` dispatch/release lifecycle, and `JobManager::memory_stats()` (`crates/file-core/src/{lib.rs,pipeline.rs}`, `crates/job-manager/src/{lib.rs,scheduler.rs}`), backfilled `15651ec` (`stage-1.3.4` + `4aadd0a`) in `docs/PROGRESS.md`, and appended Entry 030 to `TODO.md`.
+

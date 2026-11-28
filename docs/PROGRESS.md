@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 1 — Rust Core Foundation
 - **Phase:** Phase 1.3 — Pipeline & Execution
-- **Subphase:** `1.3.4` — Cancellation and progress
-- **Status:** `COMPLETE` (Awaiting user confirmation before starting `1.3.5` — Resource limits)
+- **Subphase:** `1.3.5` — Resource limits
+- **Status:** `COMPLETE` (Stage 1 complete — awaiting user confirmation before advancing to Stage 2)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 1.3.5 — Resource limits
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 1 — Rust Core Foundation |
+| **Phase** | Phase 1.3 — Pipeline & Execution |
+| **Subphase** | `1.3.5` — Resource limits |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 2 (Rust Core Engineer), Agent 9 (Security Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~15 minutes |
+| **Acceptance Criteria** | 1. Implement L0 runtime resource governance in `crates/file-core/src/limits.rs`: `DeviceProfile` (`Workstation`, `Mobile`, `WebWasm`), `MemoryGovernor` & RAII `MemoryReservation`, `MemoryBudgetSnapshot`, adaptive `ResourceLimits::for_profile`, `recommended_chunk_bytes` (`64 KiB`–`1 MiB`), `clamp_workers_for_job`, `validate_file_budget`, `parse_proc_meminfo_mb`, and cancellation-aware `copy_bounded_streaming` (`NFR-PERF-001`, `NFR-PERF-003`, `FR-SEC-001`).<br>2. Wire `MemoryGovernor` into `JobContext` (`reserve_working_set_mb`), `JobScheduler` permit dispatch/release (`SchedulerController::memory_snapshot`), and `JobManager` (`memory_governor`, `memory_stats`).<br>3. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (59 tests), WASM unit tests (12 tests), backfill `15651ec` / `4aadd0a` (`stage-1.3.4`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.3.5`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 59 passed, 0 failed (`codec-registry`: 3, `file-core`: 28, `validation-engine`: 5, `job-manager`: 16, `filefusion` unit: 1, `cli_smoke`: 6); `cargo test -p job-manager --no-default-features --features wasm --locked`: 12 passed, 0 failed; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `crates/file-core/src/limits.rs`, `crates/file-core/src/lib.rs`, `crates/file-core/src/pipeline.rs`, `crates/job-manager/src/scheduler.rs`, `crates/job-manager/src/lib.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-1.3.5` on `main` (pushed to `origin`; exact SHA backfilled in next subphase) |
+| **Outstanding Issues** | None |
 
 ### Subphase 1.3.4 — Cancellation and progress
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Upgrade L0 `CancellationToken` in `crates/file-core/src/pipeline.rs` with hierarchical parent-child linking (`child()`), reactive cancellation callbacks (`subscribe_on_cancel` / RAII `CancelSubscription`), `CallbackProgressSink`, `MonotonicProgressSink`, `ThrottledProgressSink`, and `JobContext::emit_progress_estimate` (`FF-CTR-001` §2.3, `NFR-REL-002`).<br>2. Implement multi-subscriber `ProgressBus`, `ProgressSubscription`, `ProgressBusStats`, empirical rolling `EtaTracker`, and compact NDJSON event serialization in `crates/job-manager/src/progress.rs`.<br>3. Wire `ActiveJobGuard` / `JobManager::cancel_job` / `JobManager::active_job_ids`, reactive scheduler cancellation hooks (`< 1 ms` wakeup), and monotonic lifecycle progress stages across `job-manager`, with tests verifying `< 500 ms` abort across batches and isolated subprocesses.<br>4. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked`, WASM unit tests, backfill `02e86d7` (`stage-1.3.3`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.3.4`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 54 passed, 0 failed (`codec-registry`: 3, `file-core`: 24, `validation-engine`: 5, `job-manager`: 15, `filefusion` unit: 1, `cli_smoke`: 6); `cargo test -p job-manager --no-default-features --features wasm --locked`: 11 passed, 0 failed; Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `crates/file-core/src/pipeline.rs`, `crates/file-core/src/lib.rs`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/progress.rs`, `crates/job-manager/src/scheduler.rs`, `crates/job-manager/src/lib.rs`, `crates/job-manager/src/backends.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-1.3.4` on `main` (pushed to `origin`; exact SHA backfilled in `1.3.5`) |
+| **Commit Reference** | `15651ec` (tag `stage-1.3.4`, pushed to `origin/main`; `4aadd0a` `Cargo.lock` sync) |
 | **Outstanding Issues** | None |
 
 ### Subphase 1.3.3 — Job scheduler
@@ -550,4 +567,4 @@
 | `1.3.2` | Plugin/backend contracts | `COMPLETE` | Agent 2, Agent 3, Agent 4, Agent 12 | 2 hours |
 | `1.3.3` | Job scheduler | `COMPLETE` | Agent 2, Agent 8, Agent 12 | 4 hours |
 | `1.3.4` | Cancellation and progress | `COMPLETE` | Agent 2, Agent 8, Agent 12 | 2 hours |
-| `1.3.5` | Resource limits | `NOT STARTED` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |
+| `1.3.5` | Resource limits | `COMPLETE` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |
