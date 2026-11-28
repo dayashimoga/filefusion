@@ -1061,7 +1061,9 @@ fn resolve_html_entity(entity: &str) -> Option<char> {
     }
 }
 
-fn escape_html_text(input: &str) -> String {
+/// Escapes reserved XML/HTML character entities (`&`, `<`, `>`, `"`, `'`).
+#[must_use]
+pub fn escape_html_text(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     for ch in input.chars() {
         match ch {
@@ -1342,7 +1344,9 @@ fn render_plain_text(doc: &MarkupDocument) -> String {
     out
 }
 
-fn flatten_inlines_plain(inlines: &[InlineNode]) -> String {
+/// Flattens inline spans into plain visible text without markup punctuation.
+#[must_use]
+pub fn flatten_inlines_plain(inlines: &[InlineNode]) -> String {
     let mut out = String::new();
     for node in inlines {
         match node {

@@ -93,7 +93,16 @@ fn collect_preflight_warnings(
     }
 
     if matches!(source, FormatId::Xlsx | FormatId::Ods)
-        && matches!(target, FormatId::Csv | FormatId::Json | FormatId::PlainText)
+        && matches!(
+            target,
+            FormatId::Csv
+                | FormatId::Json
+                | FormatId::Yaml
+                | FormatId::Xml
+                | FormatId::Markdown
+                | FormatId::Html
+                | FormatId::PlainText
+        )
     {
         push_warning(
             &mut warnings,
@@ -118,7 +127,11 @@ fn collect_preflight_warnings(
         );
     }
 
-    if matches!(source, FormatId::Markdown | FormatId::Html) && target == FormatId::PlainText {
+    if matches!(
+        source,
+        FormatId::Markdown | FormatId::Html | FormatId::Docx | FormatId::Odt | FormatId::Epub
+    ) && target == FormatId::PlainText
+    {
         push_warning(
             &mut warnings,
             "FID-MARKUP-PLAINTEXT",

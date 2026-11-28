@@ -8,13 +8,30 @@
 ## Current Active Subphase
 
 - **Stage:** Stage 3 — Universal Conversion Engine
-- **Phase:** Phase 3.1 — Conversion Graph & Structured Text / Markup Engines
-- **Subphase:** `3.1.2` — Bidirectional structured text, markup & tabular engines (`Markdown`/`HTML`/`PlainText`/`CSV`/`JSON`/`YAML`/`XML`)
-- **Status:** `COMPLETE` (Subphase 3.1.2 Complete — Awaiting user confirmation before starting Subphase 3.2.1)
+- **Phase:** Phase 3.2 — Office, ODF, Ebook & CLI Integration
+- **Subphase:** `3.2.1` — Native Office, ODF & EPUB conversions + Tier 2 `LibreOffice`/`Pandoc`/`Calibre` adapters
+- **Status:** `COMPLETE` (Subphase 3.2.1 Complete — Awaiting user confirmation before starting Subphase 3.2.2)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 3.2.1 — Native Office, ODF & EPUB conversions + Tier 2 `LibreOffice`/`Pandoc`/`Calibre` adapters
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 3 — Universal Conversion Engine |
+| **Phase** | Phase 3.2 — Office, ODF, Ebook & CLI Integration |
+| **Subphase** | `3.2.1` — Native Office, ODF & EPUB conversions + Tier 2 `LibreOffice`/`Pandoc`/`Calibre` adapters |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 4 (Document & Conversion Engineer), Agent 9 (Security Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 4 hours |
+| **Actual Duration** | ~20 minutes |
+| **Acceptance Criteria** | 1. Expose validated Zip-Slip/bomb-guarded container packing helpers (`read_validated_zip_entries`, `write_office_container_entries`) in L3 `crates/compression-office` with `mimetype`-first `Stored` packaging (`FR-DOC-002`..`003`, `FR-SEC-001`).<br>2. Implement pure-Rust WASM-native container converters in `crates/conversion-core/src/office_epub.rs` for spreadsheets (`Xlsx`/`Ods` <-> `Csv`/`Json`/`Yaml`/`Xml`/`Markdown`/`Html`/`PlainText`) and prose/ebook documents (`Docx`/`Odt`/`Epub` <-> `Markdown`/`Html`/`PlainText` & `Docx`/`Odt` <-> `Epub` preserving TOC `nav.xhtml`, spine ordering, hyperlinks, tables, headings, XML DTD entity-bomb blocking `NFR-SEC-001`, and `strip_metadata` privacy scrubbing).<br>3. Implement isolated `#[cfg(feature = "native-process")]` `ExternalToolAdapter` structs (`LibreOfficeAdapter`, `PandocAdapter`, `CalibreAdapter`) and `execute_tier2_document_tool` in `crates/conversion-core/src/tier2_adapters.rs` (`FF-CTR-001` §3.3), wire all Tier 1 & Tier 2 routes through `ConversionGraph` (`graph.rs`) and `UniversalConversionEngine` (`lib.rs`), pass native & WASM formatting/Clippy/tests, backfill `6ea5132` (`stage-3.1.2`), obtain Agent 12 `PASS` audit, commit, tag `stage-3.2.1`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 103 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 4, `compression-video`: 4, `conversion-core`: 8, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 7, `hardware-acceleration`: 3, `job-manager`: 16, `optimization-engine`: 4, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 3, `compression-video`: 3, `conversion-core`: 7, `hardware-acceleration`: 3, `job-manager`: 12, `optimization-engine`: 4, `quality-engine`: 2): 51 passed, 0 failed; `Cargo.lock`: zero external dependency additions; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `crates/compression-office/src/{container.rs,lib.rs}`, `crates/conversion-core/src/{lib.rs,graph.rs,preflight.rs,markup.rs,office_epub.rs,tier2_adapters.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-3.2.1` on `main` (pushed to `origin`; exact SHA backfilled in `3.2.2`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 3.1.2 — Bidirectional structured text, markup & tabular engines (`Markdown`/`HTML`/`PlainText`/`CSV`/`JSON`/`YAML`/`XML`)
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Implement pure-Rust bidirectional structured markup parser/renderer (`crates/conversion-core/src/markup.rs`, `FR-DOC-001`, `#![forbid(unsafe_code)]`, WASM-native) across CommonMark/GFM `Markdown`, HTML5, and `PlainText` preserving headings, GFM pipe/`<table>` tables, links, images, lists, code blocks, blockquotes, and quotes, while actively sanitizing `<script>`/`<style>`/`<iframe>`/`<object>`/`<embed>`, `on*=` attributes, and `javascript:`/`vbscript:`/`data:text/html` URLs (`NFR-SEC-001`).<br>2. Implement pure-Rust bidirectional structured data & tabular converter (`crates/conversion-core/src/tabular.rs`, `FR-DOC-001`) across RFC 4180 `CSV`/auto-detected `TSV`, pretty `JSON` (deterministic key order), indented `YAML` 1.2 subset, and security-hardened `XML` (`<!ENTITY`/`<!DOCTYPE` rejection & depth ceiling `<= 64`, `NFR-SEC-001`), plus direct tabular export routes into `Markdown`/`HTML`/`PlainText`.<br>3. Wire `FID-MARKUP-PLAINTEXT` and `FID-CSV-FLATTEN` pre-flight warnings (`preflight.rs`) and quantitative pre/post `StructuralInventory` fidelity reporting into `UniversalConversionEngine` (`lib.rs`, `FR-FID-001`..`002`), pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (101 tests), and WASM-featured tests (50 tests across 12 crates), backfill `0160de1` (`stage-3.1.1`), obtain Agent 12 `PASS` audit, commit, tag `stage-3.1.2`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates): PASS (0 warnings); `cargo test --workspace --locked`: 101 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 4, `compression-video`: 4, `conversion-core`: 6, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 7, `hardware-acceleration`: 3, `job-manager`: 16, `optimization-engine`: 4, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 3, `compression-video`: 3, `conversion-core`: 6, `hardware-acceleration`: 3, `job-manager`: 12, `optimization-engine`: 4, `quality-engine`: 2): 50 passed, 0 failed; `Cargo.lock` diff: zero external crate additions; Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `crates/conversion-core/src/{lib.rs,graph.rs,preflight.rs,markup.rs,tabular.rs}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-3.1.2` on `main` (pushed to `origin`; exact SHA backfilled in `3.2.1`) |
+| **Commit Reference** | `6ea5132` (tag `stage-3.1.2`, pushed to `origin/main`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 3.1.1 — Conversion Core foundation, multi-hop graph router & cross-media conversion (`conversion-core`)
@@ -780,5 +797,5 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `3.1.1` | Conversion Core foundation, multi-hop graph router & cross-media conversion (`conversion-core`) | `COMPLETE` | Agent 4, Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
 | `3.1.2` | Bidirectional structured text, markup & tabular engines (`Markdown`/`HTML`/`CSV`/`JSON`/`YAML`/`XML`) | `COMPLETE` | Agent 4, Agent 2, Agent 8, Agent 12 | 4 hours |
-| `3.2.1` | Native Office, ODF & EPUB conversions + Tier 2 `LibreOffice`/`Pandoc`/`Calibre` adapters | `NOT STARTED` | Agent 4, Agent 9, Agent 8, Agent 12 | 4 hours |
+| `3.2.1` | Native Office, ODF & EPUB conversions + Tier 2 `LibreOffice`/`Pandoc`/`Calibre` adapters | `COMPLETE` | Agent 4, Agent 9, Agent 8, Agent 12 | 4 hours |
 | `3.2.2` | Stage 3 CLI (`filefusion convert`), `job-manager` wiring & conversion fidelity corpus tests | `NOT STARTED` | Agent 2, Agent 4, Agent 8, Agent 12 | 3 hours |

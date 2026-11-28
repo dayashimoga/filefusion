@@ -339,3 +339,12 @@
 ### Subphase 3.1.2 — Bidirectional Structured Text, Markup & Tabular Engines (`FR-DOC-001`)
 - **Added:** Pure-Rust structured markup engine (`crates/conversion-core/src/markup.rs`) and structured data/tabular engine (`crates/conversion-core/src/tabular.rs`) delivering bidirectional conversions across `Markdown`, `HTML`, `PlainText`, `CSV`/`TSV`, `JSON`, `YAML`, and `XML`, tabular-to-markup exports (`graph.rs`), and pre-flight warnings (`FID-MARKUP-PLAINTEXT`, `FID-CSV-FLATTEN`, `preflight.rs`) with active XSS/XXE security defenses and quantitative `ConversionFidelityReport` metrics.
 - **Changed:** Backfilled `0160de1` (`stage-3.1.1`) in `docs/PROGRESS.md`, extended `UniversalConversionEngine` in `crates/conversion-core/src/lib.rs` with zero new external dependencies in `Cargo.lock`, and appended Entry 041 to `TODO.md`.
+
+
+---
+
+## [0.3.3-stage3.2.1] — 2026-11-28
+
+### Subphase 3.2.1 — Native Office, ODF & EPUB Conversions + Tier 2 `LibreOffice`/`Pandoc`/`Calibre` Adapters (`FR-DOC-002`..`003`)
+- **Added:** Pure-Rust Office/ODF/EPUB container converter (`crates/conversion-core/src/office_epub.rs`) supporting `XLSX`/`ODS` spreadsheets, `DOCX`/`ODT` documents, and `EPUB` 3 ebooks (`nav.xhtml` TOC + spine ordering + XML entity-bomb defense), sanitized `ExternalToolAdapter` subprocess wrappers for `LibreOffice`, `Pandoc`, and `Calibre` (`crates/conversion-core/src/tier2_adapters.rs`), and public container helpers (`read_validated_zip_entries`, `write_office_container_entries`) in `crates/compression-office`.
+- **Changed:** Expanded `ConversionGraph` (`graph.rs`), formula/stripping warnings (`preflight.rs`), and `UniversalConversionEngine` (`lib.rs`) for Tier 1 Office/EPUB and Tier 2 `LibreOffice`/`Pandoc`/`Calibre` dispatch, backfilled `6ea5132` (`stage-3.1.2`) in `docs/PROGRESS.md`, and appended Entry 042 to `TODO.md`.

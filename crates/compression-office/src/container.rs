@@ -100,7 +100,13 @@ pub fn optimize_office_container(
     write_optimized_office_zip(entries, format, opts, ctx)
 }
 
-fn read_validated_zip_entries(
+/// Unpacks and validates ZIP container entries (`OOXML`/`ODF`/`EPUB`) while enforcing
+/// Zip-Slip path sanitization and decompression-bomb ceilings (`FR-SEC-001`).
+///
+/// # Errors
+/// Returns [`FileFusionError`] on invalid ZIP syntax, Zip-Slip paths (`SecTraversal`),
+/// decompression-bomb ceilings (`SecBomb`), or cancellation.
+pub fn read_validated_zip_entries(
     raw_zip: &[u8],
     limits: &ResourceLimits,
     ctx: &JobContext,
@@ -148,6 +154,60 @@ fn read_validated_zip_entries(
     }
 
     Ok(entries)
+}
+
+/// Packages validated `(entry_path, bytes)` entries into an `OOXML`/`ODF`/`EPUB` ZIP container,
+/// enforcing `FR-SEC-001` member-path safety and placing uncompressed `mimetype` first when required.
+///
+/// # Errors
+/// Returns [`FileFusionError`] on invalid member paths (`SecTraversal`), ZIP serialization errors,
+/// or cancellation.
+pub fn write_office_container_entries(
+    entries: &[(String, Vec<u8>)],
+    format: FormatId,
+    ctx: &JobContext,
+) -> FileFusionResult<Vec<u8>> {
+    ctx.check_cancelled()?;
+    let mut ordered: Vec<(String, &[u8])> = Vec::with_capacity(entries.len());
+    for (name, payload) in entries {
+        let safe = validate_archive_member_path(name)?;
+        ordered.push((safe, payload.as_slice()));
+    }
+    if requires_uncompressed_mimetype_first(format) {
+        if let Some(pos) = ordered.iter().position(|(name, _)| name == "mimetype") {
+            let mime = ordered.remove(pos);
+            ordered.insert(0, mime);
+        }
+    }
+
+    let mut out_cursor = Cursor::new(Vec::new());
+    {
+        let mut writer = ZipWriter::new(&mut out_cursor);
+        for (name, payload) in ordered {
+            ctx.check_cancelled()?;
+            let file_opts = if name == "mimetype" && requires_uncompressed_mimetype_first(format) {
+                SimpleFileOptions::default().compression_method(CompressionMethod::Stored)
+            } else {
+                SimpleFileOptions::default()
+                    .compression_method(CompressionMethod::Deflated)
+                    .compression_level(Some(6))
+            };
+            writer.start_file(&name, file_opts).map_err(|err| {
+                FileFusionError::new(
+                    ErrorCode::IntInvariant,
+                    format!("failed to start ZIP entry `{name}`: {err}"),
+                )
+            })?;
+            writer.write_all(payload)?;
+        }
+        writer.finish().map_err(|err| {
+            FileFusionError::new(
+                ErrorCode::IntInvariant,
+                format!("failed to finalize Office/EPUB container: {err}"),
+            )
+        })?;
+    }
+    Ok(out_cursor.into_inner())
 }
 
 fn write_optimized_office_zip(

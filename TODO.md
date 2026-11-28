@@ -381,3 +381,13 @@
 - [x] `[3.1.2]` Implement pure-Rust bidirectional structured markup parser & renderer (`crates/conversion-core/src/markup.rs`) supporting `Markdown` (CommonMark/GFM), HTML5, and `PlainText` with XSS sanitization (`<script>`/`<iframe>` removal, `on*=` stripping, `javascript:` URL blocking, `NFR-SEC-001`).
 - [x] `[3.1.2]` Implement pure-Rust bidirectional structured data & tabular converter (`crates/conversion-core/src/tabular.rs`) covering RFC 4180 `CSV`/`TSV`, `JSON`, `YAML` 1.2 subset, and XXE/entity-bomb-hardened `XML` (`<!ENTITY`/`<!DOCTYPE` rejection, depth `<= 64`, `NFR-SEC-001`), plus direct tabular export routes into `Markdown`/`HTML`/`PlainText`.
 - [x] `[3.1.2]` Wire `FID-MARKUP-PLAINTEXT` and `FID-CSV-FLATTEN` pre-flight warnings (`preflight.rs`) and quantitative pre/post `StructuralInventory` reporting into `UniversalConversionEngine` (`lib.rs`), backfill `0160de1` (`stage-3.1.1`) in `docs/PROGRESS.md`, and append Subphase `3.1.2` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 042 — Stage 3 Subphase 3.2.1 Native Office, ODF & EPUB Conversions + Tier 2 Adapters (`FR-DOC-002`..`003`)
+
+### Completed in Subphase 3.2.1
+- [x] `[3.2.1]` Reuse L3 `compression-office` Zip-Slip/bomb-guarded container I/O (`read_validated_zip_entries`, `write_office_container_entries` with `mimetype`-first `Stored` packaging) cleanly in L4 `conversion-core` without duplicating ZIP crates (`MOD-RULE-02`).
+- [x] `[3.2.1]` Implement pure-Rust WASM-native Office/ODF/EPUB conversion engine (`crates/conversion-core/src/office_epub.rs`) across `XLSX`/`ODS` <-> tabular/markup and `DOCX`/`ODT`/`EPUB` <-> `Markdown`/`HTML`/`PlainText` (preserving TOC `nav.xhtml`, spine ordering, hyperlinks, headings, tables, privacy scrubbing, and XML entity-bomb blocking).
+- [x] `[3.2.1]` Implement sanitized `ExternalToolAdapter` implementations (`LibreOfficeAdapter`, `PandocAdapter`, `CalibreAdapter`, `crates/conversion-core/src/tier2_adapters.rs`), wire Tier 1 & Tier 2 routes through `ConversionGraph` and `UniversalConversionEngine`, backfill `6ea5132` (`stage-3.1.2`) in `docs/PROGRESS.md`, and append Subphase `3.2.1` entries to `TODO.md` and `CHANGELOG.md`.

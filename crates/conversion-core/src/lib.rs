@@ -6,8 +6,11 @@
 
 pub mod graph;
 pub mod markup;
+pub mod office_epub;
 pub mod preflight;
 pub mod tabular;
+#[cfg(feature = "native-process")]
+pub mod tier2_adapters;
 
 use compression_archive::{
     ArchiveContainerKind, ArchiveOutputValidator, ArchiveQualityEvaluator,
@@ -51,6 +54,12 @@ pub struct UniversalConversionEngine {
     ffmpeg: Option<PathBuf>,
     #[cfg(feature = "native-process")]
     ffprobe: Option<PathBuf>,
+    #[cfg(feature = "native-process")]
+    libreoffice: Option<PathBuf>,
+    #[cfg(feature = "native-process")]
+    pandoc: Option<PathBuf>,
+    #[cfg(feature = "native-process")]
+    calibre: Option<PathBuf>,
 }
 
 impl Default for UniversalConversionEngine {
@@ -69,6 +78,12 @@ impl UniversalConversionEngine {
             ffmpeg: None,
             #[cfg(feature = "native-process")]
             ffprobe: None,
+            #[cfg(feature = "native-process")]
+            libreoffice: None,
+            #[cfg(feature = "native-process")]
+            pandoc: None,
+            #[cfg(feature = "native-process")]
+            calibre: None,
         }
     }
 
@@ -80,6 +95,30 @@ impl UniversalConversionEngine {
             graph: ConversionGraph::new_baseline(),
             ffmpeg,
             ffprobe,
+            libreoffice: None,
+            pandoc: None,
+            calibre: None,
+        }
+    }
+
+    /// Configures verified Tier 2 document and ebook binaries (`libreoffice`, `pandoc`, `calibre`)
+    /// alongside optional media binaries (`ffmpeg`, `ffprobe`).
+    #[cfg(feature = "native-process")]
+    #[must_use]
+    pub fn with_tier2_binaries(
+        ffmpeg: Option<PathBuf>,
+        ffprobe: Option<PathBuf>,
+        libreoffice: Option<PathBuf>,
+        pandoc: Option<PathBuf>,
+        calibre: Option<PathBuf>,
+    ) -> Self {
+        Self {
+            graph: ConversionGraph::new_baseline(),
+            ffmpeg,
+            ffprobe,
+            libreoffice,
+            pandoc,
+            calibre,
         }
     }
 
@@ -90,7 +129,7 @@ impl UniversalConversionEngine {
     }
 
     /// Executes conversion using an optional Tier 2 [`IsolatedProcessRunner`] when the route
-    /// traverses video containers, video-to-audio extraction, or Tier 2 lossy audio codecs.
+    /// traverses video containers, audio lossy transcodes, `LibreOffice`, `Pandoc`, or `Calibre`.
     ///
     /// # Errors
     /// Returns [`FileFusionError`] on unsupported route, breaking-loss preflight abort,
@@ -123,12 +162,139 @@ impl UniversalConversionEngine {
             return self.convert_via_ffmpeg(input, staged_output, req, &assessment, runner, ctx);
         }
 
+        if let Some(tool_id) = plan.required_tier2_tools.first() {
+            if matches!(
+                tool_id.as_str(),
+                "tier2-libreoffice" | "tier2-pandoc" | "tier2-calibre"
+            ) {
+                return self.convert_via_tier2_document(
+                    tool_id,
+                    input,
+                    staged_output,
+                    req,
+                    &assessment,
+                    runner,
+                    ctx,
+                );
+            }
+        }
+
         Err(FileFusionError::new(
             ErrorCode::FmtUnsupported,
             format!(
                 "conversion route {source:?} -> {target:?} requires Tier 2 engine {:?} (not yet dispatched)",
                 plan.required_tier2_tools
             ),
+        ))
+    }
+
+    #[cfg(feature = "native-process")]
+    #[allow(clippy::too_many_arguments)]
+    fn convert_via_tier2_document(
+        &self,
+        tool_id: &str,
+        input: &ValidatedSource,
+        staged_output: &StagedPath,
+        req: &ConversionRequest,
+        assessment: &PreflightAssessment,
+        runner: Option<&dyn IsolatedProcessRunner>,
+        ctx: &JobContext,
+    ) -> FileFusionResult<ConversionFidelityReport> {
+        let source = input.inspection.detected_format;
+        let target = req.target_format;
+        let Some(exec) = runner else {
+            return Err(FileFusionError::new(
+                ErrorCode::EngMissing,
+                format!("IsolatedProcessRunner required for {tool_id} conversion"),
+            ));
+        };
+
+        let staged_path = staged_output.staged_path();
+        let temp_parent = staged_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
+        let stem = input
+            .path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("converted");
+
+        match tool_id {
+            "tier2-libreoffice" => {
+                let Some(bin) = &self.libreoffice else {
+                    return Err(FileFusionError::new(
+                        ErrorCode::EngMissing,
+                        "Tier 2 LibreOffice (`soffice`) binary required for this route",
+                    ));
+                };
+                let adapter = tier2_adapters::LibreOfficeAdapter::new(bin.clone());
+                let ext = format_default_extension(target);
+                let expected = temp_parent.join(format!("{stem}.{ext}"));
+                let inv = adapter.build_invocation(&input.path, staged_path, target)?;
+                let _out = tier2_adapters::execute_tier2_document_tool(
+                    exec,
+                    "LibreOffice",
+                    &inv,
+                    &expected,
+                    staged_path,
+                    ctx,
+                )?;
+            }
+            "tier2-pandoc" => {
+                let Some(bin) = &self.pandoc else {
+                    return Err(FileFusionError::new(
+                        ErrorCode::EngMissing,
+                        "Tier 2 `pandoc` binary required for this route",
+                    ));
+                };
+                let adapter = tier2_adapters::PandocAdapter::new(bin.clone());
+                let inv = adapter.build_conversion_invocation(
+                    &input.path,
+                    staged_path,
+                    source,
+                    target,
+                    ctx.limits.subprocess_timeout_secs,
+                )?;
+                let _out = tier2_adapters::execute_tier2_document_tool(
+                    exec,
+                    "Pandoc",
+                    &inv,
+                    staged_path,
+                    staged_path,
+                    ctx,
+                )?;
+            }
+            "tier2-calibre" => {
+                let Some(bin) = &self.calibre else {
+                    return Err(FileFusionError::new(
+                        ErrorCode::EngMissing,
+                        "Tier 2 Calibre (`ebook-convert`) binary required for this route",
+                    ));
+                };
+                let adapter = tier2_adapters::CalibreAdapter::new(bin.clone());
+                let ext = tier2_adapters::calibre_target_extension(target)?;
+                let expected = temp_parent.join(format!("{stem}.{ext}"));
+                let inv = adapter.build_invocation(&input.path, &expected, target)?;
+                let _out = tier2_adapters::execute_tier2_document_tool(
+                    exec,
+                    "Calibre",
+                    &inv,
+                    &expected,
+                    staged_path,
+                    ctx,
+                )?;
+            }
+            _ => {}
+        }
+
+        validate_staged_any_document_output(staged_path, target, &ctx.limits)?;
+        Ok(build_fidelity_report(
+            source,
+            target,
+            assessment.warnings.clone(),
+            None,
+            None,
+            None,
         ))
     }
 
@@ -308,6 +474,26 @@ impl UniversalConversionEngine {
             ));
         }
 
+        if (office_epub::is_spreadsheet_format(source) || is_structured_format(source))
+            && (office_epub::is_spreadsheet_format(target)
+                || is_structured_format(target)
+                || is_markup_format(target))
+            && (office_epub::is_spreadsheet_format(source)
+                || office_epub::is_spreadsheet_format(target))
+        {
+            return convert_tier1_spreadsheet(input, staged_output, req, assessment, ctx);
+        }
+
+        if (office_epub::is_native_office_or_epub(source) || is_markup_format(source))
+            && (office_epub::is_native_office_or_epub(target) || is_markup_format(target))
+            && !office_epub::is_spreadsheet_format(source)
+            && !office_epub::is_spreadsheet_format(target)
+            && (office_epub::is_native_office_or_epub(source)
+                || office_epub::is_native_office_or_epub(target))
+        {
+            return convert_tier1_document_container(input, staged_output, req, assessment, ctx);
+        }
+
         if is_markup_format(source) && is_markup_format(target) {
             return convert_tier1_markup(input, staged_output, req, assessment, ctx);
         }
@@ -322,6 +508,200 @@ impl UniversalConversionEngine {
             ErrorCode::FmtUnsupported,
             format!("no pure-Rust Tier 1 converter active yet for {source:?} -> {target:?}"),
         ))
+    }
+}
+
+fn convert_tier1_spreadsheet(
+    input: &ValidatedSource,
+    staged_output: &StagedPath,
+    req: &ConversionRequest,
+    assessment: &PreflightAssessment,
+    ctx: &JobContext,
+) -> FileFusionResult<ConversionFidelityReport> {
+    let source = input.inspection.detected_format;
+    let target = req.target_format;
+    let raw_bytes = read_bytes_bounded(&input.path, ctx.limits.max_uncompressed_bytes)?;
+    let out_bytes = office_epub::convert_spreadsheet_container(
+        &raw_bytes,
+        source,
+        target,
+        req.strip_metadata,
+        &ctx.limits,
+        ctx,
+    )?;
+    if office_epub::is_spreadsheet_format(target) {
+        write_and_validate_binary_staged(
+            staged_output.staged_path(),
+            target,
+            &out_bytes,
+            &ctx.limits,
+        )?;
+    } else {
+        let out_text = std::str::from_utf8(&out_bytes).map_err(|err| {
+            FileFusionError::new(ErrorCode::FmtCorrupt, format!("invalid UTF-8: {err}"))
+        })?;
+        write_and_validate_text_staged(staged_output.staged_path(), target, out_text, &ctx.limits)?;
+    }
+    Ok(build_fidelity_report(
+        source,
+        target,
+        assessment.warnings.clone(),
+        None,
+        None,
+        None,
+    ))
+}
+
+fn convert_tier1_document_container(
+    input: &ValidatedSource,
+    staged_output: &StagedPath,
+    req: &ConversionRequest,
+    assessment: &PreflightAssessment,
+    ctx: &JobContext,
+) -> FileFusionResult<ConversionFidelityReport> {
+    let source = input.inspection.detected_format;
+    let target = req.target_format;
+    let raw_bytes = read_bytes_bounded(&input.path, ctx.limits.max_uncompressed_bytes)?;
+
+    let before_md = if is_markup_format(source) {
+        std::str::from_utf8(&raw_bytes).ok().map(String::from)
+    } else {
+        office_epub::extract_container_markdown_preview(&raw_bytes, source, &ctx.limits, ctx)
+    };
+    let before = before_md.as_deref().map(|txt| {
+        let fmt = if is_markup_format(source) {
+            source
+        } else {
+            FormatId::Markdown
+        };
+        analyze_markup_structure(txt, fmt)
+    });
+
+    let out_bytes = office_epub::convert_document_container(
+        &raw_bytes,
+        source,
+        target,
+        req.strip_metadata,
+        &ctx.limits,
+        ctx,
+    )?;
+
+    if office_epub::is_native_office_or_epub(target) {
+        write_and_validate_binary_staged(
+            staged_output.staged_path(),
+            target,
+            &out_bytes,
+            &ctx.limits,
+        )?;
+    } else {
+        let out_text = std::str::from_utf8(&out_bytes).map_err(|err| {
+            FileFusionError::new(ErrorCode::FmtCorrupt, format!("invalid UTF-8: {err}"))
+        })?;
+        write_and_validate_text_staged(staged_output.staged_path(), target, out_text, &ctx.limits)?;
+    }
+
+    let after_md = if is_markup_format(target) {
+        std::str::from_utf8(&out_bytes).ok().map(String::from)
+    } else {
+        office_epub::extract_container_markdown_preview(&out_bytes, target, &ctx.limits, ctx)
+    };
+    let after = after_md.as_deref().map(|txt| {
+        let fmt = if is_markup_format(target) {
+            target
+        } else {
+            FormatId::Markdown
+        };
+        analyze_markup_structure(txt, fmt)
+    });
+
+    Ok(build_fidelity_report(
+        source,
+        target,
+        assessment.warnings.clone(),
+        before,
+        after,
+        None,
+    ))
+}
+
+fn read_bytes_bounded(path: &std::path::Path, max_bytes: u64) -> FileFusionResult<Vec<u8>> {
+    let meta = std::fs::metadata(path)?;
+    if meta.len() > max_bytes {
+        return Err(FileFusionError::new(
+            ErrorCode::SecBomb,
+            format!(
+                "conversion input ({} bytes) exceeds limit ({max_bytes} bytes)",
+                meta.len()
+            ),
+        ));
+    }
+    Ok(std::fs::read(path)?)
+}
+
+fn write_and_validate_binary_staged(
+    staged_path: &std::path::Path,
+    target: FormatId,
+    bytes: &[u8],
+    limits: &file_core::ResourceLimits,
+) -> FileFusionResult<()> {
+    if bytes.is_empty() {
+        return Err(FileFusionError::new(
+            ErrorCode::FmtCorrupt,
+            "converted binary output is empty",
+        ));
+    }
+    std::fs::write(staged_path, bytes)?;
+    MagicByteOutputValidator.validate_staged(staged_path, target, limits)?;
+    Ok(())
+}
+
+#[cfg(feature = "native-process")]
+fn validate_staged_any_document_output(
+    staged_path: &std::path::Path,
+    target: FormatId,
+    limits: &file_core::ResourceLimits,
+) -> FileFusionResult<()> {
+    let sig = detect_signature_from_path(staged_path)?;
+    if sig.detected_format == FormatId::Executable {
+        return Err(FileFusionError::new(
+            ErrorCode::SecBomb,
+            "Tier 2 output rejected by executable-signature gate",
+        ));
+    }
+    if matches!(
+        target,
+        FormatId::Pdf
+            | FormatId::Docx
+            | FormatId::Xlsx
+            | FormatId::Pptx
+            | FormatId::Odt
+            | FormatId::Ods
+            | FormatId::Odp
+            | FormatId::Epub
+            | FormatId::Html
+            | FormatId::Xml
+            | FormatId::Rtf
+    ) {
+        MagicByteOutputValidator.validate_staged(staged_path, target, limits)?;
+    }
+    Ok(())
+}
+
+#[cfg(feature = "native-process")]
+const fn format_default_extension(fmt: FormatId) -> &'static str {
+    match fmt {
+        FormatId::Pdf => "pdf",
+        FormatId::Docx => "docx",
+        FormatId::Xlsx => "xlsx",
+        FormatId::Pptx => "pptx",
+        FormatId::Odt => "odt",
+        FormatId::Ods => "ods",
+        FormatId::Odp => "odp",
+        FormatId::Epub => "epub",
+        FormatId::Mobi => "mobi",
+        FormatId::Html => "html",
+        FormatId::PlainText => "txt",
+        _ => "out",
     }
 }
 
@@ -1050,6 +1430,253 @@ mod tests {
             .err()
             .map(|e| e.diagnostic.code);
         assert_eq!(xxe_err, Some(ErrorCode::SecBomb));
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn converts_xlsx_ods_csv_json_and_docx_odt_epub_natively() -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("office_epub");
+        let csv_path = dir.join("sales.csv");
+        let xlsx_path = dir.join("sales.xlsx");
+        let ods_path = dir.join("sales.ods");
+        let json_path = dir.join("sales.json");
+        fs::write(&csv_path, "item,qty\nWidget,42\nGadget,15\n")?;
+
+        let engine = UniversalConversionEngine::new_tier1();
+        let ctx = JobContext::new("cnv-off", ResourceLimits::default());
+        let convert_file =
+            |src_p: &std::path::Path,
+             dst_p: &std::path::Path,
+             target: FormatId,
+             fail_loss: bool|
+             -> Result<(std::path::PathBuf, ConversionFidelityReport), Box<dyn Error>> {
+                let src = ValidatedSource {
+                    path: src_p.to_path_buf(),
+                    inspection: inspect_path(src_p, false)?,
+                };
+                let staged = StagedPath::create_sibling(dst_p)?;
+                let req = ConversionRequest {
+                    target_format: target,
+                    strip_metadata: true,
+                    preserve_structure: true,
+                    fail_on_breaking_loss: fail_loss,
+                };
+                let fid = engine.convert(&src, &staged, &req, &ctx)?;
+                Ok((staged.promote(CollisionPolicy::OverwriteWithBackup)?, fid))
+            };
+
+        // CSV -> XLSX -> ODS -> JSON
+        let (xlsx_out, _) = convert_file(&csv_path, &xlsx_path, FormatId::Xlsx, true)?;
+        assert_eq!(
+            inspect_path(&xlsx_out, false)?.detected_format,
+            FormatId::Xlsx
+        );
+        let (ods_out, _) = convert_file(&xlsx_out, &ods_path, FormatId::Ods, true)?;
+        assert_eq!(
+            inspect_path(&ods_out, false)?.detected_format,
+            FormatId::Ods
+        );
+        let (json_out, fid_ods_json) = convert_file(&ods_out, &json_path, FormatId::Json, false)?;
+        assert!(
+            fid_ods_json
+                .warnings
+                .iter()
+                .any(|w| w.code == "FID-XLSX-FORMULAS")
+        );
+        let json_txt = fs::read_to_string(&json_out)?;
+        assert!(json_txt.contains("Widget"));
+        assert!(json_txt.contains("42"));
+
+        // Markdown -> DOCX -> EPUB -> Markdown -> ODT
+        let md_path = dir.join("book.md");
+        let docx_path = dir.join("book.docx");
+        let epub_path = dir.join("book.epub");
+        let rt_md_path = dir.join("book_rt.md");
+        let odt_path = dir.join("book.odt");
+        fs::write(
+            &md_path,
+            "# Handbook\n\nBody paragraph.\n\n| Col | Val |\n| --- | --- |\n| A | 1 |\n\n[Home](https://example.org)\n",
+        )?;
+
+        let (docx_out, fid_docx) = convert_file(&md_path, &docx_path, FormatId::Docx, true)?;
+        assert_eq!(
+            inspect_path(&docx_out, false)?.detected_format,
+            FormatId::Docx
+        );
+        assert_eq!(fid_docx.headings_preserved, Some(1));
+        assert_eq!(fid_docx.tables_preserved, Some(1));
+
+        let (epub_out, fid_epub) = convert_file(&docx_out, &epub_path, FormatId::Epub, true)?;
+        assert_eq!(
+            inspect_path(&epub_out, false)?.detected_format,
+            FormatId::Epub
+        );
+        assert_eq!(fid_epub.headings_preserved, Some(1));
+
+        let (rt_md, _) = convert_file(&epub_out, &rt_md_path, FormatId::Markdown, true)?;
+        let rt_text = fs::read_to_string(&rt_md)?;
+        assert!(rt_text.contains("# Handbook"));
+        assert!(rt_text.contains("Body paragraph."));
+
+        let (writer_odt_out, _) = convert_file(&rt_md, &odt_path, FormatId::Odt, true)?;
+        assert_eq!(
+            inspect_path(&writer_odt_out, false)?.detected_format,
+            FormatId::Odt
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[cfg(feature = "native-process")]
+    struct StubDocRunner {
+        recorded: std::sync::Mutex<Vec<Vec<String>>>,
+    }
+
+    #[cfg(feature = "native-process")]
+    impl IsolatedProcessRunner for StubDocRunner {
+        fn run_isolated(
+            &self,
+            invocation: &file_core::ProcessInvocation,
+            _ctx: &JobContext,
+        ) -> FileFusionResult<file_core::ProcessOutput> {
+            let strs: Vec<String> = invocation
+                .args
+                .iter()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect();
+            if strs.iter().any(|s| s == "--convert-to") {
+                if let Some(out_idx) = strs.iter().position(|s| s == "--outdir") {
+                    let out_dir = std::path::PathBuf::from(&strs[out_idx + 1]);
+                    let _ = fs::write(
+                        out_dir.join("sample.pdf"),
+                        b"%PDF-1.7\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n",
+                    );
+                }
+            } else if let Some(last) = strs.last() {
+                if std::path::Path::new(last)
+                    .extension()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("mobi"))
+                {
+                    let _ = fs::write(last, b"BOOKMOBI_STUB_PAYLOAD");
+                } else if let Some(pos) = strs.iter().position(|s| s == "-o") {
+                    let _ = fs::write(&strs[pos + 1], b"# From Pandoc\n\nParagraph.\n");
+                }
+            }
+            if let Ok(mut guard) = self.recorded.lock() {
+                guard.push(strs);
+            }
+            Ok(file_core::ProcessOutput {
+                exit_code: 0,
+                stdout: Vec::new(),
+                stderr: Vec::new(),
+                duration_ms: 5,
+                timed_out: false,
+            })
+        }
+    }
+
+    #[cfg(feature = "native-process")]
+    #[test]
+    fn tier2_adapters_build_sanitized_invocations_and_dispatch_via_mock_runner()
+    -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("tier2_docs");
+        let docx_path = dir.join("sample.docx");
+        let epub_path = dir.join("sample.epub");
+        let pdf_path = dir.join("sample.pdf");
+        let ctx = JobContext::new("cnv-t2", ResourceLimits::default());
+        let minimal_md = b"# Sample\n\nHello\n";
+        fs::write(
+            &docx_path,
+            office_epub::convert_document_container(
+                minimal_md,
+                FormatId::Markdown,
+                FormatId::Docx,
+                true,
+                &ctx.limits,
+                &ctx,
+            )?,
+        )?;
+        fs::write(
+            &epub_path,
+            office_epub::convert_document_container(
+                minimal_md,
+                FormatId::Markdown,
+                FormatId::Epub,
+                true,
+                &ctx.limits,
+                &ctx,
+            )?,
+        )?;
+
+        let runner = StubDocRunner {
+            recorded: std::sync::Mutex::new(Vec::new()),
+        };
+        let src = ValidatedSource {
+            path: docx_path.clone(),
+            inspection: inspect_path(&docx_path, false)?,
+        };
+        let staged_pdf = StagedPath::create_sibling(&pdf_path)?;
+        let req_pdf = ConversionRequest {
+            target_format: FormatId::Pdf,
+            strip_metadata: true,
+            preserve_structure: true,
+            fail_on_breaking_loss: false,
+        };
+        assert_eq!(
+            UniversalConversionEngine::new_tier1()
+                .convert_with_optional_runner(&src, &staged_pdf, &req_pdf, Some(&runner), &ctx)
+                .err()
+                .map(|e| e.diagnostic.code),
+            Some(ErrorCode::EngMissing)
+        );
+
+        let with_tools = UniversalConversionEngine::with_tier2_binaries(
+            None,
+            None,
+            Some(PathBuf::from("soffice")),
+            Some(PathBuf::from("pandoc")),
+            Some(PathBuf::from("ebook-convert")),
+        );
+        let run_t2 = |in_path: &std::path::Path,
+                      out_name: &str,
+                      target: FormatId|
+         -> Result<std::path::PathBuf, Box<dyn Error>> {
+            let v_src = ValidatedSource {
+                path: in_path.to_path_buf(),
+                inspection: inspect_path(in_path, false)?,
+            };
+            let staged = StagedPath::create_sibling(dir.join(out_name))?;
+            let req = ConversionRequest {
+                target_format: target,
+                strip_metadata: true,
+                preserve_structure: true,
+                fail_on_breaking_loss: false,
+            };
+            let _ = with_tools.convert_with_optional_runner(
+                &v_src,
+                &staged,
+                &req,
+                Some(&runner),
+                &ctx,
+            )?;
+            Ok(staged.promote(CollisionPolicy::OverwriteWithBackup)?)
+        };
+
+        let promoted_pdf = run_t2(&docx_path, "sample.pdf", FormatId::Pdf)?;
+        assert_eq!(
+            inspect_path(&promoted_pdf, false)?.detected_format,
+            FormatId::Pdf
+        );
+        let rtf_path = dir.join("note.rtf");
+        fs::write(&rtf_path, b"{\\rtf1\\ansi Hello}")?;
+        let _ = run_t2(&rtf_path, "note.md", FormatId::Markdown)?;
+        let _ = run_t2(&epub_path, "book.mobi", FormatId::Mobi)?;
+
+        let recorded_len = runner.recorded.lock().map_or(0, |g| g.len());
+        assert_eq!(recorded_len, 3);
 
         let _ = fs::remove_dir_all(&dir);
         Ok(())

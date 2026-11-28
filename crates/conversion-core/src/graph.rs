@@ -219,7 +219,36 @@ impl ConversionGraph {
             }
         }
 
-        // Office -> PDF (`LibreOffice`) and Ebook -> EPUB/MOBI (`Calibre`/`Pandoc`)
+        // Pure-Rust Tier 1 Office spreadsheets (`XLSX` <-> `ODS` <-> `CSV`/`JSON`/`YAML`/`XML`/`Markdown`/`Html`/`PlainText`)
+        self.push_route(FormatId::Xlsx, FormatId::Ods, true, None);
+        self.push_route(FormatId::Ods, FormatId::Xlsx, true, None);
+        for &sheet in &[FormatId::Xlsx, FormatId::Ods] {
+            for &tab in &[FormatId::Csv, FormatId::Json, FormatId::Yaml, FormatId::Xml] {
+                self.push_route(sheet, tab, false, None);
+                self.push_route(tab, sheet, true, None);
+            }
+            for &txt_dst in &[FormatId::Markdown, FormatId::Html, FormatId::PlainText] {
+                self.push_route(sheet, txt_dst, false, None);
+            }
+        }
+
+        // Pure-Rust Tier 1 Prose Office / ODF / EPUB (`DOCX` <-> `ODT` <-> `EPUB` <-> `Markdown`/`Html`/`PlainText`)
+        self.push_route(FormatId::Docx, FormatId::Odt, true, None);
+        self.push_route(FormatId::Odt, FormatId::Docx, true, None);
+        self.push_route(FormatId::Docx, FormatId::Epub, true, None);
+        self.push_route(FormatId::Odt, FormatId::Epub, true, None);
+        self.push_route(FormatId::Epub, FormatId::Docx, true, None);
+        self.push_route(FormatId::Epub, FormatId::Odt, true, None);
+        for &doc_fmt in &[FormatId::Docx, FormatId::Odt, FormatId::Epub] {
+            self.push_route(doc_fmt, FormatId::Markdown, true, None);
+            self.push_route(doc_fmt, FormatId::Html, true, None);
+            self.push_route(doc_fmt, FormatId::PlainText, false, None);
+            self.push_route(FormatId::Markdown, doc_fmt, true, None);
+            self.push_route(FormatId::Html, doc_fmt, true, None);
+            self.push_route(FormatId::PlainText, doc_fmt, true, None);
+        }
+
+        // Tier 2 LibreOffice (`* -> PDF`), Pandoc (`RTF` cross-routes), and Calibre (`EPUB <-> MOBI`)
         for &office in &[
             FormatId::Docx,
             FormatId::Xlsx,
@@ -231,12 +260,29 @@ impl ConversionGraph {
         ] {
             self.push_route(office, FormatId::Pdf, false, Some("tier2-libreoffice"));
         }
-        for &text_fmt in &[FormatId::Markdown, FormatId::Html] {
-            self.push_route(text_fmt, FormatId::Epub, true, None);
-            self.push_route(text_fmt, FormatId::Docx, false, Some("tier2-pandoc"));
+        for &pandoc_dst in &[
+            FormatId::Markdown,
+            FormatId::Html,
+            FormatId::Docx,
+            FormatId::Odt,
+            FormatId::Epub,
+            FormatId::PlainText,
+        ] {
+            self.push_route(FormatId::Rtf, pandoc_dst, false, Some("tier2-pandoc"));
         }
+        self.push_route(FormatId::Docx, FormatId::Rtf, false, Some("tier2-pandoc"));
+        self.push_route(FormatId::Odt, FormatId::Rtf, false, Some("tier2-pandoc"));
+        self.push_route(
+            FormatId::Markdown,
+            FormatId::Rtf,
+            false,
+            Some("tier2-pandoc"),
+        );
+        self.push_route(FormatId::Html, FormatId::Rtf, false, Some("tier2-pandoc"));
         self.push_route(FormatId::Epub, FormatId::Mobi, false, Some("tier2-calibre"));
         self.push_route(FormatId::Mobi, FormatId::Epub, false, Some("tier2-calibre"));
+        self.push_route(FormatId::Html, FormatId::Mobi, false, Some("tier2-calibre"));
+        self.push_route(FormatId::Pdf, FormatId::Mobi, false, Some("tier2-calibre"));
     }
 
     /// Resolves the minimum-cost conversion path from `from` to `to`, preferring direct lossless
