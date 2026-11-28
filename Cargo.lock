@@ -693,6 +693,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "conversion-core"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "codec-registry",
+ "compression-archive",
+ "compression-audio",
+ "compression-core",
+ "compression-image",
+ "compression-office",
+ "compression-pdf",
+ "compression-video",
+ "file-core",
+ "quality-engine",
+ "serde",
+ "serde_json",
+ "validation-engine",
+]
+
+[[package]]
 name = "core_detect"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

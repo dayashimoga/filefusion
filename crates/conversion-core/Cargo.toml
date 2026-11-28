@@ -1,0 +1,62 @@
+[package]
+name = "conversion-core"
+description = "FileFusion L4 universal multi-hop conversion graph, pre-flight feature-loss analyzer, structural fidelity evaluator, and cross-format engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-logging", "native-process"]
+native-logging = [
+    "compression-archive/native-logging",
+    "compression-audio/native-logging",
+    "compression-core/native-logging",
+    "compression-image/native-logging",
+    "compression-office/native-logging",
+    "compression-pdf/native-logging",
+    "file-core/native-logging",
+    "quality-engine/native-logging",
+]
+native-process = [
+    "codec-registry/native-probe",
+    "compression-archive/native-process",
+    "compression-audio/native-process",
+    "compression-office/native-process",
+    "compression-pdf/native-process",
+    "dep:compression-video",
+    "compression-video?/native-process",
+    "compression-video?/hw-accel",
+]
+wasm = [
+    "codec-registry/wasm",
+    "compression-archive/wasm",
+    "compression-audio/wasm",
+    "compression-core/wasm",
+    "compression-image/wasm",
+    "compression-office/wasm",
+    "compression-pdf/wasm",
+    "file-core/wasm",
+    "quality-engine/wasm",
+    "validation-engine/wasm",
+]
+
+[dependencies]
+codec-registry = { workspace = true, default-features = false }
+compression-archive = { workspace = true, default-features = false }
+compression-audio = { workspace = true, default-features = false }
+compression-core = { workspace = true, default-features = false }
+compression-image = { workspace = true, default-features = false }
+compression-office = { workspace = true, default-features = false }
+compression-pdf = { workspace = true, default-features = false }
+compression-video = { workspace = true, default-features = false, optional = true }
+file-core = { workspace = true, default-features = false }
+quality-engine = { workspace = true, default-features = false }
+serde.workspace = true
+serde_json.workspace = true
+validation-engine = { workspace = true, default-features = false }
+
+[lints]
+workspace = true

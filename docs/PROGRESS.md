@@ -7,14 +7,31 @@
 
 ## Current Active Subphase
 
-- **Stage:** Stage 2 — Universal Compression Engine
-- **Phase:** Phase 2.3 — Adaptive Optimization & Benchmarks
-- **Subphase:** `2.3.2` — Stage 2 CLI (`compress`/`archive`) & Criterion benchmarks
-- **Status:** `COMPLETE` (Stage 2 Complete — Awaiting user confirmation before starting Stage 3: Universal Conversion Engine)
+- **Stage:** Stage 3 — Universal Conversion Engine
+- **Phase:** Phase 3.1 — Conversion Graph & Structured Text / Markup Engines
+- **Subphase:** `3.1.1` — Conversion Core foundation, multi-hop graph router & cross-media conversion (`conversion-core`)
+- **Status:** `COMPLETE` (Subphase 3.1.1 Complete — Awaiting user confirmation before starting Subphase 3.1.2)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 3.1.1 — Conversion Core foundation, multi-hop graph router & cross-media conversion (`conversion-core`)
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 3 — Universal Conversion Engine |
+| **Phase** | Phase 3.1 — Conversion Graph & Structured Text / Markup Engines |
+| **Subphase** | `3.1.1` — Conversion Core foundation, multi-hop graph router & cross-media conversion (`conversion-core`) |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 4 (Document & Conversion Engineer), Agent 3 (Compression & Codec Engineer), Agent 2 (Rust Core Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 3 hours |
+| **Actual Duration** | ~20 minutes |
+| **Acceptance Criteria** | 1. Materialize L4 `crates/conversion-core` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L4_CNV -> L1_REG & L1_VAL & L3_*` with optional `compression-video` gated under `native-process` for WASM purity) with zero new external crates in `Cargo.lock`.<br>2. Implement `ConversionGraph` weighted Dijkstra direct-first / lossless-hub multi-hop router (`graph.rs`), pre-flight compatibility & feature-loss warning evaluator + structural markup inventory & `ConversionFidelityReport` builder (`preflight.rs`, `FR-FID-001`..`002`), and `UniversalConversionEngine` implementing `ConversionEngine` (`lib.rs`, `FF-CTR-001` §3.2) for pure-Rust cross-raster (`JPEG`/`PNG`/`WebP`/`AVIF`/`GIF`/`BMP`/`TIFF`/`ICO`), cross-archive (`Zip`/`Tar`/`Gzip`/`Zstd`/`Xz`/`Bzip2`/`Lz4`/`SevenZ`), cross-audio (`-> WAV`/`FLAC`), plus `native-process`-gated `convert_with_optional_runner` for Tier 2 `FFmpeg` video/audio routes.<br>3. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (99 tests), WASM-featured unit tests (48 tests across 12 crates including `conversion-core`), backfill `8f69a4c` (`stage-2.3.2`), append `TODO.md` / `CHANGELOG.md`, obtain Agent 12 `PASS` audit, commit, tag `stage-3.1.1`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (15 crates including `conversion-core`): PASS (0 warnings); `cargo test --workspace --locked`: 99 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 4, `compression-video`: 4, `conversion-core`: 4, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 7, `hardware-acceleration`: 3, `job-manager`: 16, `optimization-engine`: 4, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 3, `compression-video`: 3, `conversion-core`: 4, `hardware-acceleration`: 3, `job-manager`: 12, `optimization-engine`: 4, `quality-engine`: 2): 48 passed, 0 failed; `Cargo.lock` new crate diff: only `+name = "conversion-core"`; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/conversion-core/{Cargo.toml,src/{lib.rs,graph.rs,preflight.rs}}`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-3.1.1` on `main` (pushed to `origin`; exact SHA backfilled in `3.1.2`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 2.3.2 — Stage 2 CLI (`compress`/`archive`) & Criterion benchmarks
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Wire L5 `crates/job-manager` to L4 `crates/optimization-engine` strictly matching `FF-MOD-001` §4 (`L5_JOB -> L0 & L1_REG & L4_OPT`) with `native-process` and `wasm` feature parity; expose `JobManager::compress_file`, `create_archive`, `list_archive`, `extract_archive`, and `run_quick_benchmark`.<br>2. Implement thin Plane 1 CLI subcommands `filefusion compress`, `filefusion archive {create,list,extract}`, and `filefusion bench` in `apps/cli/src/main.rs` (`MOD-RULE-03` compliant, structured `--json` stdout + stderr tracing) backed by real E2E tests in `apps/cli/tests/cli_smoke.rs`.<br>3. Materialize permanent Criterion benchmark suite (`Criterion 0.6.0`, permissive `Apache-2.0 OR MIT`) in `tests/benchmarks/stage2_compression.rs` measuring FastCDC, Zstd, oxipng, and the JPEG SSIM solver on host CPU, recording empirical results in `PERFORMANCE.md`.<br>4. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (95 tests), WASM-featured unit tests (44 tests), `cargo bench --bench stage2_compression`, verify `Cargo.lock` SPDX licenses, backfill `c0bfe41` (`stage-2.3.1`), append `TODO.md` / `CHANGELOG.md`, obtain Agent 12 `PASS` audit, commit, tag `stage-2.3.2`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS; `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (14 crates): PASS (0 warnings); `cargo test --workspace --locked`: 95 passed, 0 failed (`codec-registry`: 3, `compression-archive`: 5, `compression-audio`: 4, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 4, `compression-video`: 4, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 7, `hardware-acceleration`: 3, `job-manager`: 16, `optimization-engine`: 4, `quality-engine`: 2, `validation-engine`: 5); WASM-featured unit tests (`compression-archive`: 5, `compression-audio`: 3, `compression-core`: 3, `compression-image`: 3, `compression-office`: 3, `compression-pdf`: 3, `compression-video`: 3, `hardware-acceleration`: 3, `job-manager`: 12, `optimization-engine`: 4, `quality-engine`: 2): 44 passed, 0 failed; `cargo bench -p optimization-engine --bench stage2_compression`: PASS (4/4 workloads); `Cargo.lock` SPDX audit: PASS (0 disallowed licenses); Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/optimization-engine/{Cargo.toml,src/{lib.rs,dispatcher.rs}}`, `crates/job-manager/{Cargo.toml,src/lib.rs}`, `apps/cli/src/main.rs`, `apps/cli/tests/cli_smoke.rs`, `tests/benchmarks/stage2_compression.rs`, `PERFORMANCE.md`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-2.3.2` on `main` (pushed to `origin`; exact SHA backfilled in `3.1.1`) |
+| **Commit Reference** | `8f69a4c` (tag `stage-2.3.2`, pushed to `origin/main`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 2.3.1 — Adaptive optimization engine & quality solver (`optimization-engine`)
@@ -737,3 +754,14 @@
 | `2.2.5` | PDF & Office compression crates (`compression-pdf`, `compression-office`) | `COMPLETE` | Agent 3, Agent 4, Agent 8, Agent 12 | 4 hours |
 | `2.3.1` | Adaptive optimization engine & quality solver (`optimization-engine`) | `COMPLETE` | Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
 | `2.3.2` | Stage 2 CLI (`compress`/`archive`) & Criterion benchmarks | `COMPLETE` | Agent 2, Agent 3, Agent 8, Agent 12 | 3 hours |
+
+---
+
+## Upcoming Subphases Queue (Stage 3 — Universal Conversion Engine)
+
+| Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
+| :--- | :--- | :--- | :--- | :--- |
+| `3.1.1` | Conversion Core foundation, multi-hop graph router & cross-media conversion (`conversion-core`) | `COMPLETE` | Agent 4, Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
+| `3.1.2` | Bidirectional structured text, markup & tabular engines (`Markdown`/`HTML`/`CSV`/`JSON`/`YAML`/`XML`) | `NOT STARTED` | Agent 4, Agent 2, Agent 8, Agent 12 | 4 hours |
+| `3.2.1` | Native Office, ODF & EPUB conversions + Tier 2 `LibreOffice`/`Pandoc`/`Calibre` adapters | `NOT STARTED` | Agent 4, Agent 9, Agent 8, Agent 12 | 4 hours |
+| `3.2.2` | Stage 3 CLI (`filefusion convert`), `job-manager` wiring & conversion fidelity corpus tests | `NOT STARTED` | Agent 2, Agent 4, Agent 8, Agent 12 | 3 hours |

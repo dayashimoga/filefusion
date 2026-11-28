@@ -361,3 +361,13 @@
 - [x] `[2.3.2]` Wire L5 `crates/job-manager` to L4 `crates/optimization-engine` cleanly (`FF-MOD-001` §4 DAG `L5_JOB -> L0 & L1_REG & L4_OPT`), exposing `JobManager::compress_file`, `create_archive`, `list_archive`, `extract_archive`, and `run_quick_benchmark`.
 - [x] `[2.3.2]` Implement `filefusion compress`, `filefusion archive {create,list,extract}`, and `filefusion bench` CLI subcommands (`apps/cli/src/main.rs`) with `--json` output and full E2E CLI integration coverage (`apps/cli/tests/cli_smoke.rs`).
 - [x] `[2.3.2]` Add permanent Criterion benchmark suite (`Criterion 0.6.0`, `tests/benchmarks/stage2_compression.rs`), execute host CPU benchmarks, record baselines in `PERFORMANCE.md`, backfill `c0bfe41` (`stage-2.3.1`) in `docs/PROGRESS.md`, and append Subphase `2.3.2` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 040 — Stage 3 Subphase 3.1.1 Conversion Core Foundation, Multi-Hop Router & Cross-Media Conversion (`conversion-core`)
+
+### Completed in Subphase 3.1.1
+- [x] `[3.1.1]` Materialize L4 `crates/conversion-core` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L4_CNV -> L1_REG & L1_VAL & L3_*` with optional `compression-video` gated behind `native-process`) with zero new external crates in `Cargo.lock`.
+- [x] `[3.1.1]` Implement `ConversionGraph` weighted Dijkstra direct-first / lossless-hub router (`graph.rs`), pre-flight compatibility warnings + structural markup inventory & `ConversionFidelityReport` builder (`preflight.rs`, `FR-FID-001`..`002`), and `UniversalConversionEngine` implementing `ConversionEngine` (`lib.rs`, `FF-CTR-001` §3.2) for pure-Rust cross-raster, cross-archive, and cross-audio (`-> WAV`/`FLAC`) conversions plus `native-process`-gated Tier 2 `FFmpeg` dispatch.
+- [x] `[3.1.1]` Backfill `8f69a4c` (`stage-2.3.2`) in `docs/PROGRESS.md`, initialize the Stage 3 subphase queue, and append Subphase `3.1.1` entries to `TODO.md` and `CHANGELOG.md`.

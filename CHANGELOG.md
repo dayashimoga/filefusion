@@ -321,3 +321,12 @@
 ### Subphase 2.3.2 — Stage 2 CLI (`compress`/`archive`) & Criterion Benchmarks (Stage 2 Completion)
 - **Added:** Real `filefusion compress`, `filefusion archive {create,list,extract}`, and `filefusion bench` CLI subcommands (`apps/cli/src/main.rs`, E2E tests in `apps/cli/tests/cli_smoke.rs`), L5 `JobManager` compression/archive/benchmark orchestration (`crates/job-manager/src/lib.rs`), L4 archive path collection helpers (`crates/optimization-engine/src/dispatcher.rs`), and permanent Criterion benchmark suite (`tests/benchmarks/stage2_compression.rs`, `Criterion 0.6.0`).
 - **Changed:** Recorded host CPU-only Stage 2 Criterion baselines in `PERFORMANCE.md`, wired `job-manager -> optimization-engine`, backfilled `c0bfe41` (`stage-2.3.1`) in `docs/PROGRESS.md`, and appended Entry 039 to `TODO.md`.
+
+
+---
+
+## [0.3.1-stage3.1.1] — 2026-11-28
+
+### Subphase 3.1.1 — Conversion Core Foundation, Multi-Hop Router & Cross-Media Conversion (`conversion-core`, `L4`)
+- **Added:** L4 `conversion-core` crate (`crates/conversion-core/{Cargo.toml,src/{lib.rs,graph.rs,preflight.rs}}`) delivering weighted Dijkstra multi-hop conversion route planning (`ConversionGraph`), pre-flight loss/encryption warnings (`evaluate_preflight`, `FR-FID-002`), markup structure inventory & fidelity scoring (`analyze_markup_structure`, `build_fidelity_report`, `FR-FID-001`), and `UniversalConversionEngine` (`ConversionEngine`) for pure-Rust cross-raster (`JPEG`/`PNG`/`WebP`/`AVIF`/`GIF`/`BMP`/`TIFF`/`ICO`), cross-archive (`Zip`/`Tar`/`Gzip`/`Zstd`/`Xz`/`Bzip2`/`Lz4`/`SevenZ`), cross-audio (`-> WAV`/`FLAC`), plus `native-process`-gated Tier 2 `FFmpeg` media conversion dispatch (`convert_with_optional_runner`).
+- **Changed:** Registered `crates/conversion-core` in workspace `Cargo.toml` / `Cargo.lock` with zero new external dependencies, backfilled `8f69a4c` (`stage-2.3.2`) and queued Stage 3 subphases in `docs/PROGRESS.md`, and appended Entry 040 to `TODO.md`.
