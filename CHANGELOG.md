@@ -261,3 +261,11 @@
 - **Added:** L1 `hardware-acceleration` crate (`crates/hardware-acceleration/src/lib.rs`: safe `SimdFeatures` ISA detection, GPU vendor probes for `NVENC`/`QSV`/`AMF`/`VideoToolbox`/`MediaCodec`/`VAAPI`, `IsolatedProcessRunner`-backed `probe_ffmpeg_hwaccels`, `select_video_backend` deterministic CPU fallback router, and WASM no-op stub).
 - **Changed:** Wired `probe_hardware_acceleration` / `JobManager::probe_hardware` in `crates/job-manager/{Cargo.toml,src/lib.rs}`, backfilled `333a66f` (`stage-2.1.1`) in `docs/PROGRESS.md`, and appended Entry 032 to `TODO.md`.
 
+
+---
+
+## [0.2.2-stage2.2.1] — 2026-11-28
+
+### Subphase 2.2.1 — Image Compression Crate (`compression-image`, `L3`)
+- **Added:** L3 `compression-image` crate (`crates/compression-image/Cargo.toml`, `crates/compression-image/src/lib.rs`) supporting pure-Rust decode (`JPEG`, `PNG`, `WebP`, `GIF`, `BMP`, `TIFF`, `ICO`) and encode (`JPEG`, `oxipng` PNG, lossless `WebP`, `ravif` AVIF, `GIF`, `BMP`, `TIFF`, `ICO`), EXIF `0x0112` orientation detection/normalization (`detect_exif_orientation`, `apply_exif_orientation`), SIMD resizing via `fast_image_resize` (`ResizeFilter`, `ImageResizeSpec`), `RasterQualityEvaluator`, and `RasterCompressionEngine` with `FR-CMP-002` No-Op guard and memory reservations.
+- **Changed:** Added `compression-image` and permissive raster codec dependencies (`fast_image_resize`, `image`, `oxipng`, `ravif`, `rgb`) to workspace `Cargo.toml` / `Cargo.lock`, backfilled `a702338` (`stage-2.1.2`) in `docs/PROGRESS.md`, and appended Entry 033 to `TODO.md`.

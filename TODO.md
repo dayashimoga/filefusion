@@ -294,3 +294,12 @@
 - [x] `[2.1.2]` Materialize L1 `crates/hardware-acceleration` (`#![forbid(unsafe_code)]`, `hw-accel` vs zero-warning `wasm` no-op stub) implementing `SimdFeatures::detect()` (`SSE4.2`/`AVX2`/`AVX-512F`/`NEON`/`wasm_simd128`), GPU vendor discovery (`NVENC`, `QSV`, `AMF`, `VideoToolbox`, `MediaCodec`, `VAAPI`), `parse_ffmpeg_hwaccels`, `IsolatedProcessRunner`-backed `probe_ffmpeg_hwaccels`, and `select_video_backend` CPU fallback router (`FR-ADP-002`).
 - [x] `[2.1.2]` Expose `probe_hardware_acceleration` and `JobManager::probe_hardware` in `crates/job-manager`, backfill `333a66f` (`stage-2.1.1`) in `docs/PROGRESS.md`, and append Subphase `2.1.2` entries to `TODO.md` and `CHANGELOG.md`.
 
+
+---
+
+## [2026-11-28] Entry 033 — Stage 2 Subphase 2.2.1 Image Compression Crate (`compression-image`)
+
+### Completed in Subphase 2.2.1
+- [x] `[2.2.1]` Materialize L3 `crates/compression-image` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L2 -> L3`, `FR-IMG-001`..`003`) implementing pure-Rust decode (`JPEG`, `PNG`, `WebP`, `GIF`, `BMP`, `TIFF`, `ICO`) & encode (`JPEG`, `PNG` via `oxipng`, lossless `WebP`, `AVIF` via `ravif`, plus `GIF`/`BMP`/`TIFF`/`ICO`).
+- [x] `[2.2.1]` Implement EXIF TIFF orientation (`0x0112`, values `1..=8`) detection and normalization (`detect_exif_orientation`, `apply_exif_orientation`), SIMD resizing via `fast_image_resize` (`ResizeFilter`, `ImageResizeSpec`), `RasterQualityEvaluator` (empirical SSIM/PSNR via `quality_engine`), and `RasterCompressionEngine` wired with `JobContext` memory reservations and `compression_core::finalize_staged_compression` (`FR-CMP-002` No-Op guard).
+- [x] `[2.2.1]` Backfill `a702338` (`stage-2.1.2`) in `docs/PROGRESS.md` and append Subphase `2.2.1` entries to `TODO.md` and `CHANGELOG.md`.
