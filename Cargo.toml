@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/file-core",
     "crates/codec-registry",
+    "crates/hardware-acceleration",
     "crates/quality-engine",
     "crates/validation-engine",
     "crates/compression-core",
@@ -34,6 +35,7 @@ xxhash-rust = { version = "0.8", features = ["xxh64"] }
 
 file-core = { path = "crates/file-core" }
 codec-registry = { path = "crates/codec-registry" }
+hardware-acceleration = { path = "crates/hardware-acceleration" }
 quality-engine = { path = "crates/quality-engine" }
 validation-engine = { path = "crates/validation-engine" }
 compression-core = { path = "crates/compression-core" }

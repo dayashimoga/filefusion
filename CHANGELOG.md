@@ -253,3 +253,11 @@
 - **Added:** L1 `quality-engine` crate (`crates/quality-engine/src/lib.rs`: windowed SSIM, PSNR dB, `diff_pixel_buffers`, bounded `files_are_bit_exact`, `BitExactQualityEvaluator`) and L2 `compression-core` crate (`crates/compression-core/src/lib.rs`: `CompressionProfileConfig` across all 5 `FR-CMP-001` presets, `prescreen_incompressible_noop`, `finalize_staged_compression` No-Op Guard, atomic `commit_compression_stage`).
 - **Changed:** Registered `BitExactQualityEvaluator` in `BackendCatalog::with_defaults()` (`crates/job-manager/{Cargo.toml,src/backends.rs}`), added Stage 2 queue & backfilled `9db02eb` (`stage-1.3.5`) in `docs/PROGRESS.md`, and appended Entry 031 to `TODO.md`.
 
+---
+
+## [0.2.1-stage2.1.2] — 2026-11-28
+
+### Subphase 2.1.2 — Hardware Acceleration Probe (`L1`)
+- **Added:** L1 `hardware-acceleration` crate (`crates/hardware-acceleration/src/lib.rs`: safe `SimdFeatures` ISA detection, GPU vendor probes for `NVENC`/`QSV`/`AMF`/`VideoToolbox`/`MediaCodec`/`VAAPI`, `IsolatedProcessRunner`-backed `probe_ffmpeg_hwaccels`, `select_video_backend` deterministic CPU fallback router, and WASM no-op stub).
+- **Changed:** Wired `probe_hardware_acceleration` / `JobManager::probe_hardware` in `crates/job-manager/{Cargo.toml,src/lib.rs}`, backfilled `333a66f` (`stage-2.1.1`) in `docs/PROGRESS.md`, and appended Entry 032 to `TODO.md`.
+

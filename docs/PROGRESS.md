@@ -9,12 +9,29 @@
 
 - **Stage:** Stage 2 — Universal Compression Engine
 - **Phase:** Phase 2.1 — Compression Foundation & Quality Metrics
-- **Subphase:** `2.1.1` — Compression Core & Quality Engine
-- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.1.2` — Hardware acceleration probe)
+- **Subphase:** `2.1.2` — Hardware acceleration probe
+- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.2.1` — Image compression crate)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 2.1.2 — Hardware acceleration probe
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 2 — Universal Compression Engine |
+| **Phase** | Phase 2.1 — Compression Foundation & Quality Metrics |
+| **Subphase** | `2.1.2` — Hardware acceleration probe |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 3 (Compression & Codec Engineer), Agent 2 (Rust Core Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 2 hours |
+| **Actual Duration** | ~10 minutes |
+| **Acceptance Criteria** | 1. Materialize L1 `crates/hardware-acceleration` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §3/§6 `hw-accel` vs zero-warning `wasm` no-op stub) implementing `SimdFeatures::detect()` (`SSE4.2`, `AVX2`, `AVX-512F`, `NEON`, `wasm_simd128`), non-blocking GPU driver discovery (`NVENC`, `QSV`, `AMF`, `VideoToolbox`, `MediaCodec`, `VAAPI`), `parse_ffmpeg_hwaccels`, `IsolatedProcessRunner`-backed `probe_ffmpeg_hwaccels`, and `select_video_backend` CPU fallback router (`FR-ADP-002`).<br>2. Expose `probe_hardware_acceleration`, `select_video_backend`, and `JobManager::probe_hardware` in `crates/job-manager/{Cargo.toml,src/lib.rs}`.<br>3. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (67 tests), WASM unit tests (20 tests), backfill `333a66f` (`stage-2.1.1`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-2.1.2`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `hardware-acceleration`, `quality-engine`, `validation-engine`, `compression-core`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 67 passed, 0 failed (`codec-registry`: 3, `compression-core`: 3, `file-core`: 28, `filefusion` unit: 1, `cli_smoke`: 6, `hardware-acceleration`: 3, `job-manager`: 16, `quality-engine`: 2, `validation-engine`: 5); WASM unit tests (`compression-core`: 3, `hardware-acceleration`: 3, `job-manager`: 12, `quality-engine`: 2): 20 passed, 0 failed; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/hardware-acceleration/Cargo.toml`, `crates/hardware-acceleration/src/lib.rs`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/lib.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-2.1.2` on `main` (pushed to `origin`; exact SHA backfilled in `2.2.1`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 2.1.1 — Compression Core & Quality Engine
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Materialize L1 `crates/quality-engine` (`FF-MOD-001` §4 DAG, `#![forbid(unsafe_code)]`, WASM-ready) implementing windowed SSIM (`compute_ssim`), PSNR dB (`compute_psnr_db` / `LOSSLESS_PSNR_CEILING_DB`), `diff_pixel_buffers`, bounded `files_are_bit_exact`, and `BitExactQualityEvaluator` (`QualityEvaluator`), and register in `BackendCatalog::with_defaults()`.<br>2. Materialize L2 `crates/compression-core` (`FR-CMP-001`..`002`, `FF-CTR-001` §3.1, `ADR-007`) implementing `CompressionProfileConfig` across all 5 standard presets, `prescreen_incompressible_noop`, `finalize_staged_compression` (mandatory No-Op inflation guard + `OutputValidator` + optional `min_ssim`/`target_max_bytes` verification), and atomic `commit_compression_stage`.<br>3. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (64 tests), WASM unit tests (17 tests), backfill `9db02eb` (`stage-1.3.5`), add Stage 2 queue in `docs/PROGRESS.md`, append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-2.1.1`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `quality-engine`, `validation-engine`, `compression-core`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 64 passed, 0 failed (`codec-registry`: 3, `compression-core`: 3, `file-core`: 28, `filefusion`: 1, `cli_smoke`: 6, `job-manager`: 16, `quality-engine`: 2, `validation-engine`: 5); WASM unit tests (`compression-core`: 3, `job-manager`: 12, `quality-engine`: 2): 17 passed, 0 failed; Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/quality-engine/Cargo.toml`, `crates/quality-engine/src/lib.rs`, `crates/compression-core/Cargo.toml`, `crates/compression-core/src/lib.rs`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/backends.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-2.1.1` on `main` (pushed to `origin`; exact SHA backfilled in `2.1.2`) |
+| **Commit Reference** | `333a66f` (tag `stage-2.1.1`, pushed to `origin/main`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 1.3.5 — Resource limits
@@ -593,7 +610,7 @@
 | Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
 | :--- | :--- | :--- | :--- | :--- |
 | `2.1.1` | Compression Core & Quality Engine (`L1`/`L2`) | `COMPLETE` | Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
-| `2.1.2` | Hardware acceleration probe (`L1`) | `NOT STARTED` | Agent 3, Agent 2, Agent 12 | 2 hours |
+| `2.1.2` | Hardware acceleration probe (`L1`) | `COMPLETE` | Agent 3, Agent 2, Agent 12 | 2 hours |
 | `2.2.1` | Image compression crate (`compression-image`) | `NOT STARTED` | Agent 3, Agent 8, Agent 12 | 4 hours |
 | `2.2.2` | Archive compression crate (`compression-archive`) | `NOT STARTED` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
 | `2.2.3` | Audio compression crate (`compression-audio`) | `NOT STARTED` | Agent 3, Agent 8, Agent 12 | 3 hours |

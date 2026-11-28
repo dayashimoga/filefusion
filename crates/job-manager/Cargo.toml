@@ -10,14 +10,15 @@ authors.workspace = true
 
 [features]
 default = ["native-logging", "native-scheduler", "rayon-parallel"]
-native-logging = ["file-core/native-logging", "codec-registry/native-probe", "quality-engine/native-logging"]
+native-logging = ["file-core/native-logging", "codec-registry/native-probe", "hardware-acceleration/hw-accel", "hardware-acceleration/native-logging", "quality-engine/native-logging"]
 native-scheduler = ["dep:tokio"]
 rayon-parallel = ["dep:rayon"]
-wasm = ["file-core/wasm", "codec-registry/wasm", "quality-engine/wasm", "validation-engine/wasm"]
+wasm = ["file-core/wasm", "codec-registry/wasm", "hardware-acceleration/wasm", "quality-engine/wasm", "validation-engine/wasm"]
 
 [dependencies]
 codec-registry = { workspace = true, default-features = false }
 file-core = { workspace = true, default-features = false }
+hardware-acceleration = { workspace = true, default-features = false }
 quality-engine = { workspace = true, default-features = false }
 rayon = { workspace = true, optional = true }
 serde.workspace = true

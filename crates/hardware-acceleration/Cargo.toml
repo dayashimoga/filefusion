@@ -1,0 +1,22 @@
+[package]
+name = "hardware-acceleration"
+description = "FileFusion L1 hardware acceleration and SIMD probe: AVX2/AVX-512/NEON detection, optional GPU encoder discovery, and deterministic CPU fallback routing."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["hw-accel", "native-logging"]
+hw-accel = []
+native-logging = ["file-core/native-logging"]
+wasm = ["file-core/wasm"]
+
+[dependencies]
+file-core = { workspace = true, default-features = false }
+serde.workspace = true
+
+[lints]
+workspace = true

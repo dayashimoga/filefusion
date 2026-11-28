@@ -41,6 +41,10 @@ pub use file_core::{
     parse_proc_meminfo_mb, redact_path_for_log, resolve_default_config_path,
     resolve_output_destination, save_config_atomic, workspace_identity,
 };
+pub use hardware_acceleration::{
+    HardwareEncoderCapability, HardwareProfile, HardwareRoutingDecision, HardwareVendorBackend,
+    SimdFeatures, probe_hardware as probe_hardware_acceleration, select_video_backend,
+};
 pub use progress::{ProgressBus, ProgressBusStats, ProgressSubscription};
 pub use scheduler::{
     JobPriority, JobScheduler, ScheduledItemSpec, SchedulerController, SchedulerStats,
@@ -154,6 +158,12 @@ impl JobManager {
         JobContext::new(job_id, self.limits)
             .with_process_runner(Arc::new(NativeIsolatedProcessRunner::new()))
             .with_memory_governor(Arc::clone(&self.governor))
+    }
+
+    /// Probes CPU SIMD instructions and optional GPU hardware encoders (`FR-ADP-002`).
+    #[must_use]
+    pub fn probe_hardware(&self) -> HardwareProfile {
+        probe_hardware_acceleration()
     }
 
     /// Returns a bounded [`JobScheduler`] configured with this coordinator's [`ResourceLimits`].

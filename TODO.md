@@ -286,3 +286,11 @@
 - [x] `[2.1.1]` Materialize `crates/compression-core` (`L2`, `#![forbid(unsafe_code)]`, WASM-ready) implementing `CompressionProfileConfig` (all 5 `FR-CMP-001` presets), `prescreen_incompressible_noop`, `finalize_staged_compression` (mandatory `FR-CMP-002` No-Op inflation guard + `OutputValidator` + optional `min_ssim`/`target_max_bytes` checks), and atomic `commit_compression_stage`.
 - [x] `[2.1.1]` Add Stage 2 execution queue to `docs/PROGRESS.md`, backfill `9db02eb` (`stage-1.3.5`), and append Subphase `2.1.1` entries to `TODO.md` and `CHANGELOG.md`.
 
+---
+
+## [2026-11-28] Entry 032 — Stage 2 Subphase 2.1.2 Hardware Acceleration Probe
+
+### Completed in Subphase 2.1.2
+- [x] `[2.1.2]` Materialize L1 `crates/hardware-acceleration` (`#![forbid(unsafe_code)]`, `hw-accel` vs zero-warning `wasm` no-op stub) implementing `SimdFeatures::detect()` (`SSE4.2`/`AVX2`/`AVX-512F`/`NEON`/`wasm_simd128`), GPU vendor discovery (`NVENC`, `QSV`, `AMF`, `VideoToolbox`, `MediaCodec`, `VAAPI`), `parse_ffmpeg_hwaccels`, `IsolatedProcessRunner`-backed `probe_ffmpeg_hwaccels`, and `select_video_backend` CPU fallback router (`FR-ADP-002`).
+- [x] `[2.1.2]` Expose `probe_hardware_acceleration` and `JobManager::probe_hardware` in `crates/job-manager`, backfill `333a66f` (`stage-2.1.1`) in `docs/PROGRESS.md`, and append Subphase `2.1.2` entries to `TODO.md` and `CHANGELOG.md`.
+
