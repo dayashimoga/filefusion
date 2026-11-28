@@ -7,14 +7,31 @@
 
 ## Current Active Subphase
 
-- **Stage:** Stage 1 — Rust Core Foundation
-- **Phase:** Phase 1.3 — Pipeline & Execution
-- **Subphase:** `1.3.5` — Resource limits
-- **Status:** `COMPLETE` (Stage 1 complete — awaiting user confirmation before advancing to Stage 2)
+- **Stage:** Stage 2 — Universal Compression Engine
+- **Phase:** Phase 2.1 — Compression Foundation & Quality Metrics
+- **Subphase:** `2.1.1` — Compression Core & Quality Engine
+- **Status:** `COMPLETE` (Awaiting user confirmation before starting `2.1.2` — Hardware acceleration probe)
 
 ---
 
 ## Subphase Execution Log
+
+### Subphase 2.1.1 — Compression Core & Quality Engine
+
+| Field | Detail |
+| :--- | :--- |
+| **Stage** | Stage 2 — Universal Compression Engine |
+| **Phase** | Phase 2.1 — Compression Foundation & Quality Metrics |
+| **Subphase** | `2.1.1` — Compression Core & Quality Engine |
+| **Status** | `COMPLETE` |
+| **Assigned Agents** | Agent 3 (Compression & Codec Engineer), Agent 2 (Rust Core Engineer), Agent 8 (QA & Automation Engineer), Agent 12 (Independent Reviewer) |
+| **Planned Maximum Duration** | 3 hours |
+| **Actual Duration** | ~15 minutes |
+| **Acceptance Criteria** | 1. Materialize L1 `crates/quality-engine` (`FF-MOD-001` §4 DAG, `#![forbid(unsafe_code)]`, WASM-ready) implementing windowed SSIM (`compute_ssim`), PSNR dB (`compute_psnr_db` / `LOSSLESS_PSNR_CEILING_DB`), `diff_pixel_buffers`, bounded `files_are_bit_exact`, and `BitExactQualityEvaluator` (`QualityEvaluator`), and register in `BackendCatalog::with_defaults()`.<br>2. Materialize L2 `crates/compression-core` (`FR-CMP-001`..`002`, `FF-CTR-001` §3.1, `ADR-007`) implementing `CompressionProfileConfig` across all 5 standard presets, `prescreen_incompressible_noop`, `finalize_staged_compression` (mandatory No-Op inflation guard + `OutputValidator` + optional `min_ssim`/`target_max_bytes` verification), and atomic `commit_compression_stage`.<br>3. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (64 tests), WASM unit tests (17 tests), backfill `9db02eb` (`stage-1.3.5`), add Stage 2 queue in `docs/PROGRESS.md`, append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-2.1.1`, and push. |
+| **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `quality-engine`, `validation-engine`, `compression-core`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 64 passed, 0 failed (`codec-registry`: 3, `compression-core`: 3, `file-core`: 28, `filefusion`: 1, `cli_smoke`: 6, `job-manager`: 16, `quality-engine`: 2, `validation-engine`: 5); WASM unit tests (`compression-core`: 3, `job-manager`: 12, `quality-engine`: 2): 17 passed, 0 failed; Agent 12 independent audit: **PASS**. |
+| **Files Changed** | `Cargo.toml`, `Cargo.lock`, `crates/quality-engine/Cargo.toml`, `crates/quality-engine/src/lib.rs`, `crates/compression-core/Cargo.toml`, `crates/compression-core/src/lib.rs`, `crates/job-manager/Cargo.toml`, `crates/job-manager/src/backends.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
+| **Commit Reference** | Tagged `stage-2.1.1` on `main` (pushed to `origin`; exact SHA backfilled in `2.1.2`) |
+| **Outstanding Issues** | None |
 
 ### Subphase 1.3.5 — Resource limits
 
@@ -30,7 +47,7 @@
 | **Acceptance Criteria** | 1. Implement L0 runtime resource governance in `crates/file-core/src/limits.rs`: `DeviceProfile` (`Workstation`, `Mobile`, `WebWasm`), `MemoryGovernor` & RAII `MemoryReservation`, `MemoryBudgetSnapshot`, adaptive `ResourceLimits::for_profile`, `recommended_chunk_bytes` (`64 KiB`–`1 MiB`), `clamp_workers_for_job`, `validate_file_budget`, `parse_proc_meminfo_mb`, and cancellation-aware `copy_bounded_streaming` (`NFR-PERF-001`, `NFR-PERF-003`, `FR-SEC-001`).<br>2. Wire `MemoryGovernor` into `JobContext` (`reserve_working_set_mb`), `JobScheduler` permit dispatch/release (`SchedulerController::memory_snapshot`), and `JobManager` (`memory_governor`, `memory_stats`).<br>3. Pass `cargo fmt --all -- --check`, native & WASM `clippy -- -D warnings`, `cargo test --workspace --locked` (59 tests), WASM unit tests (12 tests), backfill `15651ec` / `4aadd0a` (`stage-1.3.4`), append `TODO.md` / `CHANGELOG.md`, pass Agent 12 audit, commit, tag `stage-1.3.5`, and push. |
 | **Test Results** | `cargo fmt --all -- --check`: PASS (`FMT_EXIT:0`); `cargo clippy --workspace --all-targets -- -D warnings`: PASS (0 warnings); `cargo clippy --no-default-features --features wasm --locked -- -D warnings` (`file-core`, `codec-registry`, `job-manager`): PASS (0 warnings); `cargo test --workspace --locked`: 59 passed, 0 failed (`codec-registry`: 3, `file-core`: 28, `validation-engine`: 5, `job-manager`: 16, `filefusion` unit: 1, `cli_smoke`: 6); `cargo test -p job-manager --no-default-features --features wasm --locked`: 12 passed, 0 failed; Agent 12 independent audit: **PASS**. |
 | **Files Changed** | `crates/file-core/src/limits.rs`, `crates/file-core/src/lib.rs`, `crates/file-core/src/pipeline.rs`, `crates/job-manager/src/scheduler.rs`, `crates/job-manager/src/lib.rs`, `docs/PROGRESS.md`, `TODO.md`, `CHANGELOG.md` |
-| **Commit Reference** | Tagged `stage-1.3.5` on `main` (pushed to `origin`; exact SHA backfilled in next subphase) |
+| **Commit Reference** | `9db02eb` (tag `stage-1.3.5`, pushed to `origin/main`) |
 | **Outstanding Issues** | None |
 
 ### Subphase 1.3.4 — Cancellation and progress
@@ -568,3 +585,19 @@
 | `1.3.3` | Job scheduler | `COMPLETE` | Agent 2, Agent 8, Agent 12 | 4 hours |
 | `1.3.4` | Cancellation and progress | `COMPLETE` | Agent 2, Agent 8, Agent 12 | 2 hours |
 | `1.3.5` | Resource limits | `COMPLETE` | Agent 2, Agent 9, Agent 8, Agent 12 | 2 hours |
+
+---
+
+## Upcoming Subphases Queue (Stage 2 — Universal Compression Engine)
+
+| Subphase | Title | Status | Assigned Agent(s) | Planned Max Budget |
+| :--- | :--- | :--- | :--- | :--- |
+| `2.1.1` | Compression Core & Quality Engine (`L1`/`L2`) | `COMPLETE` | Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
+| `2.1.2` | Hardware acceleration probe (`L1`) | `NOT STARTED` | Agent 3, Agent 2, Agent 12 | 2 hours |
+| `2.2.1` | Image compression crate (`compression-image`) | `NOT STARTED` | Agent 3, Agent 8, Agent 12 | 4 hours |
+| `2.2.2` | Archive compression crate (`compression-archive`) | `NOT STARTED` | Agent 3, Agent 9, Agent 8, Agent 12 | 4 hours |
+| `2.2.3` | Audio compression crate (`compression-audio`) | `NOT STARTED` | Agent 3, Agent 8, Agent 12 | 3 hours |
+| `2.2.4` | Video compression crate (`compression-video`) | `NOT STARTED` | Agent 3, Agent 9, Agent 8, Agent 12 | 3 hours |
+| `2.2.5` | PDF & Office compression crates (`compression-pdf`, `compression-office`) | `NOT STARTED` | Agent 3, Agent 4, Agent 8, Agent 12 | 4 hours |
+| `2.3.1` | Adaptive optimization engine & quality solver (`optimization-engine`) | `NOT STARTED` | Agent 3, Agent 2, Agent 8, Agent 12 | 3 hours |
+| `2.3.2` | Stage 2 CLI (`compress`/`archive`) & Criterion benchmarks | `NOT STARTED` | Agent 2, Agent 3, Agent 8, Agent 12 | 3 hours |

@@ -1,0 +1,21 @@
+[package]
+name = "quality-engine"
+description = "FileFusion L1 quality verification engine: empirical SSIM, PSNR, pixel diffing, and bit-exact lossless validation."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-logging"]
+native-logging = ["file-core/native-logging"]
+wasm = ["file-core/wasm"]
+
+[dependencies]
+file-core = { workspace = true, default-features = false }
+serde.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,23 @@
+[package]
+name = "compression-core"
+description = "FileFusion L2 compression foundation: 5 standard profiles, mandatory No-Op inflation guard, quality floor enforcement, and atomic commit staging."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[features]
+default = ["native-logging"]
+native-logging = ["file-core/native-logging", "quality-engine/native-logging"]
+wasm = ["file-core/wasm", "quality-engine/wasm", "validation-engine/wasm"]
+
+[dependencies]
+file-core = { workspace = true, default-features = false }
+quality-engine = { workspace = true, default-features = false }
+serde.workspace = true
+validation-engine.workspace = true
+
+[lints]
+workspace = true

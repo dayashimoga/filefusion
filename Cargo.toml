@@ -3,7 +3,9 @@ resolver = "2"
 members = [
     "crates/file-core",
     "crates/codec-registry",
+    "crates/quality-engine",
     "crates/validation-engine",
+    "crates/compression-core",
     "crates/job-manager",
     "apps/cli",
 ]
@@ -32,7 +34,9 @@ xxhash-rust = { version = "0.8", features = ["xxh64"] }
 
 file-core = { path = "crates/file-core" }
 codec-registry = { path = "crates/codec-registry" }
+quality-engine = { path = "crates/quality-engine" }
 validation-engine = { path = "crates/validation-engine" }
+compression-core = { path = "crates/compression-core" }
 job-manager = { path = "crates/job-manager" }
 
 [workspace.lints.rust]

@@ -245,3 +245,11 @@
 - **Added:** L0 `DeviceProfile` (`Workstation`, `Mobile`, `WebWasm`), thread-safe `MemoryGovernor` / RAII `MemoryReservation`, `MemoryBudgetSnapshot`, `recommended_chunk_bytes` (`64 KiB`–`1 MiB`), `clamp_workers_for_job`, `validate_file_budget`, Linux/Android `/proc/meminfo` probe, and cancellation-aware `copy_bounded_streaming` (`crates/file-core/src/limits.rs`).
 - **Changed:** Wired `MemoryGovernor` into `JobContext`, `JobScheduler` dispatch/release lifecycle, and `JobManager::memory_stats()` (`crates/file-core/src/{lib.rs,pipeline.rs}`, `crates/job-manager/src/{lib.rs,scheduler.rs}`), backfilled `15651ec` (`stage-1.3.4` + `4aadd0a`) in `docs/PROGRESS.md`, and appended Entry 030 to `TODO.md`.
 
+---
+
+## [0.2.0-stage2.1.1] — 2026-11-28
+
+### Subphase 2.1.1 — Compression Core & Quality Engine (Stage 2 Begin)
+- **Added:** L1 `quality-engine` crate (`crates/quality-engine/src/lib.rs`: windowed SSIM, PSNR dB, `diff_pixel_buffers`, bounded `files_are_bit_exact`, `BitExactQualityEvaluator`) and L2 `compression-core` crate (`crates/compression-core/src/lib.rs`: `CompressionProfileConfig` across all 5 `FR-CMP-001` presets, `prescreen_incompressible_noop`, `finalize_staged_compression` No-Op Guard, atomic `commit_compression_stage`).
+- **Changed:** Registered `BitExactQualityEvaluator` in `BackendCatalog::with_defaults()` (`crates/job-manager/{Cargo.toml,src/backends.rs}`), added Stage 2 queue & backfilled `9db02eb` (`stage-1.3.5`) in `docs/PROGRESS.md`, and appended Entry 031 to `TODO.md`.
+

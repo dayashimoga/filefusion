@@ -222,11 +222,13 @@ impl BackendCatalog {
         Self::default()
     }
 
-    /// Creates a [`BackendCatalog`] pre-registered with core L1 [`validation_engine::MagicByteOutputValidator`].
+    /// Creates a [`BackendCatalog`] pre-registered with core L1 [`validation_engine::MagicByteOutputValidator`]
+    /// and [`quality_engine::BitExactQualityEvaluator`].
     #[must_use]
     pub fn with_defaults() -> Self {
         let mut catalog = Self::new();
         catalog.register_validator(Arc::new(validation_engine::MagicByteOutputValidator));
+        catalog.register_evaluator(Arc::new(quality_engine::BitExactQualityEvaluator));
         catalog
     }
 
@@ -404,6 +406,11 @@ mod tests {
         assert_eq!(
             catalog.validators()[0].validator_id(),
             "validation-engine-magic-byte"
+        );
+        assert_eq!(catalog.evaluators().len(), 1);
+        assert_eq!(
+            catalog.evaluators()[0].evaluator_id(),
+            "quality-engine-bit-exact"
         );
 
         catalog.register_compressor(Arc::new(DummyPngEngine));

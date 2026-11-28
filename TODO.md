@@ -277,3 +277,12 @@
 - [x] `[1.3.5]` Inject shared `MemoryGovernor` into `JobContext` (`reserve_working_set_mb`), `JobScheduler` (`WorkerCompletion` RAII permit reservations + `SchedulerController::memory_snapshot`), and `JobManager` (`memory_governor` / `memory_stats`), closing Stage 1 Phase 1.3.
 - [x] `[1.3.5]` Backfill `15651ec` (`stage-1.3.4`, `4aadd0a` lock sync) in `docs/PROGRESS.md` and append Subphase `1.3.5` entries to `TODO.md` and `CHANGELOG.md`.
 
+---
+
+## [2026-11-28] Entry 031 — Stage 2 Subphase 2.1.1 Compression Core & Quality Engine (Stage 2 Begin)
+
+### Completed in Subphase 2.1.1
+- [x] `[2.1.1]` Materialize `crates/quality-engine` (`L1`, `#![forbid(unsafe_code)]`, WASM-ready) implementing windowed SSIM, PSNR dB (`LOSSLESS_PSNR_CEILING_DB`), `diff_pixel_buffers`, `files_are_bit_exact` streaming comparator, and `BitExactQualityEvaluator` (`QualityEvaluator`) registered in `BackendCatalog::with_defaults()`.
+- [x] `[2.1.1]` Materialize `crates/compression-core` (`L2`, `#![forbid(unsafe_code)]`, WASM-ready) implementing `CompressionProfileConfig` (all 5 `FR-CMP-001` presets), `prescreen_incompressible_noop`, `finalize_staged_compression` (mandatory `FR-CMP-002` No-Op inflation guard + `OutputValidator` + optional `min_ssim`/`target_max_bytes` checks), and atomic `commit_compression_stage`.
+- [x] `[2.1.1]` Add Stage 2 execution queue to `docs/PROGRESS.md`, backfill `9db02eb` (`stage-1.3.5`), and append Subphase `2.1.1` entries to `TODO.md` and `CHANGELOG.md`.
+
