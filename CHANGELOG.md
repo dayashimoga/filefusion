@@ -330,3 +330,12 @@
 ### Subphase 3.1.1 — Conversion Core Foundation, Multi-Hop Router & Cross-Media Conversion (`conversion-core`, `L4`)
 - **Added:** L4 `conversion-core` crate (`crates/conversion-core/{Cargo.toml,src/{lib.rs,graph.rs,preflight.rs}}`) delivering weighted Dijkstra multi-hop conversion route planning (`ConversionGraph`), pre-flight loss/encryption warnings (`evaluate_preflight`, `FR-FID-002`), markup structure inventory & fidelity scoring (`analyze_markup_structure`, `build_fidelity_report`, `FR-FID-001`), and `UniversalConversionEngine` (`ConversionEngine`) for pure-Rust cross-raster (`JPEG`/`PNG`/`WebP`/`AVIF`/`GIF`/`BMP`/`TIFF`/`ICO`), cross-archive (`Zip`/`Tar`/`Gzip`/`Zstd`/`Xz`/`Bzip2`/`Lz4`/`SevenZ`), cross-audio (`-> WAV`/`FLAC`), plus `native-process`-gated Tier 2 `FFmpeg` media conversion dispatch (`convert_with_optional_runner`).
 - **Changed:** Registered `crates/conversion-core` in workspace `Cargo.toml` / `Cargo.lock` with zero new external dependencies, backfilled `8f69a4c` (`stage-2.3.2`) and queued Stage 3 subphases in `docs/PROGRESS.md`, and appended Entry 040 to `TODO.md`.
+
+
+---
+
+## [0.3.2-stage3.1.2] — 2026-11-28
+
+### Subphase 3.1.2 — Bidirectional Structured Text, Markup & Tabular Engines (`FR-DOC-001`)
+- **Added:** Pure-Rust structured markup engine (`crates/conversion-core/src/markup.rs`) and structured data/tabular engine (`crates/conversion-core/src/tabular.rs`) delivering bidirectional conversions across `Markdown`, `HTML`, `PlainText`, `CSV`/`TSV`, `JSON`, `YAML`, and `XML`, tabular-to-markup exports (`graph.rs`), and pre-flight warnings (`FID-MARKUP-PLAINTEXT`, `FID-CSV-FLATTEN`, `preflight.rs`) with active XSS/XXE security defenses and quantitative `ConversionFidelityReport` metrics.
+- **Changed:** Backfilled `0160de1` (`stage-3.1.1`) in `docs/PROGRESS.md`, extended `UniversalConversionEngine` in `crates/conversion-core/src/lib.rs` with zero new external dependencies in `Cargo.lock`, and appended Entry 041 to `TODO.md`.

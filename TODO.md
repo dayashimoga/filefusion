@@ -371,3 +371,13 @@
 - [x] `[3.1.1]` Materialize L4 `crates/conversion-core` (`#![forbid(unsafe_code)]`, `FF-MOD-001` §4 DAG `L4_CNV -> L1_REG & L1_VAL & L3_*` with optional `compression-video` gated behind `native-process`) with zero new external crates in `Cargo.lock`.
 - [x] `[3.1.1]` Implement `ConversionGraph` weighted Dijkstra direct-first / lossless-hub router (`graph.rs`), pre-flight compatibility warnings + structural markup inventory & `ConversionFidelityReport` builder (`preflight.rs`, `FR-FID-001`..`002`), and `UniversalConversionEngine` implementing `ConversionEngine` (`lib.rs`, `FF-CTR-001` §3.2) for pure-Rust cross-raster, cross-archive, and cross-audio (`-> WAV`/`FLAC`) conversions plus `native-process`-gated Tier 2 `FFmpeg` dispatch.
 - [x] `[3.1.1]` Backfill `8f69a4c` (`stage-2.3.2`) in `docs/PROGRESS.md`, initialize the Stage 3 subphase queue, and append Subphase `3.1.1` entries to `TODO.md` and `CHANGELOG.md`.
+
+
+---
+
+## [2026-11-28] Entry 041 — Stage 3 Subphase 3.1.2 Bidirectional Structured Text, Markup & Tabular Engines (`FR-DOC-001`)
+
+### Completed in Subphase 3.1.2
+- [x] `[3.1.2]` Implement pure-Rust bidirectional structured markup parser & renderer (`crates/conversion-core/src/markup.rs`) supporting `Markdown` (CommonMark/GFM), HTML5, and `PlainText` with XSS sanitization (`<script>`/`<iframe>` removal, `on*=` stripping, `javascript:` URL blocking, `NFR-SEC-001`).
+- [x] `[3.1.2]` Implement pure-Rust bidirectional structured data & tabular converter (`crates/conversion-core/src/tabular.rs`) covering RFC 4180 `CSV`/`TSV`, `JSON`, `YAML` 1.2 subset, and XXE/entity-bomb-hardened `XML` (`<!ENTITY`/`<!DOCTYPE` rejection, depth `<= 64`, `NFR-SEC-001`), plus direct tabular export routes into `Markdown`/`HTML`/`PlainText`.
+- [x] `[3.1.2]` Wire `FID-MARKUP-PLAINTEXT` and `FID-CSV-FLATTEN` pre-flight warnings (`preflight.rs`) and quantitative pre/post `StructuralInventory` reporting into `UniversalConversionEngine` (`lib.rs`), backfill `0160de1` (`stage-3.1.1`) in `docs/PROGRESS.md`, and append Subphase `3.1.2` entries to `TODO.md` and `CHANGELOG.md`.

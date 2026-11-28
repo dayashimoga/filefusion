@@ -214,6 +214,9 @@ impl ConversionGraph {
                 let lossless = !matches!(dst, FormatId::Csv);
                 self.push_route(src, dst, lossless, None);
             }
+            for &markup_dst in &[FormatId::Markdown, FormatId::Html, FormatId::PlainText] {
+                self.push_route(src, markup_dst, false, None);
+            }
         }
 
         // Office -> PDF (`LibreOffice`) and Ebook -> EPUB/MOBI (`Calibre`/`Pandoc`)

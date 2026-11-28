@@ -5,7 +5,9 @@
 #![forbid(unsafe_code)]
 
 pub mod graph;
+pub mod markup;
 pub mod preflight;
+pub mod tabular;
 
 use compression_archive::{
     ArchiveContainerKind, ArchiveOutputValidator, ArchiveQualityEvaluator,
@@ -17,13 +19,12 @@ use file_core::{
     CompressionEngine, CompressionProfile, CompressionRequest, ConversionEngine,
     ConversionFidelityReport, ConversionRequest, ConversionRoute, ErrorCode, FidelitySeverity,
     FileFusionError, FileFusionResult, FileInspectionReport, FormatId, JobContext, OutputValidator,
-    PreflightAssessment, QualityEvaluator, StagedPath, ValidatedSource,
+    PreflightAssessment, QualityEvaluator, StagedPath, ValidatedSource, detect_signature_from_path,
 };
-#[cfg(feature = "native-process")]
-use std::path::PathBuf;
+use validation_engine::MagicByteOutputValidator;
 
 #[cfg(feature = "native-process")]
-use validation_engine::MagicByteOutputValidator;
+use std::path::PathBuf;
 
 #[cfg(feature = "native-process")]
 use compression_audio::{
@@ -285,38 +286,7 @@ impl UniversalConversionEngine {
 
         if let Some(target_kind) = format_to_archive_kind(target) {
             if is_archive_format(source) {
-                let source_kind =
-                    ArchiveContainerKind::detect_from_path_with_limits(&input.path, &ctx.limits)?;
-                let entries =
-                    read_archive_entries_checked(&input.path, source_kind, &ctx.limits, ctx)?;
-                let _summary = create_archive_from_entries(
-                    &entries,
-                    staged_output.staged_path(),
-                    target_kind,
-                    CompressionProfile::BalancedOptimal,
-                    ctx,
-                )?;
-                let validator = ArchiveOutputValidator {
-                    allow_brotli: target_kind == ArchiveContainerKind::TarBrotli,
-                };
-                validator.validate_staged(
-                    staged_output.staged_path(),
-                    target_kind.outer_format_id(),
-                    &ctx.limits,
-                )?;
-                let quality = ArchiveQualityEvaluator {
-                    source_kind: Some(source_kind),
-                    target_kind: Some(target_kind),
-                }
-                .evaluate(input, staged_output.staged_path(), ctx)?;
-                return Ok(build_fidelity_report(
-                    source,
-                    target,
-                    assessment.warnings.clone(),
-                    None,
-                    None,
-                    Some(quality),
-                ));
+                return convert_tier1_archive(input, staged_output, target_kind, assessment, ctx);
             }
         }
 
@@ -338,11 +308,176 @@ impl UniversalConversionEngine {
             ));
         }
 
+        if is_markup_format(source) && is_markup_format(target) {
+            return convert_tier1_markup(input, staged_output, req, assessment, ctx);
+        }
+
+        if is_structured_format(source)
+            && (is_structured_format(target) || is_markup_format(target))
+        {
+            return convert_tier1_structured(input, staged_output, req, assessment, ctx);
+        }
+
         Err(FileFusionError::new(
             ErrorCode::FmtUnsupported,
             format!("no pure-Rust Tier 1 converter active yet for {source:?} -> {target:?}"),
         ))
     }
+}
+
+fn convert_tier1_archive(
+    input: &ValidatedSource,
+    staged_output: &StagedPath,
+    target_kind: ArchiveContainerKind,
+    assessment: &PreflightAssessment,
+    ctx: &JobContext,
+) -> FileFusionResult<ConversionFidelityReport> {
+    let source = input.inspection.detected_format;
+    let source_kind = ArchiveContainerKind::detect_from_path_with_limits(&input.path, &ctx.limits)?;
+    let entries = read_archive_entries_checked(&input.path, source_kind, &ctx.limits, ctx)?;
+    let _summary = create_archive_from_entries(
+        &entries,
+        staged_output.staged_path(),
+        target_kind,
+        CompressionProfile::BalancedOptimal,
+        ctx,
+    )?;
+    let validator = ArchiveOutputValidator {
+        allow_brotli: target_kind == ArchiveContainerKind::TarBrotli,
+    };
+    validator.validate_staged(
+        staged_output.staged_path(),
+        target_kind.outer_format_id(),
+        &ctx.limits,
+    )?;
+    let quality = ArchiveQualityEvaluator {
+        source_kind: Some(source_kind),
+        target_kind: Some(target_kind),
+    }
+    .evaluate(input, staged_output.staged_path(), ctx)?;
+    Ok(build_fidelity_report(
+        source,
+        target_kind.outer_format_id(),
+        assessment.warnings.clone(),
+        None,
+        None,
+        Some(quality),
+    ))
+}
+
+fn convert_tier1_markup(
+    input: &ValidatedSource,
+    staged_output: &StagedPath,
+    req: &ConversionRequest,
+    assessment: &PreflightAssessment,
+    ctx: &JobContext,
+) -> FileFusionResult<ConversionFidelityReport> {
+    let source = input.inspection.detected_format;
+    let target = req.target_format;
+    let raw_in = read_utf8_source_bounded(&input.path, ctx.limits.max_uncompressed_bytes)?;
+    ctx.check_cancelled()?;
+    let before = Some(analyze_markup_structure(&raw_in, source));
+    let rendered = markup::convert_markup_text(&raw_in, source, target, req.strip_metadata)?;
+    write_and_validate_text_staged(staged_output.staged_path(), target, &rendered, &ctx.limits)?;
+    let after = Some(analyze_markup_structure(&rendered, target));
+    Ok(build_fidelity_report(
+        source,
+        target,
+        assessment.warnings.clone(),
+        before,
+        after,
+        None,
+    ))
+}
+
+fn convert_tier1_structured(
+    input: &ValidatedSource,
+    staged_output: &StagedPath,
+    req: &ConversionRequest,
+    assessment: &PreflightAssessment,
+    ctx: &JobContext,
+) -> FileFusionResult<ConversionFidelityReport> {
+    let source = input.inspection.detected_format;
+    let target = req.target_format;
+    let raw_in = read_utf8_source_bounded(&input.path, ctx.limits.max_uncompressed_bytes)?;
+    ctx.check_cancelled()?;
+    let rendered = tabular::convert_structured_data(&raw_in, source, target, req.strip_metadata)?;
+    write_and_validate_text_staged(staged_output.staged_path(), target, &rendered, &ctx.limits)?;
+    let after = is_markup_format(target).then(|| analyze_markup_structure(&rendered, target));
+    let before = is_markup_format(target).then(|| StructuralInventory {
+        tables: 1,
+        ..StructuralInventory::default()
+    });
+    Ok(build_fidelity_report(
+        source,
+        target,
+        assessment.warnings.clone(),
+        before,
+        after,
+        None,
+    ))
+}
+
+fn read_utf8_source_bounded(path: &std::path::Path, max_bytes: u64) -> FileFusionResult<String> {
+    let meta = std::fs::metadata(path)?;
+    if meta.len() > max_bytes {
+        return Err(FileFusionError::new(
+            ErrorCode::SecBomb,
+            format!(
+                "text conversion input ({} bytes) exceeds limit ({max_bytes} bytes)",
+                meta.len()
+            ),
+        ));
+    }
+    let bytes = std::fs::read(path)?;
+    String::from_utf8(bytes).map_err(|err| {
+        FileFusionError::new(
+            ErrorCode::FmtCorrupt,
+            format!("input file is not valid UTF-8 text: {err}"),
+        )
+    })
+}
+
+fn write_and_validate_text_staged(
+    staged_path: &std::path::Path,
+    target: FormatId,
+    content: &str,
+    limits: &file_core::ResourceLimits,
+) -> FileFusionResult<()> {
+    let bytes = content.as_bytes();
+    if bytes.is_empty() {
+        return Err(FileFusionError::new(
+            ErrorCode::FmtCorrupt,
+            "converted text output is unexpectedly empty",
+        ));
+    }
+    let byte_len = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    if byte_len > limits.max_uncompressed_bytes {
+        return Err(FileFusionError::new(
+            ErrorCode::SecBomb,
+            format!(
+                "converted text output ({byte_len} bytes) exceeds limit ({} bytes)",
+                limits.max_uncompressed_bytes
+            ),
+        ));
+    }
+    std::fs::write(staged_path, bytes)?;
+    let sig = detect_signature_from_path(staged_path)?;
+    if sig.detected_format == FormatId::Executable {
+        return Err(FileFusionError::new(
+            ErrorCode::SecBomb,
+            "converted output was rejected by executable-signature gate",
+        ));
+    }
+    if matches!(target, FormatId::Html | FormatId::Xml) {
+        MagicByteOutputValidator.validate_staged(staged_path, target, limits)?;
+    }
+    if is_structured_format(target) {
+        let _reparsed = tabular::parse_structured_value(content, target)?;
+    } else if is_markup_format(target) {
+        let _reparsed = markup::parse_markup_document(content, target)?;
+    }
+    Ok(())
 }
 
 impl ConversionEngine for UniversalConversionEngine {
@@ -479,6 +614,20 @@ const fn is_audio_format(fmt: FormatId) -> bool {
             | FormatId::Opus
             | FormatId::Aac
             | FormatId::M4a
+    )
+}
+
+const fn is_markup_format(fmt: FormatId) -> bool {
+    matches!(
+        fmt,
+        FormatId::Markdown | FormatId::Html | FormatId::PlainText
+    )
+}
+
+const fn is_structured_format(fmt: FormatId) -> bool {
+    matches!(
+        fmt,
+        FormatId::Csv | FormatId::Json | FormatId::Yaml | FormatId::Xml
     )
 }
 
@@ -752,6 +901,155 @@ mod tests {
         assert_eq!(fid.source_format, FormatId::Wav);
         assert_eq!(fid.target_format, FormatId::Flac);
         assert_eq!(fid.quality.and_then(|q| q.bit_exact_lossless), Some(true));
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn converts_markdown_html_plaintext_with_xss_sanitization_and_fidelity()
+    -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("markup");
+        let md_path = dir.join("guide.md");
+        let html_path = dir.join("guide.html");
+        let md_roundtrip_path = dir.join("guide_rt.md");
+        let txt_path = dir.join("guide.txt");
+
+        let md_sample = "# Project Spec\n\nIntro paragraph with **bold** and *italic*.\n\n| Key | Value |\n| --- | --- |\n| Engine | FileFusion |\n\n- Alpha item\n- Beta item\n\n[Docs](https://example.org) ![Logo](logo.png)\n";
+        fs::write(&md_path, md_sample)?;
+
+        let engine = UniversalConversionEngine::new_tier1();
+        let ctx = JobContext::new("cnv-markup", ResourceLimits::default());
+        let src_md = ValidatedSource {
+            path: md_path.clone(),
+            inspection: inspect_path(&md_path, false)?,
+        };
+
+        // Markdown -> HTML preserves headings, tables, links, images.
+        let staged_html = StagedPath::create_sibling(&html_path)?;
+        let req_html = ConversionRequest {
+            target_format: FormatId::Html,
+            strip_metadata: true,
+            preserve_structure: true,
+            fail_on_breaking_loss: true,
+        };
+        let fid_html = engine.convert(&src_md, &staged_html, &req_html, &ctx)?;
+        assert_eq!(fid_html.headings_preserved, Some(1));
+        assert_eq!(fid_html.tables_preserved, Some(1));
+        assert_eq!(fid_html.links_preserved, Some(1));
+        assert_eq!(fid_html.images_preserved, Some(1));
+        let promoted_html = staged_html.promote(CollisionPolicy::OverwriteWithBackup)?;
+        let html_body = fs::read_to_string(&promoted_html)?;
+        assert!(html_body.starts_with("<!DOCTYPE html>"));
+        assert!(!html_body.contains("name=\"generator\""));
+
+        // Inject XSS payloads into HTML and verify HTML -> Markdown strips script/handlers/javascript URLs.
+        let dirty_html = "<!DOCTYPE html><html><body><h1>Safe Title</h1><script>alert(1)</script><p onclick=\"evil()\">Hello</p><a href=\"javascript:alert(2)\">Bad</a><a href=\"https://ok.test\">Good</a></body></html>";
+        let dirty_html_path = dir.join("dirty.html");
+        fs::write(&dirty_html_path, dirty_html)?;
+        let src_dirty = ValidatedSource {
+            path: dirty_html_path.clone(),
+            inspection: inspect_path(&dirty_html_path, false)?,
+        };
+        let staged_rt = StagedPath::create_sibling(&md_roundtrip_path)?;
+        let req_md = ConversionRequest {
+            target_format: FormatId::Markdown,
+            strip_metadata: false,
+            preserve_structure: true,
+            fail_on_breaking_loss: true,
+        };
+        let fid_rt = engine.convert(&src_dirty, &staged_rt, &req_md, &ctx)?;
+        assert_eq!(fid_rt.headings_preserved, Some(1));
+        let promoted_rt = staged_rt.promote(CollisionPolicy::OverwriteWithBackup)?;
+        let rt_text = fs::read_to_string(&promoted_rt)?;
+        assert!(!rt_text.contains("alert("));
+        assert!(!rt_text.contains("javascript:"));
+        assert!(rt_text.contains("# Safe Title"));
+        assert!(rt_text.contains("[Good](https://ok.test)"));
+
+        // Markdown -> PlainText surfaces FID-MARKUP-PLAINTEXT warning.
+        let staged_txt = StagedPath::create_sibling(&txt_path)?;
+        let req_txt = ConversionRequest {
+            target_format: FormatId::PlainText,
+            strip_metadata: true,
+            preserve_structure: false,
+            fail_on_breaking_loss: true,
+        };
+        let fid_txt = engine.convert(&src_md, &staged_txt, &req_txt, &ctx)?;
+        assert!(
+            fid_txt
+                .warnings
+                .iter()
+                .any(|w| w.code == "FID-MARKUP-PLAINTEXT")
+        );
+        let promoted_txt = staged_txt.promote(CollisionPolicy::OverwriteWithBackup)?;
+        let txt_out = fs::read_to_string(&promoted_txt)?;
+        assert!(txt_out.contains("Project Spec"));
+        assert!(txt_out.contains("Engine\tFileFusion"));
+
+        let _ = fs::remove_dir_all(&dir);
+        Ok(())
+    }
+
+    #[test]
+    fn converts_csv_json_yaml_xml_roundtrip_and_blocks_xxe() -> Result<(), Box<dyn Error>> {
+        let dir = unique_temp_dir("tabular");
+        let csv_path = dir.join("users.csv");
+        let json_path = dir.join("users.json");
+        let yaml_path = dir.join("users.yaml");
+        let xml_path = dir.join("users.xml");
+        let md_path = dir.join("users.md");
+        let csv_rt_path = dir.join("users_rt.csv");
+
+        fs::write(
+            &csv_path,
+            "id,name,active\n1,\"Alice, A.\",true\n2,Bob,false\n",
+        )?;
+
+        let engine = UniversalConversionEngine::new_tier1();
+        let ctx = JobContext::new("cnv-tab", ResourceLimits::default());
+        let run_step =
+            |src_path: &std::path::Path,
+             dst_path: &std::path::Path,
+             target: FormatId|
+             -> Result<(std::path::PathBuf, ConversionFidelityReport), Box<dyn Error>> {
+                let src = ValidatedSource {
+                    path: src_path.to_path_buf(),
+                    inspection: inspect_path(src_path, false)?,
+                };
+                let staged = StagedPath::create_sibling(dst_path)?;
+                let req = ConversionRequest {
+                    target_format: target,
+                    strip_metadata: false,
+                    preserve_structure: true,
+                    fail_on_breaking_loss: true,
+                };
+                let fid = engine.convert(&src, &staged, &req, &ctx)?;
+                Ok((staged.promote(CollisionPolicy::OverwriteWithBackup)?, fid))
+            };
+
+        let (promoted_json, _) = run_step(&csv_path, &json_path, FormatId::Json)?;
+        assert!(fs::read_to_string(&promoted_json)?.contains("\"Alice, A.\""));
+
+        let (promoted_yaml, _) = run_step(&promoted_json, &yaml_path, FormatId::Yaml)?;
+        let (promoted_xml, _) = run_step(&promoted_yaml, &xml_path, FormatId::Xml)?;
+        let (promoted_csv_rt, fid_csv) = run_step(&promoted_xml, &csv_rt_path, FormatId::Csv)?;
+        assert!(fid_csv.warnings.iter().any(|w| w.code == "FID-CSV-FLATTEN"));
+        let rt_csv_text = fs::read_to_string(&promoted_csv_rt)?;
+        assert!(rt_csv_text.contains("active,id,name"));
+        assert!(rt_csv_text.contains("\"Alice, A.\""));
+        assert!(rt_csv_text.contains("Bob"));
+
+        let (_promoted_md, fid_md) = run_step(&csv_path, &md_path, FormatId::Markdown)?;
+        assert_eq!(fid_md.tables_preserved, Some(1));
+
+        // XXE / Billion Laughs ENTITY bomb must be blocked cleanly (`SecBomb`).
+        let xxe =
+            "<?xml version=\"1.0\"?><!DOCTYPE lolz [<!ENTITY lol \"lol\">]><root>&lol;</root>";
+        let xxe_err = tabular::parse_structured_value(xxe, FormatId::Xml)
+            .err()
+            .map(|e| e.diagnostic.code);
+        assert_eq!(xxe_err, Some(ErrorCode::SecBomb));
 
         let _ = fs::remove_dir_all(&dir);
         Ok(())

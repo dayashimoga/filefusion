@@ -60,6 +60,19 @@ pub fn evaluate_preflight(
     }
 }
 
+fn push_warning(
+    warnings: &mut Vec<PreflightWarning>,
+    code: &str,
+    severity: FidelitySeverity,
+    message: String,
+) {
+    warnings.push(PreflightWarning {
+        code: String::from(code),
+        severity,
+        message,
+    });
+}
+
 fn collect_preflight_warnings(
     inspection: &FileInspectionReport,
     source: FormatId,
@@ -69,39 +82,76 @@ fn collect_preflight_warnings(
     let mut warnings = Vec::new();
 
     if inspection.metadata_summary.is_encrypted {
-        warnings.push(PreflightWarning {
-            code: String::from("FID-DRM-ENCRYPTED"),
-            severity: FidelitySeverity::BreakingLoss,
-            message: String::from(
+        push_warning(
+            &mut warnings,
+            "FID-DRM-ENCRYPTED",
+            FidelitySeverity::BreakingLoss,
+            String::from(
                 "Source container appears encrypted/DRM-protected; unlock before converting.",
             ),
-        });
+        );
     }
 
     if matches!(source, FormatId::Xlsx | FormatId::Ods)
         && matches!(target, FormatId::Csv | FormatId::Json | FormatId::PlainText)
     {
-        warnings.push(PreflightWarning {
-            code: String::from("FID-XLSX-FORMULAS"),
-            severity: FidelitySeverity::BreakingLoss,
-            message: format!(
+        push_warning(
+            &mut warnings,
+            "FID-XLSX-FORMULAS",
+            FidelitySeverity::BreakingLoss,
+            format!(
                 "Spreadsheet formulas, multiple sheets, and styling are flattened when exporting {source:?} to {target:?}."
             ),
-        });
+        );
     }
 
     if matches!(source, FormatId::Pptx | FormatId::Odp)
         && matches!(target, FormatId::Pdf | FormatId::Png | FormatId::Jpeg)
     {
-        warnings.push(PreflightWarning {
-            code: String::from("FID-PPTX-ANIMATIONS"),
-            severity: FidelitySeverity::BreakingLoss,
-            message: format!(
+        push_warning(
+            &mut warnings,
+            "FID-PPTX-ANIMATIONS",
+            FidelitySeverity::BreakingLoss,
+            format!(
                 "Slide transitions, animations, and embedded speaker timings are dropped in static {target:?} output."
             ),
-        });
+        );
     }
 
+    if matches!(source, FormatId::Markdown | FormatId::Html) && target == FormatId::PlainText {
+        push_warning(
+            &mut warnings,
+            "FID-MARKUP-PLAINTEXT",
+            FidelitySeverity::Warning,
+            format!(
+                "Headings, table grid formatting, hyperlinks, and styling from {source:?} are stripped in PlainText."
+            ),
+        );
+    }
+
+    if matches!(source, FormatId::Json | FormatId::Yaml | FormatId::Xml) && target == FormatId::Csv
+    {
+        push_warning(
+            &mut warnings,
+            "FID-CSV-FLATTEN",
+            FidelitySeverity::Warning,
+            format!(
+                "Hierarchical objects and arrays from {source:?} are flattened into 2D CSV cells."
+            ),
+        );
+    }
+
+    collect_image_and_plan_warnings(&mut warnings, inspection, source, target, plan);
+    warnings
+}
+
+fn collect_image_and_plan_warnings(
+    warnings: &mut Vec<PreflightWarning>,
+    inspection: &FileInspectionReport,
+    source: FormatId,
+    target: FormatId,
+    plan: Option<&ResolvedConversionPlan>,
+) {
     let source_has_alpha = inspection
         .metadata_summary
         .color_space
@@ -112,13 +162,14 @@ fn collect_preflight_warnings(
         })
         || matches!(source, FormatId::Png | FormatId::Webp | FormatId::Gif);
     if source_has_alpha && matches!(target, FormatId::Jpeg | FormatId::Bmp) {
-        warnings.push(PreflightWarning {
-            code: String::from("FID-ALPHA-DROP"),
-            severity: FidelitySeverity::Warning,
-            message: format!(
+        push_warning(
+            warnings,
+            "FID-ALPHA-DROP",
+            FidelitySeverity::Warning,
+            format!(
                 "Transparency/alpha channels cannot be stored in {target:?} and will be flattened."
             ),
-        });
+        );
     }
 
     if source == FormatId::Gif
@@ -127,36 +178,37 @@ fn collect_preflight_warnings(
             FormatId::Png | FormatId::Jpeg | FormatId::Bmp | FormatId::Tiff
         )
     {
-        warnings.push(PreflightWarning {
-            code: String::from("FID-ANIM-FLATTEN"),
-            severity: FidelitySeverity::Warning,
-            message: format!("Multi-frame GIF animation flattens to first frame in {target:?}."),
-        });
+        push_warning(
+            warnings,
+            "FID-ANIM-FLATTEN",
+            FidelitySeverity::Warning,
+            format!("Multi-frame GIF animation flattens to first frame in {target:?}."),
+        );
     }
 
     if let Some(p) = plan {
         if !p.is_lossless_chain && warnings.is_empty() {
-            warnings.push(PreflightWarning {
-                code: String::from("FID-LOSSY-TRANSFORM"),
-                severity: FidelitySeverity::Info,
-                message: format!(
+            push_warning(
+                warnings,
+                "FID-LOSSY-TRANSFORM",
+                FidelitySeverity::Info,
+                format!(
                     "Converting {source:?} -> {target:?} uses perceptual encoding or container re-encoding."
                 ),
-            });
+            );
         }
         if !p.required_tier2_tools.is_empty() {
-            warnings.push(PreflightWarning {
-                code: String::from("FID-TIER2-REQUIRED"),
-                severity: FidelitySeverity::Info,
-                message: format!(
+            push_warning(
+                warnings,
+                "FID-TIER2-REQUIRED",
+                FidelitySeverity::Info,
+                format!(
                     "Route executes out-of-process via isolated Tier 2 binary: {}.",
                     p.required_tier2_tools.join(", ")
                 ),
-            });
+            );
         }
     }
-
-    warnings
 }
 
 /// Scans markup/document text (`Markdown` or `HTML`) to inventory headings, tables, hyperlinks,
